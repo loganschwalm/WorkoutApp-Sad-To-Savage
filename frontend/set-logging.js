@@ -13,10 +13,11 @@ function nextSetDefaults(exercise, previous, timed) {
   const plan = Array.isArray(exercise.plan) && exercise.plan.length ? exercise.plan : null;
   const planned = plan ? plan[plannedDone(exercise)] : null;
   if (planned) {
-    // A planned set with no weight (an assistance exercise) takes the set just logged, or last time's.
+    // A planned set with no weight (an assistance exercise) takes the set just logged, or last time's, or else the weight the plan
+    // suggests to start at (a program that gives a range for the lifter's level).
     const plannedWeight = planned.weight === '' || planned.weight === undefined || planned.weight === null ? null : planned.weight;
     return {
-      weight:plannedWeight ?? (lastSet ? lastSet.weight || '' : (previousFirst && previousFirst.weight) || ''),
+      weight:plannedWeight ?? (lastSet ? lastSet.weight || '' : (previousFirst && previousFirst.weight) || planned.start || ''),
       // A rep range (8–12) takes the reps just done, or last time's, and starts at the bottom of the range.
       reps:planned.repsMax ? (lastSet || previousFirst || planned).reps || '' : planned.reps || ''
     };

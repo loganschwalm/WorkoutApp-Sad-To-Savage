@@ -450,7 +450,9 @@ time; it cannot follow another, and the `definition` of the stored program is al
   `group` so a block is done as rounds (a set of each in turn, rest after the round: see Supersets above), then **Cool-down**, one
   timed exercise of four minutes (the plan says 3-5) with the day's stretches as its note. Every move is `rounds` sets with weight left
   to the lifter (`''`): the level's range is the exercise's **note**, shown under the set to do ("New to strength: 7.5-10lb DBs", "Shelby's
-  weights: 12.5-15lb DBs"), and the number field starts from last time. Reps can be a range ("8-10"), "each side" is in the set's text
+  weights: 12.5-15lb DBs"), and the number field starts from last time or, the first time a move is done, at the bottom of the
+  level's range in the unit shown ("7.5-10lb DBs" starts at 7.5 lbs, 3.5 kg; a band, a bench or body weight starts empty): the plan's
+  sets carry a `start`, which `nextSetDefaults` uses only when there is no last time. Reps can be a range ("8-10"), "each side" is in the set's text
   ("Set 1 of 3: 12 reps each side."), a hold is in seconds, and "steps each way" counts steps. Every exercise rests 90 seconds
   after a round (the plan says 1-2 minutes), and the rest timer shortens it after a warm-up set as it always does. A Pilates day is
   **Mat Pilates: Full Body Focus** (the focus of the day), one timed exercise as long as the plan says (25 minutes shows as "25 minutes"

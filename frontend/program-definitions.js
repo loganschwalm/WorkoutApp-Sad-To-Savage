@@ -51,14 +51,25 @@ function sadToSavageMoveTarget(move) {
   return `${count} ${move.unit || 'reps'}${move.per ? ` ${move.per}` : ''}`;
 }
 
+// The weight a move starts at the first time it is done: the bottom of the range the level gives, as the plan writes it in pounds
+// ("7.5-10lb DBs" starts at 7.5, "35-45lbs (total)" at 35), in the unit shown. A band, a bench or body weight has none ('').
+// It is only where the weight field starts: what was lifted last time is used instead once there is a last time.
+function sadToSavageStartWeight(range) {
+  const match = /^(\d+(?:\.\d+)?)(?:-\d+(?:\.\d+)?)?\s*lbs?/.exec(range || '');
+  if (!match) return '';
+  const pounds = Number(match[1]);
+  return weightUnit() === 'kg' ? Math.round(pounds * 0.45359237 * 2) / 2 : pounds;
+}
+
 // One move of a circuit as an exercise of the workout: a set of it per round, all at the weight the lifter chooses. The
 // moves of a circuit share a group, which is how the workout knows they are done as rounds (a set of each in turn, then rest).
 function sadToSavageExercise(move, rounds, group, level, warmup) {
   const timed = move.unit === 'seconds';
   const range = !warmup && level ? move[level.value] : '';
+  const start = sadToSavageStartWeight(range);
   const notes = [range ? `${level.label}: ${range}` : '', move.note || ''].filter(Boolean).join('. ');
   const set = { weight:'', reps:move.reps, ...(move.repsMax ? { repsMax:move.repsMax } : {}), ...(move.unit ? { unit:move.unit } : {}),
-    ...(move.per ? { per:move.per } : {}), ...(warmup ? { warmup:true } : {}) };
+    ...(move.per ? { per:move.per } : {}), ...(warmup ? { warmup:true } : {}), ...(start !== '' ? { start } : {}) };
   return { name:move.name, weight:'', reps:String(move.reps), group, rest:sadToSavageRest, ...(timed ? { timed:true } : {}),
     ...(notes ? { note:notes } : {}), plan:repeatSets(rounds, set) };
 }

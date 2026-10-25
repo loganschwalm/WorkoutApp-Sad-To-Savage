@@ -119,6 +119,16 @@ def run(t):
     check('every move is three rounds, the cool-down one timed session', [e['plan'] for e in day] == [3] * 11 + [1] and day[-1]['timed'] is True)
     check('a move says the level\'s range', day[3]['note'] == 'New to strength: 7.5-10lb DBs' and day[4]['note'] == 'New to strength: light band', day[3])
     check('a warm-up move has no range', day[0]['note'] == '')
+    check('the weight starts at the bottom of the level’s range: 7.5 lbs for the dumbbell press, nothing for a band or a warm-up',
+          cdp.ev("[3, 4, 0].map(index => activeSession.exercises[index].plan[0].start ?? null)") == [7.5, None, None])
+    cdp.ev('goToExercise(3)')
+    check('and the weight field is filled in with it', t.field('activeWeight') == '7.5', t.field('activeWeight'))
+    cdp.ev('goToExercise(0)')
+    check('a number is read from a range, a single weight, a barbell’s total and a pound or kilogram unit, and not from a band or body weight',
+          cdp.ev("""(() => { const real = weightUnit; const lbs = ['7.5-10lb DBs', '10lbs', '35-45lbs (total)', 'light band', 'body weight', 'from bench'].map(sadToSavageStartWeight);
+            weightUnit = () => 'kg'; const kg = sadToSavageStartWeight('7.5-10lb DBs'); weightUnit = real; return [lbs, kg]; })()""") == [[7.5, 10, 35, '', '', ''], 3.5])
+    check('last time’s weight is used instead once there is one',
+          cdp.ev("nextSetDefaults({ sets: [], plan: [{ weight: '', reps: 12, start: 7.5 }] }, { sets: [{ weight: 10, reps: 12 }], converted: false }, false).weight") == 10)
     check('the first set is a warm-up, 15 reps each side', target() == 'Set 1 of 3, warm-up: 15 reps each side.', target())
     check('the circuit is done as rounds: a set of each, then the next', 'Superset with Single DB Curl + Press and Band Pull Apart' in cdp.ev("document.getElementById('supersetLine').textContent"))
     for _ in range(3):
