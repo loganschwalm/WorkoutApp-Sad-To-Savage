@@ -2,10 +2,11 @@
 // program moves as the lifter progresses. This file is what every program shares; program-definitions.js says what
 // each program is. The program being followed is kept per account beside settings and templates (offline.js saves it
 // on this device first and uploads it). Loaded before script.js, whose startWorkout begins the program's workouts.
+// More than a year of daily walks is kept; a program with more than that has long been over. (Above currentProgram, which
+// reads the stored program as it is declared.)
+const maxWalks = 400;
 let currentProgram = loadProgram();
 let programForm = null;
-// More than a year of daily walks is kept; a program with more than that has long been over.
-const maxWalks = 400;
 
 function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);

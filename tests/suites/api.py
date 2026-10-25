@@ -1399,18 +1399,23 @@ def run_structure(t, check, request):
     t.api('PUT', '/api/state', {'settings': {'restDuration': 75}}, token)
     state = t.api('GET', '/api/state', token=token)[0]
     check('saving only settings leaves the program alone', state.get('program') == program and state['templates'] == [template], state)
-    built = {'definition': 'custom', 'startedAt': 1, 'cycle': 1, 'trainingMaxes': {}, 'name': 'Upper/Lower',
-             'days': [{'name': 'Upper A', 'template': 'custom-1'}, {'name': 'Lower', 'template': 'built-in-2'}]}
+    walked = {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'unit': 'lbs', 'trainingMaxes': {}, 'options': {'level': 'nts'}, 'done': {'0-0': {'at': 2, 'skipped': False}},
+              'walks': {'2026-10-25': {'at': 3, 'steps': 8200, 'distance': 3.9, 'unit': 'mi'}, '2026-10-26': {'at': 4, 'steps': 0, 'distance': 0, 'unit': 'km'}}, 'finishedAt': 5}
     for label, body, expected in [
-        ('a built program with a name that is a number', {'program': {**built, 'name': 5}}, 400),
-        ('a built program whose days are not a list', {'program': {**built, 'days': {'Upper': 'custom-1'}}}, 400),
-        ('a built program of 8 days', {'program': {**built, 'days': [{'name': f'Day {n}', 'template': 'custom-1'} for n in range(8)]}}, 400),
-        ('a built program with a day of no template', {'program': {**built, 'days': [{'name': 'Upper A', 'template': ''}]}}, 400),
-        ('a valid built program', {'program': built}, 200),
+        ('walks that are a list', {'program': {**walked, 'walks': []}}, 400),
+        ('a walk kept under a name rather than a day', {'program': {**walked, 'walks': {'today': {'steps': 1, 'distance': 0, 'unit': 'mi'}}}}, 400),
+        ('a walk that is a number', {'program': {**walked, 'walks': {'2026-10-25': 5}}}, 400),
+        ('a walk of a million steps', {'program': {**walked, 'walks': {'2026-10-25': {'steps': 10 ** 6, 'distance': 0, 'unit': 'mi'}}}}, 400),
+        ('a walk of negative distance', {'program': {**walked, 'walks': {'2026-10-25': {'steps': 0, 'distance': -1, 'unit': 'mi'}}}}, 400),
+        ('a walk of steps that are a word', {'program': {**walked, 'walks': {'2026-10-25': {'steps': 'many', 'distance': 0, 'unit': 'mi'}}}}, 400),
+        ('a walk in furlongs', {'program': {**walked, 'walks': {'2026-10-25': {'steps': 0, 'distance': 1, 'unit': 'fur'}}}}, 400),
+        ('more than 400 days of walks', {'program': {**walked, 'walks': {f'2025-{1 + n // 28:02d}-{1 + n % 28:02d}': {'steps': 1, 'distance': 0, 'unit': 'mi'} for n in range(401)}}}, 400),
+        ('a finish time that is a word', {'program': {**walked, 'finishedAt': 'done'}}, 400),
+        ('a program with walks and a finish time, and no lifts', {'program': walked}, 200),
     ]:
         status, _, reply = request('PUT', '/api/state', json.dumps(body).encode(), json_headers, token=token)
         check(f'PUT /api/state with {label} -> {expected}', status == expected, f'{status} {reply}')
-    check('the built program is stored as sent', t.api('GET', '/api/state', token=token)[0].get('program') == built)
+    check('the walks and the finish are stored as sent', t.api('GET', '/api/state', token=token)[0].get('program') == walked)
     status, _, _ = request('PUT', '/api/state', json.dumps({'program': None}).encode(), json_headers, token=token)
     state = t.api('GET', '/api/state', token=token)[0]
     for label, body, expected in [

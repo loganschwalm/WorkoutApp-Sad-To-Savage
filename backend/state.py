@@ -12,8 +12,15 @@ from config import DEFAULT_REMINDER_TIME, MAX_STATE_PART_BYTES
 from validation import BadRequest, is_number, listed, text, validate_exercises, weight_unit
 
 
+# The most a day's walk can be, as the Tracker takes it; nothing it sends comes near these.
+MAX_WALKS = 400
+MAX_WALK_STEPS = 200000
+MAX_WALK_DISTANCE = 500
+
+
 def validate_program(program):
-    """The program being followed: null, or an object naming its definition with a number for every training max."""
+    """The program being followed: null, or an object naming its definition, with a number for every training max (none for a
+    program that has no lifts to move), the days done and the walks."""
     if program is None:
         return
     if not isinstance(program, dict):
@@ -29,13 +36,26 @@ def validate_program(program):
     for field in ('options', 'done', 'stalls'):
         if program.get(field) is not None and not isinstance(program[field], dict):
             raise BadRequest(f'program.{field} must be an object.')
-    # A program the lifter built has a name and up to 7 days, each named and done from a template, by its id.
-    text(program.get('name'), 'program.name', 200)
-    if program.get('days') is not None:
-        for index, day in enumerate(listed(program['days'], 'program.days', 7)):
-            text(day.get('name'), f'program.days[{index}].name', 200)
-            if not text(day.get('template'), f'program.days[{index}].template', 200):
-                raise BadRequest(f'program.days[{index}].template must name the template the day does.')
+    # The daily walks, by the day they were walked (year-month-day): how many steps, how far and in what unit, either number
+    # possibly nothing, since a walk with neither is showing up. At most a year's and some more; the page keeps no more.
+    walks = program.get('walks')
+    if walks is not None:
+        if not isinstance(walks, dict) or len(walks) > MAX_WALKS:
+            raise BadRequest(f'program.walks must be an object of at most {MAX_WALKS} days.')
+        for day, walk in walks.items():
+            if not (isinstance(day, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}', day)):
+                raise BadRequest('program.walks must be kept by day, as year-month-day.')
+            if not isinstance(walk, dict):
+                raise BadRequest(f'program.walks[{day}] must be an object.')
+            for field, most in (('steps', MAX_WALK_STEPS), ('distance', MAX_WALK_DISTANCE), ('at', 10 ** 14)):
+                if walk.get(field) is not None and not (is_number(walk[field]) and 0 <= walk[field] <= most):
+                    raise BadRequest(f'program.walks[{day}].{field} must be a number from 0 to {most}.')
+            if walk.get('unit') not in ('mi', 'km'):
+                raise BadRequest(f'program.walks[{day}].unit must be mi or km.')
+    # When a program of a fixed length was finished, if it was.
+    finished = program.get('finishedAt')
+    if finished is not None and not (is_number(finished) and 0 <= finished <= 10 ** 14):
+        raise BadRequest('program.finishedAt must be a time, in milliseconds.')
 
 
 # The muscle an exercise mostly works, and what it is done with, as exercise-library.js offers them.
