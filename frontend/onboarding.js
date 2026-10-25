@@ -68,6 +68,11 @@ function onboardingLevelChoices() {
   return programDefinitions[0].options[0].choices.map(choice => onboardingChoice('onboardingLevel', choice.value, choice.label, '', choice.help)).join('');
 }
 
+// Whether the two Pilates days a week are part of it, worded as the setup form words it.
+function onboardingPilatesChoices() {
+  return programDefinitions[0].options[1].choices.map(choice => onboardingChoice('onboardingPilates', choice.value, choice.label, '', choice.help)).join('');
+}
+
 // Monday first, as Settings and the calendar show the week, each with the number the settings keep (Sunday is 0).
 function onboardingDayChoices() {
   return trainingDays.map(([value, short, name]) => `<label class="weekday"><input type="checkbox" name="onboardingDay" value="${value}" aria-label="${name}" />`
@@ -100,7 +105,9 @@ function onboardingMarkup() {
         <p class="onboarding-text">It keeps working when the connection drops: what you log is saved on this device and uploads once you are back online.</p>
         <p class="onboarding-note">A few choices and you are ready to start. It takes about a minute, and any of it can be changed later.</p>`)}
       ${onboardingStep('level', 'Which weights?', `<p class="onboarding-lead">Every exercise in the program gives a range of weight (or a band) for two levels. Choose the one you will follow; you can change it at any time, and the days still to do follow it.</p>
-        <fieldset class="onboarding-group"><legend>Your level</legend><div class="onboarding-choices">${onboardingLevelChoices()}</div></fieldset>`)}
+        <fieldset class="onboarding-group"><legend>Your level</legend><div class="onboarding-choices">${onboardingLevelChoices()}</div></fieldset>
+        <fieldset class="onboarding-group"><legend>Pilates days</legend><div class="onboarding-choices">${onboardingPilatesChoices()}</div></fieldset>
+        <p class="onboarding-note">The plan has two mat Pilates days a week. Choose strength only and they are skipped: the program is the three strength days and the walk.</p>`)}
       ${onboardingStep('units', 'Pounds or kilograms?', `<p class="onboarding-lead">Every weight is shown in the unit you choose, from Today to your charts. Switching later never changes what you logged.</p>
         <fieldset class="onboarding-group"><legend>Weight</legend><div class="onboarding-segments">${onboardingChoice('onboardingUnit', 'lbs', 'Pounds', 'lbs', '', 'segment')}${onboardingChoice('onboardingUnit', 'kg', 'Kilograms', 'kg', '', 'segment')}</div></fieldset>
         <fieldset class="onboarding-group"><legend>Distance, for your walk</legend><div class="onboarding-segments">${onboardingChoice('onboardingDistance', 'mi', 'Miles', 'mi', '', 'segment')}${onboardingChoice('onboardingDistance', 'km', 'Kilometres', 'km', '', 'segment')}</div></fieldset>
@@ -155,7 +162,8 @@ function onboardingChoices() {
   const definition = programDefinitions[0];
   const chosen = onboardingRadio('onboardingLevel')?.value;
   const level = definition.options[0].choices.find(choice => choice.value === chosen) || definition.options[0].choices[0];
-  return { unit, distanceUnit, weeklyGoal:weeklyGoalFrom($('onboardingGoal').value), days, definition, level };
+  const pilates = onboardingRadio('onboardingPilates')?.value === 'no' ? 'no' : 'yes';
+  return { unit, distanceUnit, weeklyGoal:weeklyGoalFrom($('onboardingGoal').value), days, definition, level, pilates };
 }
 
 // Every opening starts from the settings as they are, so a welcome seen again shows what was chosen since. The program is five days a
@@ -169,6 +177,7 @@ function onboardingPrefill() {
   const { days } = scheduleFrom(settings);
   $('onboarding').querySelectorAll('input[name="onboardingDay"]').forEach(input => { input.checked = days.includes(Number(input.value)); });
   onboardingSetRadio('onboardingLevel', currentProgram ? currentProgram.options.level : programDefinitions[0].options[0].default);
+  onboardingSetRadio('onboardingPilates', currentProgram ? currentProgram.options.pilates : programDefinitions[0].options[1].default);
 }
 
 // The last step says back what was chosen, and its button says what it will do.
@@ -177,6 +186,7 @@ function onboardingRenderReady() {
   const dayNames = trainingDays.filter(([value]) => choices.days.includes(value)).map(([, short]) => short);
   const rows = [
     ['Level', choices.level.label],
+    ['Pilates', choices.pilates === 'no' ? 'Strength only: the Pilates days are skipped' : 'Included'],
     ['Units', `${choices.unit === 'kg' ? 'Kilograms' : 'Pounds'} and ${choices.distanceUnit === 'km' ? 'kilometres' : 'miles'}`],
     ['Weekly goal', `${choices.weeklyGoal} workout${choices.weeklyGoal === 1 ? '' : 's'} a week`],
     ['Training days', dayNames.length ? dayNames.join(', ') : 'None yet']
@@ -294,8 +304,10 @@ function finishOnboarding(reason) {
       const choices = onboardingChoices();
       saveLocalState('settings', { ...settings, unit:choices.unit, distanceUnit:choices.distanceUnit, weeklyGoal:choices.weeklyGoal,
         schedule:{ days:choices.days, time:scheduleFrom().time }, welcomed:true });
-      const options = { [choices.definition.options[0].id]:choices.level.value };
-      saveProgram(normalizeProgram(currentProgram ? { ...currentProgram, options } : { definition:choices.definition.id, startedAt:Date.now(), cycle:1, done:{}, walks:{}, options }));
+      const options = { [choices.definition.options[0].id]:choices.level.value, [choices.definition.options[1].id]:choices.pilates };
+      // Leaving the Pilates days out can finish a program whose strength days are all done; putting them back reopens it.
+      const { finishedAt, ...unfinished } = currentProgram || { definition:choices.definition.id, startedAt:Date.now(), cycle:1, done:{}, walks:{} };
+      saveProgram(settleProgram(normalizeProgram({ ...unfinished, options })));
     } else {
       saveLocalState('settings', { ...settings, welcomed:true });
     }

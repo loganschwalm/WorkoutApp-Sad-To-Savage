@@ -442,10 +442,17 @@ time; it cannot follow another, and the `definition` of the stored program is al
   level). Spellings are the plan's own, a few typos mended ("20-30bs"). **The plan has no Pilates video links**: the PDF's pages for
   those days carry none, so a Pilates day is Shelby's message, the equipment and a timer, and you follow the video from her program.
 - **Starting it.** Before there is a program the card says what it is ("Ready when you are") with Start the program and the six weeks
-  listed (no Start buttons). Start the program opens a dialog that asks for the one option, the **level**: New to strength (the lighter
-  range for each exercise) or Shelby's weights (the heavier). The welcome (see [The welcome](#the-welcome)) asks it too and starts the
-  program itself. Change level, in the card's ⋯ menu, opens the same dialog; the days still to do take the new level, and days done
-  are untouched. Start over, in the same menu, asks first and then clears the program, its days and its walks (the workouts finished
+  listed (no Start buttons). Start the program opens a dialog that asks for two options. The **level**: New to strength (the lighter
+  range for each exercise) or Shelby's weights (the heavier). And **Pilates days**: included (the plan as written) or **Strength only**.
+  The welcome (see [The welcome](#the-welcome)) asks both too and starts the program itself. Change level, in the card's ⋯ menu, opens
+  the same dialog; the days still to do take the new level, and days done are untouched.
+- **Strength only** (`options.pilates === 'no'`). The definition's `dayActive` hook leaves the two Pilates days of every week out of
+  the run: `nextProgramDay` never lands on one, the weeks list does not show them ("3 strength" per week, "0 of 3 done"), the summary
+  counts 18 days rather than 30 (`activeDayCount`, `activeDaysDone` in `program-plan.js`), the schedule's queue (`programQueue`) and the
+  program calendar's span skip them, and the program finishes when the last strength day is done ("all 18 days done"). Nothing is
+  written for a day left out, so it is not skipped, just not there. Changing the option later reworks the run: days done stay done
+  (a Pilates day done earlier still shows in History, it just no longer counts), turning Pilates off can finish the program and turning
+  it back on reopens it (`finishedAt` is recomputed by `settleProgram`). A program without a `dayActive` hook has every day. Start over, in the same menu, asks first and then clears the program, its days and its walks (the workouts finished
   stay in History); it is a different thing from the finished program's Start again, below.
 - **What a day is as a workout** (`sadToSavageStrength`, `sadToSavagePilates`). A workout is named for its day ("W1D1 Upper Body
   Focus") and History says "Week 1 of 6". A strength day is the warm-up circuit's moves (three rounds, each set tagged as a warm-up,
@@ -485,14 +492,14 @@ time; it cannot follow another, and the `definition` of the stored program is al
   walks are kept (the latest). Walks sync with the program (a day on its own merges with another device's, the later change to the same
   day winning whole) and are checked by the server (`validate_program`).
 - **Finishing.** When every day is done or skipped the program is *finished* (`program.finishedAt`, set once by `settleProgram`): the
-  workout that finished it says so in its summary ("You finished Sad to Savage: all thirty days done.") with the biggest fireworks,
+  workout that finished it says so in its summary ("You finished Sad to Savage: all 30 days done.", or 18 with Strength only) with the biggest fireworks,
   the card says "You finished Sad to Savage" with the days done and skipped, the walks logged and the distance in all, and offers
   **Start again**. Start again is a new run from week 1 (`cycle` goes up and `startedAt` is now, so the old run's days are not carried
   into it and another device that is still in the old run is superseded), keeping the level and the walks; it is undone by nothing,
   but nothing finished is lost: the workouts stay in History. Skipping the last day finishes the program too, with Undo for ten
   seconds.
 - **What is stored** (`normalizeProgram`; one of the account's synced state parts, `program`): `{ definition, startedAt, cycle,
-  options: { level }, done: { "0-0": { at, skipped } }, walks: { "2026-10-25": { at, steps, distance, unit } }, finishedAt? }`, the days
+  options: { level, pilates }, done: { "0-0": { at, skipped } }, walks: { "2026-10-25": { at, steps, distance, unit } }, finishedAt? }`, the days
   keyed week-day from 0. It has no weights, lifts or unit of its own: how heavy to go is the lifter's call. A program that is not whole
   (an unknown definition, say) is no program. The server (`validate_program`) checks only the shape: the options and days done are
   objects, the walks are kept by day with numbers in range and a unit of `mi` or `km`, and `finishedAt` is a time. Merging two devices'
@@ -859,14 +866,15 @@ letting it into the app, and start the program.
   never see it, and nor does an account that was welcomed on another device. Whatever goes wrong starting it is caught in
   `script.js`, so the Tracker starts either way.
 - **The steps**, in order (`data-step`): `welcome` (what the app is), `level` (New to strength or Shelby's weights, the first chosen to
-  begin with), `units` (pounds or kilograms, miles or kilometres for the walk), `week` (the weekly goal, 1 to 7, starting from 5 for an
+  begin with, and under it whether to include the Pilates days, included to begin with), `units` (pounds or kilograms, miles or kilometres for the walk), `week` (the weekly goal, 1 to 7, starting from 5 for an
   account not yet welcomed since the program is five days a week, and the days you train, Monday first), `tour` (Today, Progress and
   History) and `ready`, which says back what was chosen. A line says "Step N of 6", with a dot for each. Back, Next ("Get started" on
   the first step) and Skip are on every step but the last, which has one button saying what it will do: "Start Sad to Savage" (or "Save
   and go to Today" when the program is already under way and the welcome is being seen again). The units, goal, days and level start
   from the settings and the program as they are, so a replay shows what is set now.
 - **Finishing** saves the units, the weekly goal and the training days (keeping the reminder time) with `welcomed: true`, and starts
-  the program at the level chosen (or, with the program under way, changes its level and nothing else). **Skipping**, with Skip or Escape
+  the program at the level chosen, with or without the Pilates days (or, with the program under way, changes those two options and
+  nothing else). The last step's summary has a Pilates row, "Included" or "Strength only: the Pilates days are skipped". **Skipping**, with Skip or Escape
   at any step, saves `welcomed: true` and changes nothing else, and starts no program: the Today card's Start the program does. Either
   way the tab's mark goes and the page is told the settings changed; the keyboard is left on the program card's button. It never asks
   to send notifications; reminders stay in Settings. The whole flow is guarded, so an error in it closes it as if skipped rather than

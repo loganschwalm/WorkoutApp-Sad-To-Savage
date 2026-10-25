@@ -1,7 +1,8 @@
 """Sad to Savage, the program the app is built around: the start panel and the choice of level, a day's plan on the card and as a
 workout (the warm-up and supersets done as rounds, the level's weight range, "each side", a Pilates day as one timed session),
 finishing a day, the daily walk (kept by calendar day, and on the server), skipping with Undo, finishing all thirty days (the
-summary says so, and the card offers to start again with the level and the walks kept), and a reload."""
+summary says so, and the card offers to start again with the level and the walks kept), a reload, and Strength only, which leaves
+the Pilates days out of the card, the weeks, the count and the order the days come in."""
 
 import json
 
@@ -80,8 +81,9 @@ def run(t):
     # ------------------------------------------------------------------ S2 starting it, and the level
     print('S2  starting it')
     click('#programNext [data-program-action=setup]')
-    check('the dialog asks for a level and nothing else', cdp.ev("document.getElementById('programModal').hidden") is False
-          and cdp.ev("[...document.querySelectorAll('#programOptions select')].map(s => s.id)") == ['programLevel']
+    check('the dialog asks for a level and whether to do the Pilates days, and nothing else', cdp.ev("document.getElementById('programModal').hidden") is False
+          and cdp.ev("[...document.querySelectorAll('#programOptions select')].map(s => s.id)") == ['programLevel', 'programPilates']
+          and cdp.ev("document.getElementById('programPilates').value") == 'yes'
           and cdp.ev("document.querySelectorAll('#programMaxInputs input').length") == 0)
     check('New to strength is the first choice', cdp.ev("document.getElementById('programLevel').value") == 'nts')
     set_level('sw')
@@ -89,7 +91,7 @@ def run(t):
     set_level('nts')
     click('#programSubmit')
     cdp.pause(0.4)
-    check('the program is kept with its level', program()['definition'] == 'sad-to-savage' and program()['options'] == {'level': 'nts'}, program())
+    check('the program is kept with its level', program()['definition'] == 'sad-to-savage' and program()['options'] == {'level': 'nts', 'pilates': 'yes'}, program())
     check('it keeps its level, its days and its walks, and no weights of its own', sorted(program()) == ['cycle', 'definition', 'done', 'options', 'startedAt', 'walks'], sorted(program()))
     check('the card says what is next: week 1, day 1', cdp.ev("document.querySelector('#programNext strong').textContent") == 'Upper Body Focus'
           and 'week 1, day 1' in cdp.ev("document.querySelector('#programNext .program-kicker').textContent"))
@@ -216,7 +218,7 @@ def run(t):
     set_level('sw')
     click('#programSubmit')
     cdp.pause(0.4)
-    check('the level is saved and the days kept', program()['options'] == {'level': 'sw'} and list(program()['done']) == ['0-0'], program())
+    check('the level is saved and the days kept', program()['options'] == {'level': 'sw', 'pilates': 'yes'} and list(program()['done']) == ['0-0'], program())
     skip_to(1)  # day 2 (Pilates) is skipped; day 3 is lower body
     click('#programNext [data-program-action=start]')
     cdp.pause(0.5)
@@ -234,7 +236,7 @@ def run(t):
     click('#programNext [data-program-action=start]')
     cdp.pause(0.5)
     play_workout()
-    check('the summary says the program is finished', cdp.ev("document.getElementById('summaryProgramList').textContent") == 'You finished Sad to Savage: all thirty days done.', cdp.ev("document.getElementById('summaryProgramList').textContent"))
+    check('the summary says the program is finished', cdp.ev("document.getElementById('summaryProgramList').textContent") == 'You finished Sad to Savage: all 30 days done.', cdp.ev("document.getElementById('summaryProgramList').textContent"))
     click('#summaryDone')
     check('the program is marked finished, once', bool(program().get('finishedAt')) and len(program()['done']) == 30)
     check('the card says so, with the totals and a way to start again', 'You finished Sad to Savage' in cdp.ev("document.querySelector('#programNext strong').textContent")
@@ -250,7 +252,7 @@ def run(t):
     check('a reload keeps it finished', bool(program().get('finishedAt')))
     click('#programNext [data-program-action=restart]')
     check('starting again is a new run from week 1', program()['cycle'] == 2 and program()['done'] == {} and not program().get('finishedAt'), program())
-    check('the level and the walks are kept', program()['options'] == {'level': 'sw'} and today in program()['walks'])
+    check('the level and the walks are kept', program()['options'] == {'level': 'sw', 'pilates': 'yes'} and today in program()['walks'])
     check('week 1, day 1 is next again', 'week 1, day 1' in cdp.ev("document.querySelector('#programNext .program-kicker').textContent"))
     check('the server has the new run', t.wait_for(lambda: (server_program() or {}).get('cycle') == 2 and (server_program() or {}).get('done') == {}), server_program())
 
@@ -260,4 +262,37 @@ def run(t):
     check('Start over goes back to the start panel', program() is None and cdp.ev("!!document.querySelector('#programNext [data-program-action=setup]')") is True)
     check('and the program is gone from the server', t.wait_for(lambda: server_program() is None))
     check('the workouts finished stay in History', len(t.workouts()) >= 4 and any(w['name'] == 'W1D1 Upper Body Focus' for w in t.workouts()))
+    # ------------------------------------------------------------------ S12 strength only
+    print('S12 strength only: the Pilates days are left out')
+    start_program('nts')
+    click('#editProgramBtn')
+    cdp.ev("(() => { const e = document.getElementById('programPilates'); e.value = 'no'; e.dispatchEvent(new Event('change', { bubbles: true })); })()")
+    check('its help says the Pilates days are left out', 'left out' in (cdp.ev("document.getElementById('programPilatesHelp').textContent") or ''))
+    click('#programSubmit')
+    cdp.pause(0.4)
+    check('the choice is kept, with the level', program()['options'] == {'level': 'nts', 'pilates': 'no'}, program())
+    check('the summary counts the eighteen strength days', '0 of 18 days done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programSummary').textContent"))
+    check('the weeks list has no Pilates rows, three days to a week',
+          cdp.ev("document.querySelectorAll('#programWeeks .program-day').length") == 18
+          and 'Pilates' not in cdp.ev("document.getElementById('programWeeks').textContent"), cdp.ev("document.getElementById('programWeeks').textContent")[:300])
+    check('and each week says how many are done out of three', '0 of 3 done' in cdp.ev("document.querySelectorAll('#programWeeks .program-week')[0].textContent"))
+    skip_to(1)
+    check('after day 1 the next is week 1, day 3: the Pilates day is passed over', cdp.ev("document.querySelector('#programNext strong').textContent") == 'Lower Body Focus'
+          and 'week 1, day 3' in cdp.ev("document.querySelector('#programNext .program-kicker').textContent")
+          and '1 of 18 days done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programNext').textContent")[:200])
+    check('the Pilates day was not marked done or skipped', '0-1' not in program()['done'], program()['done'])
+    check('the schedule and the calendar queue leave it out too: 17 days left in this run, not 29',
+          cdp.ev("programQueue(40).filter(item => item.current).length") == 17, cdp.ev("programQueue(40).filter(item => item.current).length"))
+    skip_to(17)
+    check('all eighteen strength days done finishes the program, the Pilates days never asked for',
+          bool(program().get('finishedAt')) and len(program()['done']) == 18 and 'You finished Sad to Savage' in cdp.ev("document.querySelector('#programNext strong').textContent"),
+          program())
+    click('#editProgramBtn')
+    cdp.ev("(() => { const e = document.getElementById('programPilates'); e.value = 'yes'; e.dispatchEvent(new Event('change', { bubbles: true })); })()")
+    click('#programSubmit')
+    cdp.pause(0.4)
+    check('putting the Pilates days back reopens it with the 12 still to do', not program().get('finishedAt') and cdp.ev("document.querySelector('#programNext strong').textContent") == 'Full Body Focus'
+          and '18 of 30 days done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programSummary').textContent"))
+    check('the server keeps the choice', t.wait_for(lambda: (server_program() or {}).get('options') == {'level': 'nts', 'pilates': 'yes'}), server_program())
+
     check('there were no CSP violations on any page', (cdp.ev('window.__csp') or []) == [], cdp.ev('window.__csp'))

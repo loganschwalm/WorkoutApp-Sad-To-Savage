@@ -40,7 +40,7 @@ function icsLocal(date) {
 // (what it is, at the level chosen today). [] with no days chosen or nothing left.
 function programCalendarEvents(program, trained = new Set(), schedule = scheduleFrom(getWorkoutSettings())) {
   if (!schedule.days.length) return [];
-  const blockSize = programWeeks(program).length * programDays(program).length;
+  const blockSize = activeDayCount(program);
   const span = 7 * Math.ceil(blockSize / schedule.days.length) + 7;
   const [hours, minutes] = schedule.time.split(':').map(Number);
   return plannedDays(trained, span, schedule).filter(day => day.entry && day.entry.current).map(day => ({

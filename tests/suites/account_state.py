@@ -69,7 +69,7 @@ def run(t):
     cdp.block_api = False
     loaded()
     check('reloading keeps it', level() == 'sw', level())
-    check('and it reaches the server', wait_for(lambda: (server_state().get('program') or {}).get('options') == {'level': 'sw'}), server_state().get('program'))
+    check('and it reaches the server', wait_for(lambda: (server_state().get('program') or {}).get('options') == {'level': 'sw', 'pilates': 'yes'}), server_state().get('program'))
 
     # ------------------------------------------------------------------ S3 the server still wins when nothing is pending
     print('S3  a change made on another device still arrives')
@@ -98,9 +98,9 @@ def run(t):
     start_program('nts')
     cdp.block_paths = []
     check("the new account's program reaches its own account",
-          wait_for(lambda: (server_state(second).get('program') or {}).get('options') == {'level': 'nts'}), server_state(second).get('program'))
+          wait_for(lambda: (server_state(second).get('program') or {}).get('options') == {'level': 'nts', 'pilates': 'yes'}), server_state(second).get('program'))
     mine = server_state()['program']
-    check("and the first account's program is unchanged", mine['options'] == {'level': 'sw'} and list(mine['done']) == ['0-0'], mine)
+    check("and the first account's program is unchanged", mine['options'] == {'level': 'sw', 'pilates': 'yes'} and list(mine['done']) == ['0-0'], mine)
 
     ui_login('tester')
     cdp.wait("typeof currentProgram !== 'undefined' && currentProgram !== null")
@@ -146,7 +146,7 @@ def run(t):
     names = [w.get('name') for w in exported.get('workouts', [])]
     check('with every workout, the one that was waiting on this device too',
           'Waiting Workout' in names and len(names) == len(api('GET', '/api/workouts', token=token)[0]['workouts']), names)
-    check('and the program', (exported.get('program') or {}).get('options') == {'level': 'sw'}, exported.get('program'))
+    check('and the program', (exported.get('program') or {}).get('options') == {'level': 'sw', 'pilates': 'yes'}, exported.get('program'))
     check('the status says so', cdp.ev("document.getElementById('dataStatus').textContent") == f'Downloaded {name}.',
           cdp.ev("document.getElementById('dataStatus').textContent"))
     cdp.ev("document.getElementById('exportCsvButton').click()")

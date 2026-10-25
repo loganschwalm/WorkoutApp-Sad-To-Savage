@@ -39,10 +39,30 @@ function dayLabel(program, week, day) {
   return programWeeks(program).length > 1 ? `${name}, week ${week + 1}` : name;
 }
 
+// Whether a day is part of this run of the program. A program that can leave some days out (Sad to Savage without its Pilates days)
+// says which through `dayActive`; a day left out is never next, never counted and never listed.
+function dayActive(program, week, day) {
+  const definition = programDefinition(program);
+  return definition.dayActive ? definition.dayActive(program, week, day) : true;
+}
+
+// How many days this run has, and how many of them are done.
+function activeDayCount(program) {
+  const days = programDays(program);
+  return programWeeks(program).reduce((count, entry, week) => count + days.filter((item, day) => dayActive(program, week, day)).length, 0);
+}
+
+function activeDaysDone(program) {
+  return Object.keys(program.done).filter(key => {
+    const [week, day] = key.split('-').map(Number);
+    return dayActive(program, week, day);
+  }).length;
+}
+
 function nextProgramDay(program) {
   const weeks = programWeeks(program), days = programDays(program);
   for (let week = 0; week < weeks.length; week += 1) {
-    for (let day = 0; day < days.length; day += 1) if (!program.done[dayKey(week, day)]) return { week, day };
+    for (let day = 0; day < days.length; day += 1) if (dayActive(program, week, day) && !program.done[dayKey(week, day)]) return { week, day };
   }
   return null;
 }

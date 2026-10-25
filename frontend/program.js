@@ -85,7 +85,7 @@ function blockLabel(program, week) {
 }
 
 function doneInWeek(program, week) {
-  return programDays(program).filter((entry, day) => program.done[dayKey(week, day)]).length;
+  return programDays(program).filter((entry, day) => dayActive(program, week, day) && program.done[dayKey(week, day)]).length;
 }
 
 // One day of the program, in the shape startWorkout takes. programDay says which day of which run of the program it is, so
@@ -140,12 +140,12 @@ function completeProgramDay(session) {
   if (!programDay || !program || program.startedAt !== programDay.startedAt || program.cycle !== programDay.cycle || !programWeeks(program)[programDay.week] || !programDays(program)[programDay.day]) return { note:'', outcome:null };
   const wasFinished = Boolean(program.finishedAt);
   const note = recordProgramDay(program, programDay.week, programDay.day, { at:Date.now(), skipped:false });
-  return { note, outcome:{ finished:!wasFinished && Boolean(currentProgram.finishedAt) ? programDefinition(currentProgram).name : '' } };
+  return { note, outcome:{ finished:!wasFinished && Boolean(currentProgram.finishedAt) ? programDefinition(currentProgram).name : '', days:activeDayCount(currentProgram) } };
 }
 
 // The summary's lines for a program day's outcome (completeProgramDay).
 function programOutcomeLines(outcome) {
-  return outcome && outcome.finished ? [`You finished ${outcome.finished}: all thirty days done.`] : [];
+  return outcome && outcome.finished ? [`You finished ${outcome.finished}: all ${outcome.days} days done.`] : [];
 }
 
 // ---- Formatting -----------------------------------------------------------
@@ -275,8 +275,8 @@ function programGoal(program) {
 function renderProgramWeeks(program, next, withStart) {
   const weeks = programWeeks(program), days = programDays(program);
   $('programWeeks').innerHTML = weeks.map((week, index) => `<details class="program-week"${next && next.week === index ? ' open' : ''}><summary><strong>Week ${index + 1} · ${escapeHTML(week.name)}</strong>`
-    + `<span>${escapeHTML(week.summary)}</span>${withStart ? `<span class="program-week-count">${doneInWeek(program, index)} of ${days.length} done</span>` : ''}</summary>`
-    + `<ul>${days.map((entry, day) => programDayRow(program, index, day, next, withStart)).join('')}</ul></details>`).join('');
+    + `<span>${escapeHTML(week.summary)}</span>${withStart ? `<span class="program-week-count">${doneInWeek(program, index)} of ${days.filter((entry, day) => dayActive(program, index, day)).length} done</span>` : ''}</summary>`
+    + `<ul>${days.map((entry, day) => dayActive(program, index, day) ? programDayRow(program, index, day, next, withStart) : '').join('')}</ul></details>`).join('');
 }
 
 // A plan line as the card shows it: the name of a block set in bold ("Superset 1 · 3 rounds") ahead of what it holds.
@@ -297,7 +297,7 @@ function renderProgramStart() {
 
 // The panel when every day is done: what was done, and a way to go round again.
 function renderProgramFinished(program) {
-  const days = Object.values(program.done);
+  const days = Object.entries(program.done).filter(([key]) => dayActive(program, ...key.split('-').map(Number))).map(([, entry]) => entry);
   const skipped = days.filter(entry => entry.skipped).length;
   const walks = Object.values(program.walks).filter(walk => walk.at >= program.startedAt);
   const distances = ['mi', 'km'].map(unit => ({ unit, total:walks.filter(walk => walk.unit === unit).reduce((sum, walk) => sum + walk.distance, 0) })).filter(item => item.total > 0);
@@ -318,9 +318,9 @@ function renderProgram() {
   const definition = programDefinition(program);
   const weeks = programWeeks(program), days = programDays(program);
   const next = nextProgramDay(program);
-  const finished = weeks.reduce((count, week, index) => count + doneInWeek(program, index), 0);
+  const finished = activeDaysDone(program);
   $('programTitle').textContent = 'Your program';
-  $('programSummary').textContent = `${finished} of ${weeks.length * days.length} days done${next ? ` · week ${next.week + 1} of ${weeks.length}: ${weeks[next.week].name}` : ''}`;
+  $('programSummary').textContent = `${finished} of ${activeDayCount(program)} days done${next ? ` · week ${next.week + 1} of ${weeks.length}: ${weeks[next.week].name}` : ''}`;
   if (next) {
     const plan = definition.planLines(program, next.week, next.day).map(planLineHTML).join('');
     $('programNext').innerHTML = `<div><span class="program-kicker">Next up · week ${next.week + 1}, day ${next.day + 1}</span><strong>${escapeHTML(dayTitle(program, next.week, next.day))}</strong><ul>${plan}</ul></div>`
@@ -383,7 +383,10 @@ $('programForm').onsubmit = event => {
   event.preventDefault();
   const { definition, editing } = programForm;
   const base = editing ? currentProgram : { definition:definition.id, startedAt:Date.now(), cycle:1, done:{}, walks:{} };
-  saveProgram(normalizeProgram({ ...base, options:readProgramForm() }));
+  // Changing which days are left out can finish the program (strength only, with every strength day done) or bring it back to life (Pilates
+  // included again, with Pilates days still to do).
+  const { finishedAt, ...unfinished } = base;
+  saveProgram(settleProgram(normalizeProgram({ ...unfinished, options:readProgramForm() })));
   closeProgramForm();
   showFeedback(editing ? `${definition.name} updated. The days still to do use the new level.` : `${definition.name} is set up. ${nextUpMessage(currentProgram)}`, 'success');
   scrollToCard($('programCard'), 'start');

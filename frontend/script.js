@@ -32,7 +32,7 @@ function renderExerciseSuggestions() {
   Object.values(lastPerformance).sort((a, b) => b.date - a.date).forEach(entry => add(entry.name));
   Object.values(exerciseLibrary).forEach(entry => add(entry.name));
   if (currentProgram) {
-    programDays(currentProgram).forEach((entry, day) => programDefinition(currentProgram).workout(currentProgram, 0, day).forEach(item => add(item.name)));
+    programWeeks(currentProgram).forEach((week, index) => programDays(currentProgram).forEach((entry, day) => programDefinition(currentProgram).workout(currentProgram, index, day).forEach(item => add(item.name))));
   }
   $('exerciseNames').innerHTML = [...names.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity:'base' }))
     .map(name => `<option value="${escapeHTML(name)}"></option>`).join('');

@@ -44,6 +44,8 @@ library, with SQLite for storage, so there is no build step, no package manager 
   with a walk. The Today page opens on the next day, with its warm-up, supersets, cool-down and what to have to hand.
 - Pick your level once: **New to strength** or **Shelby's weights**. Each exercise says the range of weight or band for that level,
   and you can change it any time.
+- Prefer to only lift? Choose **Strength only** when you set up (or later) and the Pilates days are left out: the program is the
+  three strength days a week, 18 in all, and the walk.
 - The program moves on when you finish a day, so a missed day never leaves you behind. Skip a day (with Undo), redo one, or
   see all six weeks at once with what you did on each.
 - Log the day's walk (steps, distance, or just that you showed up) beside the workout, on the day you walked it.
@@ -91,7 +93,7 @@ library, with SQLite for storage, so there is no build step, no package manager 
   a clear focus ring for keyboard users.
 - Export everything as JSON, or your sets as CSV, and import a JSON export into another account or server.
 - Accounts with email or username sign-in, "Remember me", and password reset by command or by email.
-- A new account starts with a short welcome: your level, units, weekly goal and training days, and a quick tour, then the program
+- A new account starts with a short welcome: your level, whether to do the Pilates days, units, weekly goal and training days, and a quick tour, then the program
   is started for you. Skip it at any time, or see it again from Settings.
 
 The [full reference](readme-for-llm.md#features) describes each of these in detail.

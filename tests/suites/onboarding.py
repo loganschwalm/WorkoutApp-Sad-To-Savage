@@ -254,6 +254,9 @@ def run(t):
     check('the levels are the program’s: New to strength and Shelby’s weights', levels == ['nts', 'sw'], levels)
     check('with New to strength chosen to start with', picked('onboardingLevel') == ['nts'], picked('onboardingLevel'))
     check('each says what it is', 'Shelby' in cdp.ev("document.querySelectorAll('#onboarding .onboarding-choice-text')[1].textContent"))
+    pilates_choices = cdp.ev("[...document.querySelectorAll('#onboarding input[name=onboardingPilates]')].map(input => input.value)")
+    check('the Pilates days are a choice on the same step: included or strength only', pilates_choices == ['yes', 'no'], pilates_choices)
+    check('included to start with', picked('onboardingPilates') == ['yes'], picked('onboardingPilates'))
     go(2)
     check('units start from the settings: pounds and miles for a new account', picked('onboardingUnit') == ['lbs'] and picked('onboardingDistance') == ['mi'],
           [picked('onboardingUnit'), picked('onboardingDistance')])
@@ -300,18 +303,19 @@ def run(t):
     print('O5  Start saves the choices and starts the program at the level chosen')
     time_default = cdp.ev('scheduleFrom().time')
     cases = [
-        ('New to strength', 'nts', 'kg', None, 4, [1, 3, 5]),
-        ('Shelby’s weights', 'sw', 'lbs', 'km', 2, []),
-        ('Shelby’s weights, in kilograms', 'sw', 'kg', 'mi', 7, [0, 6]),
+        ('New to strength', 'nts', 'kg', None, 4, [1, 3, 5], 'yes'),
+        ('Shelby’s weights, strength only', 'sw', 'lbs', 'km', 2, [], 'no'),
+        ('Shelby’s weights, in kilograms', 'sw', 'kg', 'mi', 7, [0, 6], 'yes'),
     ]
     tokens = {}
-    for label, level, unit, distance, goal, chosen_days in cases:
+    for label, level, unit, distance, goal, chosen_days, pilates in cases:
         token = tokens[level + unit] = account(f"finish{level}{unit}")
         check(f'[{label}] a new account sees the welcome', open_welcomed(token) is True)
         before = settings()
         check(f'[{label}] it has no program yet', cdp.ev('currentProgram === null') is True)
         go(1)
         pick('onboardingLevel', level)
+        pick('onboardingPilates', pilates)
         go(2)
         pick('onboardingUnit', unit)
         if distance:
@@ -323,7 +327,8 @@ def run(t):
         go(5)
         summary = cdp.ev("[...document.querySelectorAll('#onboardingSummary div')].map(row => [row.children[0].textContent, row.children[1].textContent])")
         check(f'[{label}] the last step says back what was chosen', summary[0] == ['Level', cdp.ev(f"programDefinitions[0].options[0].choices.find(c => c.value === '{level}').label")]
-              and summary[2] == ['Weekly goal', f'{goal} workout{"" if goal == 1 else "s"} a week'], summary)
+              and summary[1][0] == 'Pilates' and ('skipped' in summary[1][1]) == (pilates == 'no')
+              and summary[3] == ['Weekly goal', f'{goal} workout{"" if goal == 1 else "s"} a week'], summary)
         distance_unit = distance or ('km' if unit == 'kg' else 'mi')
         expected = {**before, 'unit': unit, 'distanceUnit': distance_unit, 'weeklyGoal': goal,
                     'schedule': {'days': sorted(chosen_days), 'time': time_default}, 'welcomed': True}
@@ -334,6 +339,7 @@ def run(t):
               {key: (expected.get(key), after.get(key)) for key in set(expected) | set(after) if expected.get(key) != after.get(key)})
         check(f'[{label}] closes the welcome and removes the flag', is_closed() is True and flag_gone(), flag())
         check(f'[{label}] and starts the program at the level chosen', cdp.ev('currentProgram') is not None and cdp.ev('currentProgram.options.level') == level
+              and cdp.ev('currentProgram.options.pilates') == pilates
               and cdp.ev('currentProgram.definition') == 'sad-to-savage' and cdp.ev('currentProgram.done') == {}, cdp.ev('currentProgram'))
         check(f'[{label}] with its first day on the card, and the keyboard on its Start', cdp.ev("document.querySelector('#programNext strong').textContent") == 'Upper Body Focus'
               and cdp.ev("document.activeElement.matches('#programNext .primary')") is True, cdp.ev('document.activeElement.id'))
@@ -345,7 +351,7 @@ def run(t):
         stored = {**cdp.ev('defaultSettings'), **server_settings(token)}
         check(f'[{label}] and the server has the same', {key: stored.get(key) for key in ('unit', 'distanceUnit', 'weeklyGoal', 'schedule', 'welcomed')}
               == {key: expected[key] for key in ('unit', 'distanceUnit', 'weeklyGoal', 'schedule', 'welcomed')}, stored)
-        check(f'[{label}] and the program', t.wait_for(lambda: (server_state(token).get('program') or {}).get('options') == {'level': level}), server_state(token).get('program'))
+        check(f'[{label}] and the program', t.wait_for(lambda: (server_state(token).get('program') or {}).get('options') == {'level': level, 'pilates': pilates}), server_state(token).get('program'))
 
     # ------------------------------------------------------------------ O6b Skip
     print('O6b Skip saves having been welcomed and nothing else, and the account is not welcomed again')

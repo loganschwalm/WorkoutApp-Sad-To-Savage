@@ -304,7 +304,7 @@ def run(t):
     cdp.wait("!document.getElementById('workoutSummary').hidden", timeout=10)
     cdp.pause(0.3)
     lines = ev("[...document.querySelectorAll('#summaryProgramList li')].map(li => li.textContent)")
-    check('the summary says the program is finished', ev("!document.getElementById('summaryProgram').hidden") is True and lines == ['You finished Sad to Savage: all thirty days done.'], lines)
+    check('the summary says the program is finished', ev("!document.getElementById('summaryProgram').hidden") is True and lines == ['You finished Sad to Savage: all 30 days done.'], lines)
     check('with the biggest fireworks, and a line to cheer it (the first workout earns an achievement too, which leads)', fireworks() == 'achievement'
           and text('summarySplash') in ev("splashLines.achievement.concat(splashLines.cycle)"), [fireworks(), text('summarySplash')])
     check('and finishing it with nothing else earned is cheered as finishing a cycle', ev("rewardSplashKind({ earned: [], weekReached: false }, [], { finished: 'Sad to Savage' })") == 'cycle')

@@ -27,6 +27,7 @@ function programQueue(count) {
       for (let week = 0; week < weeks && queue.length < count; week += 1) {
         for (let day = 0; day < days && queue.length < count; day += 1) {
           // Only the block in progress has days done; the next one starts again from nothing.
+          if (!dayActive(program, week, day)) continue;
           if (pass === 0 && done[dayKey(week, day)]) continue;
           queue.push({ week, day, label:dayLabel(program, week, day), current:pass === 0 });
         }

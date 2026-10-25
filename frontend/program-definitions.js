@@ -3,6 +3,8 @@
 //
 //   id, name, shortName, summary, schedule  how the program is named and described; workouts are named by workoutName
 //   options                  settings asked for at setup: { id, type:'select', label, choices:[{ value, label, help }], default }
+//   dayActive(program, week, day)  whether a day is part of this run (optional: without it every day is); a day left out is never
+//                            next, counted, listed or scheduled
 //   weeks(program)           the weeks, [{ name, summary }]
 //   days(program)            the days of each week, [{ name }]: the same slots every week
 //   dayName(program, week, day)  what a day is, when it differs from week to week
@@ -24,8 +26,8 @@ function repeatSets(count, set) {
 // ---- Sad to Savage --------------------------------------------------------
 // Shelby Sacco's six-week plan, which this whole app is built around. The plan itself is sad-to-savage-data.js; here it is
 // turned into what the program machinery runs. A program of five days a week for six weeks has no numbers per lift to
-// move: how heavy to go is the lifter's call, within the range the plan gives for their level, so the only option is that
-// level. It is a fixed length: when the thirtieth day is done the program is finished (see settleProgram), not started over.
+// move: how heavy to go is the lifter's call, within the range the plan gives for their level, so the options are that
+// level and whether the Pilates days are done at all. It is a fixed length: when the thirtieth day is done the program is finished (see settleProgram), not started over.
 const sadToSavageDaysPerWeek = 5;
 const sadToSavageLevels = [
   { value:'nts', label:'New to strength', help:'The lighter range for each exercise, for someone new to lifting or coming back to it.' },
@@ -98,10 +100,15 @@ const sadToSavage = {
   summary:'Shelby Sacco\'s six-week plan: three strength days and two mat Pilates days every week, and a walk every day. Each day opens with what to do, and the program moves on as you finish it.',
   schedule:'6 weeks \u00b7 5 days a week \u00b7 strength, Pilates and a daily walk',
   options:[
-    { id:'level', type:'select', label:'Your level', default:'nts', choices:sadToSavageLevels.map(({ value, label, help }) => ({ value, label, help })) }
+    { id:'level', type:'select', label:'Your level', default:'nts', choices:sadToSavageLevels.map(({ value, label, help }) => ({ value, label, help })) },
+    { id:'pilates', type:'select', label:'Pilates days', default:'yes', choices:[
+      { value:'yes', label:'Include the mat Pilates days', help:'Two Pilates days a week, with the three strength days, as the plan has them.' },
+      { value:'no', label:'Strength only', help:'The Pilates days are left out: the program is the three strength days a week, and the daily walk.' }] }
   ],
-  weeks:() => sadToSavagePlan.quotes.map((quote, index) => ({ name:quote, summary:`${sadToSavagePlan.days.filter(day => day.week === index + 1 && day.kind === 'strength').length} strength \u00b7 `
-    + `${sadToSavagePlan.days.filter(day => day.week === index + 1 && day.kind === 'pilates').length} Pilates` })),
+  weeks:program => sadToSavagePlan.quotes.map((quote, index) => ({ name:quote, summary:`${sadToSavagePlan.days.filter(day => day.week === index + 1 && day.kind === 'strength').length} strength`
+    + ((program.options || {}).pilates === 'no' ? '' : ` \u00b7 ${sadToSavagePlan.days.filter(day => day.week === index + 1 && day.kind === 'pilates').length} Pilates`) })),
+  // Strength only leaves out the Pilates days.
+  dayActive:(program, week, day) => (program.options || {}).pilates !== 'no' || sadToSavageDay(week, day).kind !== 'pilates',
   // The days of a week are the same five slots every week; what each is (its name, strength or Pilates) is dayName's.
   days:() => Array.from({ length:sadToSavageDaysPerWeek }, (entry, day) => ({ name:`Day ${day + 1}` })),
   dayName:(program, week, day) => sadToSavageDay(week, day).focus,
