@@ -319,7 +319,10 @@ own workouts, program, and settings.
   keeps Go heavier quiet. Settings can turn it off.
 - Supersets: exercises done as one, a set of each in turn and a rest only when the round is done. The program's warm-up circuit, its
   supersets and its core burnouts are done this way (the exercises of a block share a `group`), and an exercise can be paired with the
-  next mid-workout (Superset with next, in its ⋯ menu). Next exercise moves on past the whole superset, and an exercise added
+  next mid-workout (Superset with next, in its ⋯ menu). Under the exercise's name the card lists every move of the superset at once
+  (`supersetMoveHtml` in `training-tools.js`): each a row with its target ("12 reps each side", "30 seconds"), the weight it will start
+  at (last time's, or the plan's start; for a band or a bench, the plan's words for it) and how far along it is ("Set 2 of 3", "Done"),
+  the one on show ringed, and a tap on a row goes to that move. Next exercise moves on past the whole superset, and an exercise added
   mid-superset goes after it.
 - Restore an active workout after refreshing the page.
 - Finish a workout by moving past its last exercise, or cancel it with Cancel workout, in the ⋯ menu in the workout's header: for a workout

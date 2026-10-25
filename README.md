@@ -50,7 +50,9 @@ library, with SQLite for storage, so there is no build step, no package manager 
 - When day 30 is done the app says so, shows your totals, and offers to start again with your level and walks kept.
 
 **During a workout**
-- Each warm-up circuit and superset is done as rounds, a set of each move in turn, with the rest timer counting after each round.
+- Each warm-up circuit and superset is done as rounds, a set of each move in turn, with the rest timer counting after each round. The card
+  lists every move of the superset at once, with its reps or time, the weight it starts at and how far along it is.
+- The weight field starts at the bottom of your level's range the first time you do a move, and at what you lifted last time after that.
 - Log each set's weight and reps, with last time's numbers filled in and −5/+5 buttons beside the weight.
 - A Pilates day is one timed session as long as Shelby's workout, and the cool-down is a timer too.
 - A rest timer starts after each round, with a sound and vibration when it's over (−30s/+30s, End rest, pause), and is still

@@ -133,11 +133,21 @@ def run(t):
           cdp.ev("nextSetDefaults({ sets: [], plan: [{ weight: '', reps: 12, start: 7.5 }] }, { sets: [{ weight: 10, reps: 12 }], converted: false }, false).weight") == 10)
     check('the first set is a warm-up, 15 reps each side', target() == 'Set 1 of 3, warm-up: 15 reps each side.', target())
     check('the circuit is done as rounds: a set of each, then the next', 'Superset with Single DB Curl + Press and Band Pull Apart' in cdp.ev("document.getElementById('supersetLine').textContent"))
+    moves = cdp.ev("[...document.querySelectorAll('#supersetMoves li')].map(li => [li.textContent, li.classList.contains('current')])")
+    check('every move of the circuit is listed at once, with its target and how far along it is, the one on show marked',
+          len(moves) == 3 and moves[0] == ['Elevated Shoulder Taps15 reps each sideSet 1 of 3', True] and moves[1][1] is False and moves[2][0] == 'Band Pull Apart15 repsSet 1 of 3', moves)
+    cdp.ev("document.querySelectorAll('#supersetMoves button')[1].click()")
+    check('tapping one goes to it, and the mark follows', cdp.ev('activeSession.currentIndex') == 1 and cdp.ev("document.querySelectorAll('#supersetMoves li')[1].classList.contains('current')") is True)
+    cdp.ev("document.querySelectorAll('#supersetMoves button')[0].click()")
     for _ in range(3):
         cdp.ev("document.getElementById('completedReps').value = '15'; document.getElementById('completeSetBtn').click();")
         cdp.pause(0.5)
     check('after one of each the circuit starts again from its first move', cdp.ev("activeSession.exercises[activeSession.currentIndex].name") == 'Elevated Shoulder Taps'
           and target().startswith('Set 2 of 3'), target())
+    cdp.ev('goToExercise(3)')
+    rows = cdp.ev("[...document.querySelectorAll('#supersetMoves li')].map(li => li.textContent)")
+    check('a block of work lists its moves with the weight each starts at: 7.5 lbs for the press, its band for the fly', rows == ['DB Bench Chest Press12 reps · 7.5 lbsSet 1 of 3', 'Banded Single Arm Reverse Fly12 reps each side · light bandSet 1 of 3'], rows)
+    cdp.ev('goToExercise(0)')
     check('a warm-up set is logged as a warm-up, which records and volume leave out', cdp.ev("activeSession.exercises[0].sets[0].type") == 'warmup')
     check('there are no CSP violations', (cdp.ev('window.__csp') or []) == [], cdp.ev('window.__csp'))
 

@@ -273,6 +273,25 @@ function tidySupersets(session) {
   }
 }
 
+// What one move of a superset asks, for the list of them: its target ("12 reps each side", "30 seconds"), the weight it will start at
+// (from last time, or the plan's start; for a band or a bench, the plan's words for it) and how far through its sets it is.
+function supersetMoveHtml(index, current) {
+  const exercise = activeSession.exercises[index], timed = isTimed(exercise);
+  const plan = Array.isArray(exercise.plan) && exercise.plan.length ? exercise.plan : null;
+  const done = plan ? plannedDone(exercise) : exercise.sets.length;
+  const next = plan ? plan[Math.min(done, plan.length - 1)] : null;
+  const target = next ? formatPlannedSet(next) : `${exercise.reps} ${timed ? 'seconds' : 'reps'}`;
+  const weight = Number(nextSetDefaults(exercise, lastTime(exercise.name), timed).weight) || 0;
+  // The plan's words for what to use ("light band", "on bench") are the note's, after the level's name.
+  const words = exercise.note ? exercise.note.replace(/^[^:]*:\s*/, '') : '';
+  const using = weight > 0 ? `${formatWeight(weight)} ${weightUnit()}` : /^(\d|body|light|medium|heavy|on |from |supported|unsupported)/i.test(words) ? words : '';
+  const progress = plan ? (done >= plan.length ? 'Done' : `Set ${done + 1} of ${plan.length}`) : plural(done, 'set');
+  return `<li class="superset-move${current ? ' current' : ''}"><button type="button" data-superset-move="${index}"${current ? ' aria-current="true"' : ''}>`
+    + `<span class="superset-move-name">${escapeHTML(exercise.name)}</span>`
+    + `<span class="superset-move-target">${escapeHTML([target, using].filter(Boolean).join(' · '))}</span>`
+    + `<span class="superset-move-sets">${escapeHTML(progress)}</span></button></li>`;
+}
+
 function renderSuperset() {
   const session = activeSession, index = session.currentIndex;
   const members = supersetMembers(session, index);
@@ -282,9 +301,19 @@ function renderSuperset() {
     const others = members.filter(member => member !== index).map(member => session.exercises[member].name);
     $('supersetLine').textContent = `Superset with ${others.join(' and ')}: a set of each in turn, then rest.`;
   }
+  // Every move of it at once, with what each asks and how far along it is; a tap goes to one.
+  $('supersetMoves').hidden = !inOne;
+  $('supersetMoves').innerHTML = inOne ? members.map(member => supersetMoveHtml(member, member === index)).join('') : '';
   $('supersetToggle').hidden = !inOne && index === session.exercises.length - 1;
   $('supersetToggle').textContent = inOne ? 'Leave superset' : 'Superset with next';
 }
+
+$('supersetMoves').onclick = event => {
+  const button = event.target.closest('[data-superset-move]');
+  if (!button || !activeSession) return;
+  const index = Number(button.dataset.supersetMove);
+  if (index !== activeSession.currentIndex && activeSession.exercises[index]) moveWithinSuperset(index);
+};
 
 function toggleSuperset() {
   const session = activeSession, index = session.currentIndex, exercise = session.exercises[index];
