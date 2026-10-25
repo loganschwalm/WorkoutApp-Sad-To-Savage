@@ -93,7 +93,6 @@ $('addBtn').onclick = () => {
   clearFeedback();
   exercises.push({ name, weight, reps }); $('exercise').value = ''; $('weight').value = ''; $('reps').value = ''; render(); $('exercise').focus();
 };
-$('createWorkoutBtn').onclick = () => { showWorkoutBuilder(Boolean(editingWorkout)); $('workoutName').focus({ preventScroll:true }); };
 $('exercise').oninput = () => markInvalid($('exercise'), false);
 $('weight').oninput = () => markInvalid($('weight'), false);
 $('reps').oninput = () => markInvalid($('reps'), false);
@@ -176,9 +175,9 @@ $('saveBtn').onclick = async () => {
     return;
   }
   // An exercise with sets takes its weight and reps from them, as finishing a workout gives them: the heaviest set, and
-  // the last set's reps (or the reps a template planned, which it progresses from).
+  // the last set's reps.
   const savedExercises = exercises.map(item => item.sets?.length
-    ? { ...item, weight:Math.max(...item.sets.map(set => Number(set.weight) || 0)), reps:item.setCount ? item.reps : item.sets[item.sets.length - 1].reps }
+    ? { ...item, weight:Math.max(...item.sets.map(set => Number(set.weight) || 0)), reps:item.sets[item.sets.length - 1].reps }
     : { ...item });
   let workout = {
     ...editingWorkout, name:$('workoutName').value.trim() || 'Untitled workout', notes:$('workoutNotes').value.trim(), exercises:savedExercises,

@@ -1380,16 +1380,12 @@ def run_structure(t, check, request):
     state = t.api('GET', '/api/state', token=token)[0]
     check('only the valid state was stored', state['templates'] == [template] and state['settings'].get('restDuration') == 60, state)
     check('no training program until one is set up', state.get('program', 'missing') is None, state)
-    program = {'definition': 'wendler-531', 'startedAt': 1, 'cycle': 1, 'trainingMaxes': {'press': 100, 'deadlift': 300, 'bench': 200, 'squat': 250},
-               'options': {'assistance': 'bbb'}, 'done': {'0-0': {'at': 2, 'amrap': {'weight': 85, 'reps': 9, 'target': 5}}}}
+    program = {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'options': {'level': 'sw'}, 'done': {'0-0': {'at': 2, 'skipped': False}}}
     for label, body, expected in [
         ('a program that is a list', {'program': []}, 400),
-        ('a program without training maxes', {'program': {'definition': 'wendler-531'}}, 400),
         ('a program with no definition', {'program': {k: v for k, v in program.items() if k != 'definition'}}, 400),
-        ('a training max that is a word', {'program': {**program, 'trainingMaxes': {'bench': 'heavy'}}}, 400),
-        ('a negative training max', {'program': {**program, 'trainingMaxes': {'bench': -5}}}, 400),
         ('program options that are a list', {'program': {**program, 'options': []}}, 400),
-        ('missed sessions that are a list', {'program': {**program, 'stalls': []}}, 400),
+        ('days done that are a list', {'program': {**program, 'done': []}}, 400),
         ('a valid program', {'program': program}, 200),
     ]:
         status, _, reply = request('PUT', '/api/state', json.dumps(body).encode(), json_headers, token=token)
@@ -1399,7 +1395,7 @@ def run_structure(t, check, request):
     t.api('PUT', '/api/state', {'settings': {'restDuration': 75}}, token)
     state = t.api('GET', '/api/state', token=token)[0]
     check('saving only settings leaves the program alone', state.get('program') == program and state['templates'] == [template], state)
-    walked = {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'unit': 'lbs', 'trainingMaxes': {}, 'options': {'level': 'nts'}, 'done': {'0-0': {'at': 2, 'skipped': False}},
+    walked = {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'options': {'level': 'nts'}, 'done': {'0-0': {'at': 2, 'skipped': False}},
               'walks': {'2026-10-25': {'at': 3, 'steps': 8200, 'distance': 3.9, 'unit': 'mi'}, '2026-10-26': {'at': 4, 'steps': 0, 'distance': 0, 'unit': 'km'}}, 'finishedAt': 5}
     for label, body, expected in [
         ('walks that are a list', {'program': {**walked, 'walks': []}}, 400),
@@ -1411,7 +1407,7 @@ def run_structure(t, check, request):
         ('a walk in furlongs', {'program': {**walked, 'walks': {'2026-10-25': {'steps': 0, 'distance': 1, 'unit': 'fur'}}}}, 400),
         ('more than 400 days of walks', {'program': {**walked, 'walks': {f'2025-{1 + n // 28:02d}-{1 + n % 28:02d}': {'steps': 1, 'distance': 0, 'unit': 'mi'} for n in range(401)}}}, 400),
         ('a finish time that is a word', {'program': {**walked, 'finishedAt': 'done'}}, 400),
-        ('a program with walks and a finish time, and no lifts', {'program': walked}, 200),
+        ('a program with walks and a finish time', {'program': walked}, 200),
     ]:
         status, _, reply = request('PUT', '/api/state', json.dumps(body).encode(), json_headers, token=token)
         check(f'PUT /api/state with {label} -> {expected}', status == expected, f'{status} {reply}')
@@ -2536,29 +2532,31 @@ def run_state_merge(t, check, request):
     merged = patch({'templates': {'base': base, 'value': []}})
     check('templates from before they had ids cannot be told apart, so the later list wins whole', merged['templates'] == [], merged['templates'])
 
-    done = {'at': 1, 'skipped': False, 'amrap': None, 'hit': None}
+    done = {'at': 1, 'skipped': False}
     skipped = {**done, 'skipped': True}
-    base = start_from('program', {'definition': 'wendler-531', 'unit': 'lbs', 'startedAt': 1, 'cycle': 1, 'stalls': {}, 'options': {}, 'done': {}, 'lastRollover': None,
-                                  'trainingMaxes': {'press': 100, 'deadlift': 300, 'bench': 200, 'squat': 250}})
+    walk = {'at': 1, 'steps': 8000, 'distance': 3.5, 'unit': 'mi'}
+    base = start_from('program', {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'options': {'level': 'nts'}, 'done': {}, 'walks': {}})
     patch({'program': {'base': base, 'value': {**base, 'done': {'0-0': done}}}})
-    merged = patch({'program': {'base': base, 'value': {**base, 'trainingMaxes': {**base['trainingMaxes'], 'bench': 205}}}})
-    check('a program day done on one device and a training max edited on the other: both kept',
-          merged['program']['done'] == {'0-0': done} and merged['program']['trainingMaxes'] == {**base['trainingMaxes'], 'bench': 205}, merged['program'])
+    merged = patch({'program': {'base': base, 'value': {**base, 'options': {'level': 'sw'}}}})
+    check('a program day done on one device and the level changed on the other: both kept',
+          merged['program']['done'] == {'0-0': done} and merged['program']['options'] == {'level': 'sw'}, merged['program'])
     base = merged['program']
     patch({'program': {'base': base, 'value': {**base, 'done': {**base['done'], '0-1': done}}}})
     merged = patch({'program': {'base': base, 'value': {**base, 'done': {**base['done'], '0-2': skipped}}}})
     check('days done on two devices are all kept', sorted(merged['program']['done']) == ['0-0', '0-1', '0-2'], merged['program']['done'])
     base = merged['program']
-    patch({'program': {'base': base, 'value': {**base, 'cycle': 2, 'done': {}, 'trainingMaxes': {lift: weight + 5 for lift, weight in base['trainingMaxes'].items()}}}})
-    merged = patch({'program': {'base': base, 'value': {**base, 'done': {**base['done'], '1-0': skipped}}}})
-    check('a day skipped on a device still in the last cycle is not carried into the next one, which another device started',
-          merged['program']['cycle'] == 2 and merged['program']['done'] == {} and merged['program']['trainingMaxes']['bench'] == 210, merged['program'])
+    patch({'program': {'base': base, 'value': {**base, 'walks': {'2026-10-25': walk}}}})
+    merged = patch({'program': {'base': base, 'value': {**base, 'walks': {'2026-10-26': {**walk, 'steps': 9000}}}}})
+    check('walks logged on two devices on different days are both kept', sorted(merged['program']['walks']) == ['2026-10-25', '2026-10-26'], merged['program']['walks'])
     base = merged['program']
-    patch({'program': {'base': base, 'value': {**base, 'done': {'0-0': done}}}})
-    in_kg = {lift: round(weight * 0.4536, 1) for lift, weight in base['trainingMaxes'].items()}
-    merged = patch({'program': {'base': base, 'value': {**base, 'unit': 'kg', 'trainingMaxes': in_kg}}})
-    check('a device converting the program to kilograms wins whole, its weights never mixed with pounds',
-          merged['program']['unit'] == 'kg' and merged['program']['trainingMaxes'] == in_kg and merged['program']['done'] == {}, merged['program'])
+    patch({'program': {'base': base, 'value': {**base, 'walks': {**base['walks'], '2026-10-25': {**walk, 'steps': 1}}}}})
+    merged = patch({'program': {'base': base, 'value': {**base, 'walks': {**base['walks'], '2026-10-25': {**walk, 'steps': 2}}}}})
+    check('a walk changed on both devices: the later change wins whole, steps and distance together', merged['program']['walks']['2026-10-25'] == {**walk, 'steps': 2}, merged['program']['walks'])
+    base = merged['program']
+    patch({'program': {'base': base, 'value': {**base, 'cycle': 2, 'done': {}, 'finishedAt': 5}}})
+    merged = patch({'program': {'base': base, 'value': {**base, 'done': {**base['done'], '1-0': skipped}}}})
+    check('a day skipped on a device still in the last run is not carried into the next one, which another device started',
+          merged['program']['cycle'] == 2 and merged['program']['done'] == {} and merged['program']['finishedAt'] == 5, merged['program'])
     base = merged['program']
     patch({'program': {'base': base, 'value': {**base, 'done': {'0-0': done}}}})
     merged = patch({'program': {'base': base, 'value': None}})

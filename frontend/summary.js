@@ -151,4 +151,4 @@ function showWorkoutSummary(workout, records, before = {}, programOutcome = null
   else if (rewards.weekReached) celebrate($('summaryTitle'), 'goal');
 }
 
-$('summaryDone').onclick = () => { $('workoutSummary').hidden = true; focusFirstShown(['templatesToggle', 'settingsButton']); };
+$('summaryDone').onclick = () => { $('workoutSummary').hidden = true; focusFirstShown(['settingsButton']); };

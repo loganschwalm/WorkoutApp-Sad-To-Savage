@@ -57,5 +57,5 @@ $('whatsNewDone').onclick = () => {
   saveLocalState('settings', { ...getWorkoutSettings(), seenWhatsNew:whatsNewRelease.id });
   window.dispatchEvent(new Event('settingschange'));
   $('whatsNewCard').hidden = true;
-  $('templatesToggle')?.focus();
+  document.querySelector('#programNext .primary')?.focus();
 };

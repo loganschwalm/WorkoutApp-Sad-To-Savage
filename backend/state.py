@@ -19,21 +19,14 @@ MAX_WALK_DISTANCE = 500
 
 
 def validate_program(program):
-    """The program being followed: null, or an object naming its definition, with a number for every training max (none for a
-    program that has no lifts to move), the days done and the walks."""
+    """The program being followed: null, or an object naming its definition, with its options, the days done and the walks."""
     if program is None:
         return
     if not isinstance(program, dict):
         raise BadRequest('program must be an object or null.')
     if not text(program.get('definition'), 'program.definition', 100):
         raise BadRequest('program.definition must name the program.')
-    weight_unit(program.get('unit'), 'program.unit')
-    maxes = program.get('trainingMaxes')
-    if not isinstance(maxes, dict) or len(maxes) > 100:
-        raise BadRequest('program.trainingMaxes must be an object.')
-    if not all(is_number(value) and value >= 0 for value in maxes.values()):
-        raise BadRequest('Every training max must be a number of zero or more.')
-    for field in ('options', 'done', 'stalls'):
+    for field in ('options', 'done'):
         if program.get(field) is not None and not isinstance(program[field], dict):
             raise BadRequest(f'program.{field} must be an object.')
     # The daily walks, by the day they were walked (year-month-day): how many steps, how far and in what unit, either number
@@ -257,7 +250,7 @@ def add_new_templates(have, incoming):
 STATE_PARTS = {
     'settings': StatePart('settings_json', '{}', {'depth': 1}, validate_settings, take_whole, 'settings'),
     'templates': StatePart('templates_json', '[]', {'depth': 1, 'by_id': True}, validate_templates, add_new_templates, 'templates'),
-    'program': StatePart('program_json', 'null', {'depth': 2, 'identity': ('definition', 'startedAt', 'cycle', 'unit')}, validate_program, take_whole, 'program'),
+    'program': StatePart('program_json', 'null', {'depth': 2, 'identity': ('definition', 'startedAt', 'cycle')}, validate_program, take_whole, 'program'),
     'exerciseNotes': StatePart('notes_json', '{}', {'depth': 1}, keyed_collection('exerciseNotes', MAX_NOTES, 'notes', check_note),
                                add_missing('notes', MAX_NOTES, wanted=bool), 'notes'),
     'goals': StatePart('goals_json', '{}', {'depth': 1}, keyed_collection('goals', MAX_GOALS, 'goals', check_goal), add_missing('goals', MAX_GOALS), 'goals'),
@@ -289,7 +282,7 @@ def store_state(database, user_id, state):
 #   depth     how many levels of objects below the part are merged key by key; a value deeper than that is one value,
 #             so a bodyweight's weight and unit, or a goal's target and unit, always travel together
 #   by_id     a list of objects told apart by their id, merged as if keyed by it (templates)
-#   identity  keys that say which run of a program the rest belongs to: its days are a cycle's, its weights a unit's,
+#   identity  keys that say which run of a program the rest belongs to: its days are a run's,
 #             so changes to two different runs are never mixed (see merge_values)
 
 # What a key is taken to be on a side that does not have it, so that "absent" can be told apart from a value that is None.

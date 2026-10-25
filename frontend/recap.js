@@ -77,9 +77,9 @@ function renderRecap() {
 
 wireBanner('recapToggle', 'recapBody', 'recapLine');
 
-// Dismiss puts the card away until next week, and the keyboard carries on from the templates under it.
+// Dismiss puts the card away until next week, and the keyboard carries on from the program card.
 $('recapDone').onclick = () => {
   writeLocal(localKey('recap-dismissed'), calendarDayKey(recapMonday()));
   $('recapCard').hidden = true;
-  $('templatesToggle')?.focus();
+  document.querySelector('#programNext .primary')?.focus();
 };

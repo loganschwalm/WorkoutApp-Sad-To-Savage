@@ -90,7 +90,7 @@ def run(t):
     click('#programSubmit')
     cdp.pause(0.4)
     check('the program is kept with its level', program()['definition'] == 'sad-to-savage' and program()['options'] == {'level': 'nts'}, program())
-    check('it has no lifts, so no training maxes', program()['trainingMaxes'] == {})
+    check('it keeps its level, its days and its walks, and no weights of its own', sorted(program()) == ['cycle', 'definition', 'done', 'options', 'startedAt', 'walks'], sorted(program()))
     check('the card says what is next: week 1, day 1', cdp.ev("document.querySelector('#programNext strong').textContent") == 'Upper Body Focus'
           and 'week 1, day 1' in cdp.ev("document.querySelector('#programNext .program-kicker').textContent"))
     check('the summary counts the thirty days', '0 of 30 days done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programSummary').textContent"))

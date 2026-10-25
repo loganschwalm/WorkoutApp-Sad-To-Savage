@@ -38,19 +38,17 @@ function workoutLines(workout) {
     + `${escapeHTML(item.name)}</a></strong><span>${escapeHTML(describeSavedExercise(item))}</span></li>`).join('');
 }
 
-// The same row as the Strength page's: the name (tap for the sets), Start, and a ⋯ menu to copy, edit or delete it.
-// Starting, copying and editing happen on the page the workout belongs to: the Strength page's workout form, or for a
-// cardio session, the Cardio page.
+// A row: the name (tap for the sets), and a ⋯ menu to edit or delete it. Editing happens in the Today page's workout form. A cardio
+// session (imported from an export; there is no page to log one) can be deleted but not edited.
 function historyRow(workout) {
   const open = openWorkouts.has(workout.id);
-  const page = isCardio(workout) ? 'cardio.html' : 'index.html';
   return `<li class="saved-workout history-workout" data-id="${escapeHTML(workout.id)}" data-date="${calendarDayKey(new Date(workout.createdAt))}">`
     + '<div class="saved-workout-summary saved-workout-row">'
     + `<button class="saved-workout-toggle" type="button" data-action="view" aria-expanded="${open}">`
     + `<strong>${escapeHTML(workout.name)}</strong><span>${escapeHTML(isCardio(workout) ? describeSessionDate(workout) : describeWorkoutDate(workout))}</span></button>`
-    + `<div class="row-actions"><a class="button-link primary" href="${page}?start=${encodeURIComponent(workout.id)}">Start</a>`
+    + '<div class="row-actions">'
     + `<details class="row-menu"><summary class="secondary" aria-label="More for ${escapeHTML(workout.name)}">&middot;&middot;&middot;</summary>`
-    + '<div class="row-menu-items"><button type="button" data-action="copy">Copy as new</button><button type="button" data-action="edit">Edit</button>'
+    + `<div class="row-menu-items">${isCardio(workout) ? '' : '<button type="button" data-action="edit">Edit</button>'}`
     + (canExportActivity(workout) ? '<button type="button" data-action="export">Download .tcx</button>' : '')
     + '<button class="danger" type="button" data-action="delete">Delete</button></div></details></div></div>'
     + `<div class="workout-details"${open ? '' : ' hidden'}>${workout.notes ? `<p class="workout-note">${escapeHTML(workout.notes)}</p>` : ''}`
@@ -168,7 +166,7 @@ $('historyList').onclick = event => {
   const menu = button.closest('.row-menu');
   if (menu) menu.open = false;
   if (action === 'view') showWorkoutDetails(row, row.querySelector('.workout-details').hidden);
-  if (action === 'copy' || action === 'edit') location.href = `${isCardio(workout) ? 'cardio' : 'index'}.html?${action}=${encodeURIComponent(workout.id)}`;
+  if (action === 'edit') location.href = `index.html?edit=${encodeURIComponent(workout.id)}`;
   if (action === 'export') showHistoryFeedback(activitySavedMessage(saveActivityFile(workout)));
   if (action === 'delete') deleteHistoryWorkout(workout);
 };

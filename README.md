@@ -1,143 +1,75 @@
-# Workout Tracker
+# Sad to Savage Tracker
 
 > **If you are an AI agent or LLM, read [readme-for-llm.md](readme-for-llm.md) instead.** It is the full, detailed
 > reference to every feature, setting and behaviour; this file is the short version for people.
 
-A self-hosted workout tracker for logging strength workouts and cardio, following training programs, and seeing your
-progress.
-It runs on your own server, supports several accounts, and works on a phone at the gym, even when the
+A self-hosted tracker built around one program: Shelby Sacco's six-week **Sad to Savage**. Open it each day and it says what
+today is: a strength workout or a mat Pilates session, and the daily walk. It logs every set, keeps your walks, and
+shows your progress. It runs on your own server, supports several accounts, and works on a phone at the gym, even when the
 connection drops.
+
+It is a program tracker, not a copy of the program: the plan's days and exercises are in the app, and the Pilates videos are
+Shelby's, which you follow from her program.
 
 The frontend is plain HTML, CSS and JavaScript. The backend is a few Python files using only the standard
 library, with SQLite for storage, so there is no build step, no package manager and no separate database.
 
 **[Install it on Proxmox with one command.](#install-on-proxmox)**
 
-## Screenshots
-
-![The tracker: the workout that is due, the templates folded away, and the recent workouts](docs/screenshots/tracker.png)
-
-<table>
-  <tr>
-    <td width="50%" align="center"><img src="docs/screenshots/active-workout.png" width="320" alt="A workout in progress on a phone, showing last time's sets, the weight with its plates, the rest timer and two logged sets"></td>
-    <td width="50%" align="center"><img src="docs/screenshots/settings.png" width="320" alt="The settings on a phone: theme, rest duration, and the rest-timer alert"></td>
-  </tr>
-  <tr>
-    <td align="center">During a workout: last time's numbers, the plates to load, the rest timer, and your logged sets.</td>
-    <td align="center">Settings, including the rest-timer sound and vibration.</td>
-  </tr>
-  <tr>
-    <td width="50%" align="center"><img src="docs/screenshots/cardio.png" width="320" alt="The Cardio page on a phone: an activity to start for each kind of cardio, when each was last done, and this week's sessions"></td>
-    <td width="50%" align="center"><img src="docs/screenshots/cardio-session.png" width="320" alt="A run being timed on a phone, at 27 minutes 14 seconds, with last time's distance and pace under the clock"></td>
-  </tr>
-  <tr>
-    <td align="center">Cardio: walks, runs and the machines, and how far each went last time.</td>
-    <td align="center">A run being timed, with last time's distance and pace.</td>
-  </tr>
-</table>
-
-![The Progress page charting the heaviest weight for Push, Pull and Leg days over six weeks](docs/screenshots/progress.png)
-
 ## What it does
 
+**The program**
+- Six weeks of five days: strength three days a week (upper body, lower body, full body) and mat Pilates two, each day
+  with a walk. The Today page opens on the next day, with its warm-up, supersets, cool-down and what to have to hand.
+- Pick your level once: **New to strength** or **Shelby's weights**. Each exercise says the range of weight or band for that level,
+  and you can change it any time.
+- The program moves on when you finish a day, so a missed day never leaves you behind. Skip a day (with Undo), redo one, or
+  see all six weeks at once with what you did on each.
+- Log the day's walk (steps, distance, or just that you showed up) beside the workout, on the day you walked it.
+- When day 30 is done the app says so, shows your totals, and offers to start again with your level and walks kept.
+
 **During a workout**
-- Start from a built-in template (Push, Pull, Leg, Upper Body, Full Body), one of your own, or a past workout.
+- Each warm-up circuit and superset is done as rounds, a set of each move in turn, with the rest timer counting after each round.
 - Log each set's weight and reps, with last time's numbers filled in and −5/+5 buttons beside the weight.
-- See the plates to load for barbell lifts, warm-up sets, and a "go heavier" prompt when you've earned it, or a lighter
-  week to try when a lift has stalled for three weeks (listed on Progress too).
-- A rest timer starts after each set, with a sound and vibration when it's over (−30s/+30s, End rest, pause), and is still
+- A Pilates day is one timed session as long as Shelby's workout, and the cool-down is a timer too.
+- A rest timer starts after each round, with a sound and vibration when it's over (−30s/+30s, End rest, pause), and is still
   there if the phone closes the app mid-rest.
-- Big view, a button in the workout, shows the set to do and the rest clock in very large type, to read from a few feet away
-  on a bench, and can open itself for each rest if you choose.
-- Swap an exercise when the equipment is taken, add one mid-workout, put the exercises in another order (or send one to the end),
-  superset two, or hold a timed one like a plank.
-- Tag a set as a warm-up, a drop set, to failure or AMRAP, with the chips under the weight and reps (or change it later, even in a
-  saved workout). Warm-ups and drop sets stay out of your records, estimated one-rep maxes and "go heavier" prompts, and warm-ups
-  out of your volume and sets per muscle; a program's warm-up and + sets are tagged for you.
-- Correct or undo a set (Fix last set is in the rest panel, for a slip at the end of a set), keep notes per workout or per exercise,
-  and rate how many reps you had left.
-- Same as last set logs the previous set again in one tap, and How to do it, in an exercise's ⋯ menu, gives a few
-  written cues for it and a link to a video demo.
-- A typo like 1355 lbs for 135 is asked about before it's logged, and Finish early ends a workout from any exercise.
-- A double tap logs one set, finishing with an exercise still empty asks first, and a skipped program day has Undo. Enter
-  moves from the weight to the reps and logs the set, and a set half typed survives a change of setting.
-- Cancel a workout started by mistake (in the workout's ⋯ menu): nothing is saved and no stats change, with Undo in case the tap was the slip. Deleting a
-  saved workout, a cardio session or a template has Undo too, and asks nothing first.
-- Finishing shows a summary with any new personal records, achievements unlocked, the weekly goal and your streak, and a line
-  to cheer it; records, goals and achievements set off fireworks across the whole screen.
-- While you train, it says what is within reach: the reps at this weight that would be a record, a plate milestone close by,
-  and what finishing the workout earns.
-- Share an achievement as a picture for social media, drawn in your theme.
-- After an update, a What's new card says what the app has learned since you started, once on every device.
-- Each new week, the Tracker looks back on the last: your workouts against the weekly goal and your streak, how it compares
-  with the week before, its totals, records and achievements.
-
-**Training programs**
-- **Wendler 5/3/1**: four days a week, with training maxes that go up each cycle, and Boring But Big or First Set Last.
-- **Reddit PPL**: the beginner push/pull/legs program, six days a week with linear progression.
-- **Apartment Gym**: upper/lower for a small gym with dumbbells, a cable stack and a few machines.
-- **Your own program**: build a weekly split from your templates, 1 to 7 days, and the card says what's next.
-
-Every set is planned for you, weights progress on their own, and the plan shows what's next. Its Progress
-charts each lift's training max (or working weight) against the one-rep max your sets estimate, so you can
-see a program working over the weeks. A + set past its plan, every planned rep made, and a finished cycle are
-celebrated.
-
-**Cardio**, a tab of its own
-- Walks and runs, cycling, an exercise bike, the elliptical, a rowing machine, a stair climber, or anything else
-  under a name of your own.
-- Tap one to start a timer that keeps time with the screen off; pause it, cancel it with Undo, or finish and add the
-  distance, calories and heart rate. Or switch to Enter the time to log one you did by hand, for any day.
-- What the machine was set to: a treadmill's incline, a bike's or elliptical's resistance, a rower's damper and stroke
-  rate, a stair climber's level, prefilled from last time.
-- An interval timer for HIIT, Tabata or rowing pieces: choose the work, the rest, the rounds and a warm-up (or a preset), and the
-  session is timed in rounds, with a sound and a buzz at each change and a tick for the last three seconds. It is saved with the
-  session ("8 × 20 s on / 10 s off").
-- Pace, speed or a rower's split worked out for you, last time under the clock, this week's totals, and records for the
-  longest, the fastest and the longest time.
-- Miles or kilometres (rowing in metres, stairs in floors), and every session in History and on Progress.
+- Big view, a button in the workout, shows the set to do and the rest clock in very large type, to read from a few feet away.
+- Swap an exercise when the equipment is taken, add one mid-workout, or put the exercises in another order.
+- Tag a set as a warm-up, a drop set, to failure or AMRAP (or change it later, even in a saved workout). Warm-ups and drop sets
+  stay out of your records and estimated one-rep maxes; the program's warm-up sets are tagged for you.
+- Correct or undo a set, keep notes per workout or per exercise, and rate how many reps you had left.
+- Finishing shows a summary with any new personal records, achievements unlocked, the weekly goal and your streak; records, goals
+  and achievements set off fireworks across the whole screen.
+- Cancel a workout started by mistake (in the workout's ⋯ menu): nothing is saved, with Undo in case the tap was the slip.
 
 **History and progress**
-- A calendar of the last 12 weeks, strength and cardio alike, a weekly goal, and your streak.
-- Search, repeat, edit or copy any past workout or session, and fix a finished workout a set at a time.
-- Charts of heaviest weight, estimated one-rep max, best reps or volume, per exercise and over time, and of each
-  cardio activity's distance, time, pace or speed, calories and heart rate.
+- A calendar of the last 12 weeks, a weekly goal, and your streak.
+- Edit or delete any past workout, and fix a finished workout a set at a time.
+- Charts of heaviest weight, estimated one-rep max, best reps or volume, per exercise and over time.
 - Personal records, goals to aim for, and a bodyweight log.
-- Achievements, worked out from your workouts: workout milestones, weekly streaks, records beaten, plates on the bench, squat
-  and deadlift, weight lifted, distance and time on cardio, and more, each with the day you earned it and a bar to the next.
-  History cheers a new best streak and says what keeps one going.
-- Pick one exercise on Progress for its card: its records, the heaviest weight it has done for 1, 3, 5, 8 and 10
-  reps, its goal, whether it has stalled, and its muscle, above every session of it.
-- Sets per muscle each week against your recent average, and your exercises' muscles and equipment, guessed from
-  their names until you choose (which also decides which lifts get plates). Add exercises of your own.
+- Achievements, worked out from your workouts: workout milestones, weekly streaks, records beaten, weight lifted, and more, each with
+  the day you earned it and a bar to the next.
+- Sets per muscle each week against your recent average, and your exercises' muscles and equipment.
 
 **Everywhere**
 - Works through network drops: everything saves on the phone first and uploads when the server is back, and a change
-  made on one device (or in one tab) never undoes one made on another meanwhile. Opened offline, the Tracker, History,
-  Progress and Cardio show your workouts as the phone last loaded them. Anything the server refuses stays on the phone, and
-  the Tracker says so, rather than holding up the rest; Settings lists those workouts and why, and each can be tried again,
-  saved to a file or discarded. A tab left open while someone else signs in on
-  the same browser stops saving, says so, and keeps its account's work for that account.
+  made on one device (or in one tab) never undoes one made on another meanwhile. Opened offline, Today, History and Progress show
+  your workouts as the phone last loaded them.
 - Add it to your phone's home screen to open it like an app. Long-pressing its icon offers shortcuts to Today's workout (it starts
-  your program's next workout, or carries on the one under way), Cardio, History and Log weight (on Android).
-- Pick the days you train: the Tracker says what is planned today (and nudges you when you missed a day), History marks
-  the planned days on the calendar, and your phone can remind you on training days, even with the app closed.
-- Add a training program's remaining workouts to your own calendar app as an .ics file, one event on each training day.
-- Take a break when you are away, ill or hurt: a week with a break in it can't end your streak, and its days bring no reminders
-  and no missed-day nudge. Add one in Settings, under Training schedule.
+  the program's next day, or carries on the one under way), History and Log weight (on Android).
+- Pick the days you train: Today says what is planned (and nudges you when you missed a day), History marks the planned days
+  on the calendar, and your phone can remind you on training days, even with the app closed.
+- Add the program's remaining days to your own calendar app as an .ics file, one event on each training day.
+- Take a break when you are away, ill or hurt: a week with a break in it can't end your streak, and its days bring no reminders.
 - A notification when a rest ends even with the phone locked, if you turn it on in Settings (it needs HTTPS, and on an iPhone the app
   added to the Home Screen).
-- Pounds or kilograms, your own bar and plates, 10 colour themes (light, dark, and colourful ones), four text sizes, and a clear
-  focus ring for keyboard users. Dialogs keep the Tab key, the charts can be stepped through with the arrow keys, the end of a
-  rest is said to a screen reader, and a device set to less motion is not scrolled with a glide.
-- Export everything as JSON, or your sets and sessions as CSV, and import a JSON export into another account or server.
-- Download a finished workout or session as a .tcx file, from its summary or History's ⋯ menu, to upload to Strava on its
-  website or to open in an app such as HealthFit that adds it to Apple Health (which cannot read a file itself).
-- Accounts with email or username sign-in (a username works in any capitals, and one that differs from another only in capitals
-  is refused), "Remember me", and password reset by command or by email.
-- A new account starts with a short welcome on the Tracker: your units, how you want to train (a program, a template, or just
-  logging), your weekly goal and training days, and a quick tour, then the program's setup or the templates if you chose one.
-  Skip it at any time, or see it again from Settings.
+- Pounds or kilograms (and miles or kilometres for the walk), 10 colour themes (light, dark, and colourful ones), four text sizes, and
+  a clear focus ring for keyboard users.
+- Export everything as JSON, or your sets as CSV, and import a JSON export into another account or server.
+- Accounts with email or username sign-in, "Remember me", and password reset by command or by email.
+- A new account starts with a short welcome: your level, units, weekly goal and training days, and a quick tour, then the program
+  is started for you. Skip it at any time, or see it again from Settings.
 
 The [full reference](readme-for-llm.md#features) describes each of these in detail.
 
@@ -208,10 +140,10 @@ backups.
 
 ```bash
 python backend/server.py            # then open http://localhost:6769/
-python scripts/demo-server.py       # the same, on a fresh database with 3 weeks of 5/3/1 and cardio logged
+python scripts/demo-server.py       # the same, on a fresh database with twelve days of the program done and walked
 ```
 
-The demo signs in as `wendler-test` / `Wendler-531-Test`. Add `--follow` to keep it on whatever CI last
+The demo signs in as `savage-test` / `Sad-To-Savage-Test`. Add `--follow` to keep it on whatever CI last
 passed, rebuilding each time it passes again.
 
 ## Using it on your phone

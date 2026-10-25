@@ -451,7 +451,7 @@ class WebHandler(http.server.SimpleHTTPRequestHandler):
             target = '/' + parsed.path[len('/frontend'):].lstrip('/\\')
             self.redirect(HTTPStatus.MOVED_PERMANENTLY, target + (f'?{parsed.query}' if parsed.query else ''))
             return
-        if parsed.path in ('/', '/index.html', '/cardio.html', '/progress.html', '/history.html') and not self.session_user():
+        if parsed.path in ('/', '/index.html', '/progress.html', '/history.html') and not self.session_user():
             self.redirect(HTTPStatus.SEE_OTHER, '/login.html?next=' + quote(self.path, safe=''))
             return
         super().do_GET()

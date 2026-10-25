@@ -101,7 +101,6 @@ html[data-theme="dark"] .form-feedback.success { color:#a5e5c2; background:#193b
 /* The phone's tab bar draws an icon over each name; the files are the app's own, because nothing may load from another origin. */
 .site-nav a::before { content:""; display:none; width:22px; height:22px; background:currentColor; -webkit-mask:var(--tab-icon) center / contain no-repeat; mask:var(--tab-icon) center / contain no-repeat; }
 .site-nav a[href="index.html"] { --tab-icon:url(icons/tab-strength.svg); }
-.site-nav a[href="cardio.html"] { --tab-icon:url(icons/tab-cardio.svg); }
 .site-nav a[href="progress.html"] { --tab-icon:url(icons/tab-progress.svg); }
 .site-nav a[href="history.html"] { --tab-icon:url(icons/tab-history.svg); }
 h1 { margin:0; font-size:clamp(2rem,5vw,3.25rem); font-weight:800; letter-spacing:-.045em; }

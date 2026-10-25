@@ -102,7 +102,6 @@ body.onboarding-open .form-feedback { z-index:80; }
   -webkit-mask:var(--onboarding-icon) center / contain no-repeat; mask:var(--onboarding-icon) center / contain no-repeat;
 }
 .onboarding-tour-icon[data-page="strength"]::after { --onboarding-icon:url(icons/tab-strength.svg); }
-.onboarding-tour-icon[data-page="cardio"]::after { --onboarding-icon:url(icons/tab-cardio.svg); }
 .onboarding-tour-icon[data-page="progress"]::after { --onboarding-icon:url(icons/tab-progress.svg); }
 .onboarding-tour-icon[data-page="history"]::after { --onboarding-icon:url(icons/tab-history.svg); }
 

@@ -1,13 +1,13 @@
 // The Tracker's state, and starting the page. What the Tracker does is in the files loaded before this one, each declaring functions and
 // handlers that read the state below only when they run: workout-form.js (writing a workout down, changing a saved one),
-// saved-workouts.js (the list on the page), active-workout.js (the workout in progress), set-logging.js (logging and correcting sets),
-// beside rest-timer.js, records.js, templates.js and training-tools.js.
+// saved-workouts.js (loading them), active-workout.js (the workout in progress), set-logging.js (logging and correcting sets),
+// beside rest-timer.js, records.js and training-tools.js.
 
 const exercises = [];
 let editingWorkout = null;
 // The workout being edited as it was kept, in its own unit, which the form shows in the unit chosen (see backToUnit).
 let editingStored = null;
-// The saved workouts as last loaded, so the list's buttons act without asking the server again.
+// The saved workouts as last loaded.
 let savedWorkouts = [];
 // Everything saved, cardio sessions too, which is what a training day is counted from (schedule.js).
 let savedSessions = [];
@@ -23,7 +23,7 @@ $('splashLine').textContent = splashLine('idle');
 $('splashLine').hidden = false;
 
 // Names suggested wherever an exercise is typed (the <datalist> every exercise field uses): everything logged, spelled
-// the way it was most recently, then the exercises added on Progress, the templates' and the program's. Picking one keeps
+// the way it was most recently, then the exercises added on Progress and the program's. Picking one keeps
 // "Bench press" and "Bench Press" from becoming two exercises.
 function renderExerciseSuggestions() {
   const names = new Map();
@@ -31,7 +31,6 @@ function renderExerciseSuggestions() {
   [...savedWorkouts, ...readPendingWorkouts()].sort((a, b) => b.createdAt - a.createdAt).forEach(workout => workout.exercises.forEach(item => add(item.name)));
   Object.values(lastPerformance).sort((a, b) => b.date - a.date).forEach(entry => add(entry.name));
   Object.values(exerciseLibrary).forEach(entry => add(entry.name));
-  getAllTemplates().forEach(template => template.exercises.forEach(item => add(item.name)));
   if (currentProgram) {
     programDays(currentProgram).forEach((entry, day) => programDefinition(currentProgram).workout(currentProgram, 0, day).forEach(item => add(item.name)));
   }
@@ -42,11 +41,9 @@ function renderExerciseSuggestions() {
 // Tap the banner to dismiss it; opening settings also clears it so a stale message never sits over the dialog.
 $('formFeedback').onclick = clearFeedback;
 $('settingsButton').addEventListener('click', clearFeedback);
-renderTemplates();
-// The account's templates, notes, library and program as stored: the server's once it answers, and another tab's once it
+// The account's notes, library and program as stored: the server's once it answers, and another tab's once it
 // changes them (accountstatechange in offline.js), so a change made here never goes up without one made there.
 function takeAccountState() {
-  customTemplates = loadCustomTemplates();
   exerciseNotes = loadExerciseNotes();
   exerciseLibrary = loadExerciseLibrary();
   renderExerciseNote();
@@ -54,7 +51,6 @@ function takeAccountState() {
   // An exercise's equipment, which says whether it gets plates, may only arrive now.
   if (activeSession) showPlates();
   reloadProgram();
-  renderTemplates();
 }
 window.serverStateReady.then(takeAccountState);
 window.addEventListener('accountstatechange', takeAccountState);
@@ -76,9 +72,7 @@ function applyUnit() {
     $('completedReps').value = typed.reps;
     showPlates();
   }
-  // Once the list has loaded, whenever that was: the unit can arrive from the server while the page is still loading.
-  if (savedWorkoutsLoaded) renderSavedWorkouts(savedWorkouts);
-  renderTemplates();
+  if (savedWorkoutsLoaded) renderTrackerStatus(savedWorkouts);
   // Last week's totals are in the units shown, and its streak is against the weekly goal: both are settings. What's new goes
   // once it has been seen, which is a setting too.
   renderRecap();
@@ -98,10 +92,9 @@ window.addEventListener('syncchange', event => {
 window.localReady.then(() => {
   lastPerformance = readLocal(localKey('lastperf')) || {};
   personalBests = readLocal(localKey('bests')) || {};
-  syncTemplateArea();
   renderExerciseSuggestions();
   // Whatever goes wrong showing the workout in progress, the rest still loads: waiting workouts upload, and the saved
-  // ones are listed.
+  // ones are loaded.
   try {
     restoreLocalWorkout();
   } catch (error) {
@@ -116,5 +109,4 @@ window.localReady.then(() => {
   // cache) or one that throws only leaves the Tracker without it. Asked first, but it runs after the line below all the same.
   window.serverStateReady.then(() => { if (typeof maybeStartOnboarding === 'function') maybeStartOnboarding(); })
     .catch(error => console.error('Unable to start the welcome.', error));
-  syncTemplateArea();
 });

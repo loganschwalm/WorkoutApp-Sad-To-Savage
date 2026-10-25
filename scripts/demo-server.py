@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Serve the app locally with three weeks of Wendler 5/3/1 already logged, and cardio between, to try it on realistic data:
+"""Serve the app locally with twelve days of Sad to Savage already done, and a walk on each, to try it on realistic data:
 
     python scripts/demo-server.py             this checkout, until Ctrl+C
     python scripts/demo-server.py --follow    whatever CI last passed, rebuilt each time it passes again
 
-Then open http://localhost:6769/ and sign in as wendler-test / Wendler-531-Test. Every start is a fresh database,
+Then open http://localhost:6769/ and sign in as savage-test / Sad-To-Savage-Test. Every start is a fresh database,
 so whatever is logged in it is gone at the next one; data/workouts.db is never touched.
 
 --follow keeps its own clone of the repository in data/preview and checks every minute whether `stable` has moved,
@@ -17,8 +17,8 @@ import argparse
 import contextlib
 import http.client
 import json
-import math
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -28,85 +28,104 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PREVIEW_DIR = os.path.join(ROOT, 'data', 'preview')
-USERNAME, EMAIL, PASSWORD = 'wendler-test', 'wendler-test@example.com', 'Wendler-531-Test'
+USERNAME, EMAIL, PASSWORD = 'savage-test', 'savage-test@example.com', 'Sad-To-Savage-Test'
 DAY_MS = 86400000
 
-# ---- Three weeks of Wendler 5/3/1 ---------------------------------------------------------------------------------
-# Built as the app builds them (wendler531.workout in program-definitions.js, finishWorkout in script.js): warm-ups at
-# 40, 50 and 60% of the training max, the week's three sets with a + set last, Boring But Big's 5 x 10 at 50%, then
-# the day's assistance exercise. Every + set beats its target by a few reps. The cycle's deload week is still to do.
-ROUNDING = 5
-TRAINING_MAXES = {'press': 120, 'deadlift': 315, 'bench': 185, 'squat': 245}
-LIFTS = [('press', 'Overhead Press', 'Press Day'), ('deadlift', 'Deadlift', 'Deadlift Day'),
-         ('bench', 'Bench Press', 'Bench Day'), ('squat', 'Back Squat', 'Squat Day')]
-WEEKS = [('5s week', [(65, 5), (75, 5), (85, 5)]), ('3s week', [(70, 3), (80, 3), (90, 3)]),
-         ('5/3/1 week', [(75, 5), (85, 3), (95, 1)])]
-WARMUPS = [(40, 5), (50, 5), (60, 3)]
-# What Boring But Big adds after the day's 5 x 10: (name, sets, reps, weight logged, rest in seconds).
-ASSISTANCE = {'press': ('Chin-up', 5, 10, 0, 90), 'deadlift': ('Hanging Leg Raise', 5, 15, 0, 60),
-              'bench': ('Dumbbell Row', 5, 10, 50, 90), 'squat': ('Leg Curl', 5, 10, 90, 60)}
-AMRAP_BONUS = [3, 2, 4]  # reps past the + set's target, week by week
-NOTES = {2: 'Grip felt shaky on the deadlift set.', 7: 'Bench felt easy today, good pace.',
-         11: 'Squat depth was solid all session.'}
+# ---- Twelve days of Sad to Savage ---------------------------------------------------------------------------------
+# Built as the app builds them (sadToSavageStrength and sadToSavagePilates in program-definitions.js, finishWorkout in
+# active-workout.js) from the plan itself, frontend/sad-to-savage-data.js: the warm-up circuit as warm-up sets, each
+# superset as rounds at a weight in the middle of the level's range, and the cool-down as a timed set. The lifter is
+# new to strength, and has been on the program every day for twelve days, walking a little further as it went.
+LEVEL = 'nts'
+DONE = 12
+NOTES = {2: 'Hinges felt good today.', 6: 'Pull-ups on the heavy band, tough but done.', 9: 'Short on time, kept the rests to a minute.'}
 
 
-def round_to_step(value, step):
-    """roundToStep in program.js, with Math.round's halves going up where Python's round() goes to even."""
-    rounded = max(step, math.floor(math.floor(value / step + 0.5) * step * 100 + 0.5) / 100)
-    return int(rounded) if rounded == int(rounded) else rounded
+def load_plan():
+    """The plan as data: sad-to-savage-data.js is a JavaScript object literal of a plain kind (single-quoted strings,
+    unquoted keys, trailing commas), so it is turned into JSON rather than read from a second copy of the plan here."""
+    with open(os.path.join(ROOT, 'frontend', 'sad-to-savage-data.js'), encoding='utf-8') as handle:
+        text = handle.read()
+    body = text[text.index('const sadToSavagePlan = ') + len('const sadToSavagePlan = '):].strip().rstrip(';')
+    out, i = [], 0
+    while i < len(body):
+        char = body[i]
+        if char == "'":
+            j, chars = i + 1, []
+            while body[j] != "'":
+                if body[j] == '\\':
+                    chars.append(body[j + 1])
+                    j += 2
+                else:
+                    chars.append(body[j])
+                    j += 1
+            out.append(json.dumps(''.join(chars)))
+            i = j + 1
+        elif char.isalpha():
+            j = i
+            while body[j].isalnum():
+                j += 1
+            out.append(json.dumps(body[i:j]) if body[j] == ':' else body[i:j])
+            i = j
+        else:
+            out.append(char)
+            i += 1
+    return json.loads(re.sub(r',(\s*[\]}])', r'\1', ''.join(out)))
+
+
+def weight_in(text):
+    """A weight in the middle of a range such as '7.5-10lb DBs', to a half; 0 for a band, a bench or body weight."""
+    match = re.match(r'^([\d.]+)(?:-([\d.]+))?\s*(?:lbs?|\(total\))', text or '')
+    if not match:
+        return 0
+    low, high = float(match.group(1)), float(match.group(2) or match.group(1))
+    return round((low + high) / 2 * 2) / 2
+
+
+def strength_exercises(day, rest=90):
+    """A strength day as finishWorkout saves it: each move's sets, in the order they were done, as rounds."""
+    exercises = []
+    for move in day['warmup']['moves']:
+        sets = [{'weight': 0, 'reps': move['reps'], 'type': 'warmup'} for _ in range(day['warmup']['rounds'])]
+        exercises.append({'name': move['name'], 'weight': 0, 'reps': move['reps'], 'sets': sets, 'rest': rest, 'group': 'warmup'})
+    for number, block in enumerate(day['blocks'], 1):
+        for move in block['moves']:
+            weight = weight_in(move.get(LEVEL))
+            sets = [{'weight': weight, 'reps': move.get('repsMax', move['reps'])} for _ in range(block['rounds'])]
+            exercises.append({'name': move['name'], 'weight': weight, 'reps': sets[-1]['reps'], 'sets': sets, 'rest': rest, 'group': f'block{number}',
+                              **({'timed': True} if move.get('unit') == 'seconds' else {})})
+    return exercises
+
+
+def timed_exercise(name, seconds, rest=90):
+    return {'name': name, 'weight': 0, 'reps': seconds, 'sets': [{'weight': 0, 'reps': seconds}], 'rest': rest, 'timed': True}
 
 
 def demo_training():
-    """Twelve workouts, oldest first, every other day until two days ago, and the program as they leave it."""
+    """The workouts, oldest first, one a day until yesterday; and the program as they leave it, with a walk a day."""
+    plan = load_plan()['days'][:DONE]
     today_noon = time.mktime(time.localtime()[:3] + (12, 0, 0, 0, 0, -1)) * 1000
-    days = [(week, day) for week in range(len(WEEKS)) for day in range(len(LIFTS))]
-    workouts, done = [], {}
-    for index, (week, day) in enumerate(days):
-        key, lift, day_name = LIFTS[day]
-        week_name, work = WEEKS[week]
-        weight = lambda percent: round_to_step(TRAINING_MAXES[key] * percent / 100, ROUNDING)  # noqa: E731
-        sets = [{'weight': weight(percent), 'reps': reps} for percent, reps in WARMUPS]
-        sets += [{'weight': weight(percent), 'reps': reps + (AMRAP_BONUS[week] if number == len(work) - 1 else 0)}
-                 for number, (percent, reps) in enumerate(work)]
-        bbb = weight(50)
-        name, count, reps, load, rest = ASSISTANCE[key]
-        exercises = [
-            {'name': lift, 'weight': sets[-1]['weight'], 'reps': sets[-1]['reps'], 'sets': sets, 'rest': 180},
-            {'name': f'{lift} (BBB)', 'weight': bbb, 'reps': 10, 'sets': [{'weight': bbb, 'reps': 10} for _ in range(5)],
-             'rest': 90},
-            {'name': name, 'weight': load, 'reps': reps, 'sets': [{'weight': load, 'reps': reps} for _ in range(count)],
-             'rest': rest},
-        ]
-        created = int(today_noon - (len(days) - index) * 2 * DAY_MS)
+    workouts, done, walks = [], {}, {}
+    for index, day in enumerate(plan):
+        created = int(today_noon - (len(plan) - index) * DAY_MS - 5 * 3600 * 1000)
+        if day['kind'] == 'pilates':
+            exercises = [timed_exercise(f"Mat Pilates: {day['focus']}", day['minutes'] * 60), timed_exercise('Cool-down', 240)]
+            duration = day['minutes'] * 60 + 240 + 120
+        else:
+            exercises = strength_exercises(day) + [timed_exercise('Cool-down', 240)]
+            duration = 2700 + index * 60
         workouts.append({
-            'name': f'5/3/1 {day_name}', 'notes': NOTES.get(index, ''), 'exercises': exercises, 'createdAt': created,
-            'clientId': f'demo-531-{index}', 'unit': 'lbs', 'duration': 3300 + day * 180,
-            'program': {'name': 'Wendler 5/3/1', 'cycle': 1, 'week': week + 1,
-                        'label': f'Cycle 1, week {week + 1} · {week_name}'},
+            'name': f"{day['id']} {day['focus']}", 'notes': NOTES.get(index, ''), 'exercises': exercises, 'createdAt': created,
+            'clientId': f'demo-sad-to-savage-{index}', 'unit': 'lbs', 'duration': duration,
+            'program': {'name': 'Sad to Savage', 'cycle': 1, 'week': day['week'], 'label': f"Week {day['week']} of 6"},
         })
-        done[f'{week}-{day}'] = {'at': created, 'skipped': False, 'hit': True,
-                                 'amrap': {'weight': sets[-1]['weight'], 'reps': sets[-1]['reps'], 'target': work[-1][1]}}
-    program = {'definition': 'wendler-531', 'unit': 'lbs', 'startedAt': workouts[0]['createdAt'], 'cycle': 1,
-               'trainingMaxes': TRAINING_MAXES, 'stalls': {}, 'done': done, 'lastRollover': None,
-               'options': {'tmPercent': 90, 'assistance': 'bbb', 'rounding': ROUNDING, 'warmups': True, 'deload': True}}
+        done[f"{day['week'] - 1}-{day['day'] - 1}"] = {'at': created, 'skipped': False}
+        # A little further as the days go by, and one day with nothing to count but showing up.
+        key = time.strftime('%Y-%m-%d', time.localtime(created / 1000))
+        walks[key] = ({'at': created + 3600000, 'steps': 0, 'distance': 0, 'unit': 'mi'} if index == 5 else
+                      {'at': created + 3600000, 'steps': 7000 + index * 310, 'distance': round(3.0 + index * 0.13, 2), 'unit': 'mi'})
+    program = {'definition': 'sad-to-savage', 'startedAt': workouts[0]['createdAt'], 'cycle': 1, 'options': {'level': LEVEL}, 'done': done, 'walks': walks}
     return workouts, program
-
-
-# ---- Cardio between the lifting days ------------------------------------------------------------------------------
-# Runs that get a little longer and quicker, some rowing and a couple of walks, on the days between the 5/3/1 sessions,
-# as the Cardio page saves them. (days ago, activity, name, distance, unit, seconds)
-CARDIO = [(23, 'run', 'Run', 3.0, 'mi', 1680), (21, 'rower', 'Rowing machine', 4800, 'm', 1200), (19, 'run', 'Run', 3.1, 'mi', 1710),
-          (17, 'walk', 'Walk', 2.0, 'mi', 2280), (15, 'run', 'Run', 3.2, 'mi', 1740), (13, 'rower', 'Rowing machine', 4900, 'm', 1200),
-          (11, 'run', 'Run', 3.4, 'mi', 1820), (9, 'walk', 'Walk', 2.2, 'mi', 2460), (7, 'run', 'Run', 3.5, 'mi', 1850),
-          (5, 'rower', 'Rowing machine', 5000, 'm', 1200), (3, 'run', 'Run', 3.8, 'mi', 1960), (1, 'rower', 'Rowing machine', 5100, 'm', 1200)]
-
-
-def demo_cardio():
-    """The sessions above, oldest first, at seven in the morning."""
-    today = time.mktime(time.localtime()[:3] + (7, 0, 0, 0, 0, -1)) * 1000
-    return [{'kind': 'cardio', 'name': name, 'notes': '', 'exercises': [], 'createdAt': int(today - days * DAY_MS), 'duration': seconds,
-             'clientId': f'demo-cardio-{index}', 'cardio': {'activity': activity, 'distance': distance, 'distanceUnit': unit}}
-            for index, (days, activity, name, distance, unit, seconds) in enumerate(CARDIO)]
 
 
 # ---- The server ---------------------------------------------------------------------------------------------------
@@ -162,7 +181,7 @@ class DemoServer:
         _, cookie = self.api('POST', '/api/auth/register', {'username': USERNAME, 'email': EMAIL, 'password': PASSWORD})
         token = cookie.split('session=')[1].split(';')[0]
         workouts, program = demo_training()
-        for workout in workouts + demo_cardio():
+        for workout in workouts:
             self.api('POST', '/api/workouts', workout, token)
         self.api('PUT', '/api/state', {'program': program}, token)
 

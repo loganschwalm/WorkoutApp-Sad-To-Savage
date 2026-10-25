@@ -36,8 +36,6 @@ const PRECACHE = [
   '/rest-timer.js',
   '/records.js',
   '/summary.js',
-  '/templates.js',
-  '/program-builder.js',
   '/exercise-library.js',
   '/exercise-guides.js',
   '/program-plan.js',
@@ -60,7 +58,6 @@ const PRECACHE = [
   '/recap.js',
   '/whats-new.js',
   '/activity-export.js',
-  '/cardio.js',
   '/history.js',
   '/chart-parts.js',
   '/progress-exercise.js',
@@ -76,13 +73,12 @@ const PRECACHE = [
   '/icons/icon-maskable-512.png',
   '/icons/apple-touch-icon.png',
   '/icons/tab-strength.svg',
-  '/icons/tab-cardio.svg',
   '/icons/tab-progress.svg',
   '/icons/tab-history.svg',
 ];
 
 // Pages worth having offline, warmed after activation while the session cookie is live.
-const PAGES = ['/index.html', '/cardio.html', '/history.html', '/progress.html'];
+const PAGES = ['/index.html', '/history.html', '/progress.html'];
 
 // One cache entry per page, so /index.html?start=12 does not pile up copies of the shell,
 // and / shares the entry of /index.html, which is the page it serves.

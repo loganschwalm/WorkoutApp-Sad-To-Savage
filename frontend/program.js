@@ -1,8 +1,9 @@
-// Training programs: a whole plan of workouts, with one number per lift (a training max or a working weight) that the
-// program moves as the lifter progresses. This file is what every program shares; program-definitions.js says what
-// each program is. The program being followed is kept per account beside settings and templates (offline.js saves it
-// on this device first and uploads it). Loaded before script.js, whose startWorkout begins the program's workouts.
-// More than a year of daily walks is kept; a program with more than that has long been over. (Above currentProgram, which
+// The program: Sad to Savage, six weeks of five days. This file is what the Tracker does with it: keeping the program being followed
+// (per account, beside settings; offline.js saves it on this device first and uploads it), the card for today's day, starting a day as a
+// workout, recording it once it is finished, the daily walk, and starting the program, changing its level and going round again.
+// program-definitions.js says what the program is, and program-plan.js knows which day is next, which the History page shares.
+// Loaded before script.js, whose startWorkout begins the program's workouts.
+// More than a year of daily walks is kept; a program with more than that has long been over. (Declared above currentProgram, which
 // reads the stored program as it is declared.)
 const maxWalks = 400;
 let currentProgram = loadProgram();
@@ -12,47 +13,16 @@ function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function positiveWeight(value) {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 && number < 10000 ? number : null;
-}
-
 function storedNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
-// Never below one step, so a tiny training max cannot round down to nothing.
-function roundToStep(value, step) {
-  // The outer rounding clears float noise such as 142.49999999 from multiplying by 2.5.
-  return Math.max(step, Math.round(Math.round(value / step) * step * 100) / 100);
-}
-
-// Epley's formula, the usual way to read a one-rep max off a set of several reps.
-// Not exactOneRepMax in common.js, which keeps 2 decimals so that close results still compare; this one is rounded to the
-// whole number a program's notes show. (Neither caps reps itself: callers that want ONE_REP_MAX_REPS filter first.)
-function estimateOneRepMax(weight, reps) {
-  return Math.round(reps <= 1 ? weight : weight * (1 + reps / 30));
-}
-
-// A select's choices and default in a unit. A program can offer weights per unit: choices as a function of the unit,
-// and a default of { lbs, kg }.
-function optionChoices(option, unit) {
-  return typeof option.choices === 'function' ? option.choices(unit) : option.choices;
-}
-
-function optionDefault(option, unit) {
-  return option.default !== null && typeof option.default === 'object' ? option.default[unit] : option.default;
-}
-
-// Each option's stored value, or its default: a check's own default, a select's default choice or else its first.
-function normalizeOptions(definition, given, unit) {
+// A select's choice for each option, or its default: a stored value that is not one of the choices is the default.
+function normalizeOptions(definition, given) {
   return Object.fromEntries(definition.options.map(option => {
-    if (option.type === 'check') return [option.id, typeof given[option.id] === 'boolean' ? given[option.id] : option.default];
-    const choices = optionChoices(option, unit);
-    const choice = choices.find(item => String(item.value) === String(given[option.id]))
-      || choices.find(item => item.value === optionDefault(option, unit));
-    return [option.id, (choice || choices[0]).value];
+    const choice = option.choices.find(item => String(item.value) === String(given[option.id])) || option.choices.find(item => item.value === option.default);
+    return [option.id, (choice || option.choices[0]).value];
   }));
 }
 
@@ -61,31 +31,11 @@ function normalizeProgram(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const definition = findProgramDefinition(value.definition);
   if (!definition) return null;
-  // A program the lifter built keeps its own name and days, and is no program without them.
-  const own = definition.normalize ? definition.normalize(value) : {};
-  if (!own) return null;
-  const maxes = value.trainingMaxes && typeof value.trainingMaxes === 'object' ? value.trainingMaxes : {};
-  const trainingMaxes = {};
-  for (const lift of definition.lifts) {
-    trainingMaxes[lift.key] = positiveWeight(maxes[lift.key]);
-    if (trainingMaxes[lift.key] === null) return null;
-  }
-  // Missed sessions in a row, per lift, for programs that deload after repeated misses.
-  const stalls = {};
-  definition.lifts.forEach(lift => { const misses = Math.floor(storedNumber(value.stalls?.[lift.key])); if (misses) stalls[lift.key] = misses; });
   const done = {};
   Object.entries(value.done && typeof value.done === 'object' ? value.done : {}).forEach(([key, entry]) => {
     if (!/^\d+-\d+$/.test(key) || !entry || typeof entry !== 'object') return;
-    const amrap = entry.amrap && typeof entry.amrap === 'object' ? { weight:storedNumber(entry.amrap.weight), reps:storedNumber(entry.amrap.reps), target:storedNumber(entry.amrap.target) } : null;
-    done[key] = { at:storedNumber(entry.at), skipped:entry.skipped === true, amrap, hit:typeof entry.hit === 'boolean' ? entry.hit : null };
+    done[key] = { at:storedNumber(entry.at), skipped:entry.skipped === true };
   });
-  const rollover = value.lastRollover && typeof value.lastRollover === 'object' && Array.isArray(value.lastRollover.changes) ? {
-    cycle:storedNumber(value.lastRollover.cycle),
-    changes:value.lastRollover.changes.filter(change => change && definition.lifts.some(lift => lift.key === change.lift)).map(change => ({ lift:change.lift, from:storedNumber(change.from), to:storedNumber(change.to), reset:change.reset === true }))
-  } : null;
-  // The unit its numbers are in; programs from before kilograms existed are in pounds.
-  const unit = recordUnit(value);
-  const options = normalizeOptions(definition, value.options && typeof value.options === 'object' ? value.options : {}, unit);
   // The walks, by the day they were walked (year-month-day, where the lifter is): { at, steps, distance, unit } with either number
   // or neither, since a walk with no numbers is showing up, which the plan counts. A day is not a program day because a walk is
   // done after the workout as often as before it, and on days the program has nothing to start.
@@ -95,30 +45,9 @@ function normalizeProgram(value) {
     walks[key] = { at:storedNumber(entry.at), steps:Math.floor(storedNumber(entry.steps)), distance:storedNumber(entry.distance), unit:entry.unit === 'km' ? 'km' : 'mi' };
   });
   const finishedAt = storedNumber(value.finishedAt);
-  return { definition:definition.id, unit, startedAt:storedNumber(value.startedAt), cycle:Math.max(1, Math.floor(storedNumber(value.cycle))), trainingMaxes, stalls, options, done, walks,
-    ...(finishedAt ? { finishedAt } : {}), lastRollover:rollover, ...own };
-}
-
-// The same program in the other unit, for when Settings change it. Its numbers are converted and rounded to steps the
-// program uses in that unit (definition.roundNumber); an option that is a weight (rounding, the heaviest dumbbells)
-// moves to the nearest choice in the new unit; anything else (a percentage) stays. Results already recorded convert too.
-function programInUnit(program, to) {
-  if (!program || program.unit === to) return program;
-  const definition = programDefinition(program);
-  const convert = value => convertWeight(value, program.unit, to);
-  const options = Object.fromEntries(definition.options.map(option => {
-    const value = program.options[option.id];
-    if (!option.weight) return [option.id, value];
-    const target = convert(value);
-    const nearest = optionChoices(option, to).reduce((best, choice) => Math.abs(choice.value - target) < Math.abs(best.value - target) ? choice : best);
-    return [option.id, nearest.value];
-  }));
-  const converted = { ...program, unit:to, options };
-  const round = (lift, value) => definition.roundNumber ? definition.roundNumber(converted, lift, value) : Math.round(value * 2) / 2;
-  converted.trainingMaxes = Object.fromEntries(definition.lifts.map(lift => [lift.key, round(lift, convert(program.trainingMaxes[lift.key]))]));
-  converted.done = Object.fromEntries(Object.entries(program.done).map(([key, entry]) => [key, entry.amrap ? { ...entry, amrap:{ ...entry.amrap, weight:convert(entry.amrap.weight) } } : entry]));
-  if (program.lastRollover) converted.lastRollover = { ...program.lastRollover, changes:program.lastRollover.changes.map(change => ({ ...change, from:convert(change.from), to:convert(change.to) })) };
-  return converted;
+  // `cycle` counts the times the program has been gone through, from 1; with `startedAt` it says which run a day belongs to.
+  return { definition:definition.id, startedAt:storedNumber(value.startedAt), cycle:Math.max(1, Math.floor(storedNumber(value.cycle))),
+    options:normalizeOptions(definition, value.options && typeof value.options === 'object' ? value.options : {}), done, walks, ...(finishedAt ? { finishedAt } : {}) };
 }
 
 // The program as this page reads it, so a field filled in by normalizeProgram is not mistaken for a change (see
@@ -134,260 +63,89 @@ function saveProgram(program) {
   currentProgram = program;
   saveLocalState('program', program);
   renderProgram();
-  renderTemplates();
 }
 
 // Called once the server's copy has loaded, which may be newer than the one this page started with.
 function reloadProgram() {
   const loaded = loadProgram();
-  const inShownUnit = programInUnit(loaded, weightUnit());
-  const settled = settleProgram(inShownUnit);
-  if (settled.rolledOver || inShownUnit !== loaded) saveProgram(settled.program);
+  const settled = settleProgram(loaded);
+  if (settled !== loaded) saveProgram(settled);
   else {
-    currentProgram = settled.program;
+    currentProgram = loaded;
     renderProgram();
   }
 }
 
 // ---- The plan -------------------------------------------------------------
-// (programWeeks, programDays, dayLabel and nextProgramDay are in program-plan.js, which the History page shares.)
+// (programWeeks, programDays, dayTitle, dayLabel and nextProgramDay are in program-plan.js, which the History page shares.)
 
-// Where a workout sits in the program, as History shows it: "Cycle 1, week 2 · 3s week", or "Week 3".
+// Where a workout sits in the program, as History shows it: "Week 3 of 6".
 function blockLabel(program, week) {
-  const definition = programDefinition(program);
-  if (definition.blockLabel) return definition.blockLabel(program, week);
-  const weeks = programWeeks(program);
-  const block = `${capitalize(programDefinition(program).block)} ${program.cycle}`;
-  return weeks.length > 1 ? `${block}, week ${week + 1} · ${weeks[week].name}` : block;
+  return programDefinition(program).blockLabel(program, week);
 }
 
 function doneInWeek(program, week) {
   return programDays(program).filter((entry, day) => program.done[dayKey(week, day)]).length;
 }
 
-// One day of the current block, in the shape startWorkout takes. programDay says which day of which run of the
-// program it is, so finishing the workout can mark that day done.
+// One day of the program, in the shape startWorkout takes. programDay says which day of which run of the program it is, so
+// finishing the workout can mark that day done.
 function programWorkout(program, week, day) {
   const definition = programDefinition(program);
-  const exercises = definition.workout(program, week, day);
-  // The day's main lift and its number as the day was planned, which the card's Progress charts.
-  const lift = exercises[0] && definition.lifts.find(item => item.name === exercises[0].name);
-  // A built program's days go by their own names, so History says which program: "Upper/Lower · Week 3".
-  const label = definition.custom ? `${definition.name} · ${blockLabel(program, week)}` : blockLabel(program, week);
   return {
-    name:definition.workoutName ? definition.workoutName(program, day, week) : `${definition.shortName} ${programDays(program)[day].name}`,
+    name:definition.workoutName(program, day, week),
     notes:'',
-    unit:program.unit,
-    exercises,
-    programDay:{ definition:definition.id, name:definition.name, startedAt:program.startedAt, cycle:program.cycle, week, day, label,
-      ...(lift ? { lift:lift.key, number:program.trainingMaxes[lift.key] } : {}) }
+    unit:weightUnit(),
+    exercises:definition.workout(program, week, day),
+    programDay:{ definition:definition.id, name:definition.name, startedAt:program.startedAt, cycle:program.cycle, week, day, label:blockLabel(program, week) }
   };
 }
 
-// What a saved workout keeps about the program day it came from, for History and the card's Progress. Kept under a
-// different name from the session's programDay, so starting a saved workout again never passes for a day of the program.
+// What a saved workout keeps about the program day it came from, for History. Kept under a different name from the session's
+// programDay, so starting a saved workout again never passes for a day of the program.
 function programInfo(programDay) {
   const definition = findProgramDefinition(programDay.definition);
-  const number = positiveWeight(programDay.number);
   const name = typeof programDay.name === 'string' && programDay.name ? programDay.name : definition ? definition.name : '';
-  return { name, cycle:storedNumber(programDay.cycle), week:storedNumber(programDay.week) + 1, label:String(programDay.label || ''),
-    ...(number !== null && typeof programDay.lift === 'string' ? { lift:programDay.lift, number } : {}) };
+  return { name, cycle:storedNumber(programDay.cycle), week:storedNumber(programDay.week) + 1, label:String(programDay.label || '') };
 }
 
-// ---- Progress -------------------------------------------------------------
-
-// An exercise done in place of the program's (Swap, in training-tools.js) is not the lift the program is tracking.
+// An exercise done in place of the planned one (Swap, in training-tools.js).
 function isSwappedIn(exercise) {
   return Boolean(exercise && exercise.swappedFrom);
 }
 
-// How the + set went, read from a workout's exercises: whatever was logged in the + set's place in the plan.
-function amrapResult(exercises) {
-  for (const exercise of exercises) {
-    if (isSwappedIn(exercise)) continue;
-    const plan = Array.isArray(exercise.plan) ? exercise.plan : [];
-    const index = plan.findIndex(set => set && set.amrap);
-    if (index === -1) continue;
-    const logged = planSets(exercise)[index];
-    return logged ? { weight:storedNumber(logged.weight), reps:storedNumber(logged.reps), target:storedNumber(plan[index].reps) } : null;
-  }
-  return null;
-}
-
-function missedAmrap(result) {
-  return Boolean(result) && result.reps < result.target;
-}
-
-// Whether the day's main lift (its first exercise) got every planned rep of every work set; null if it was not tried,
-// or was swapped for another exercise, before or partway through its sets.
-function mainLiftHit(exercises) {
-  const main = exercises[0];
-  if (!main || isSwappedIn(main) || main.swappedOut || !Array.isArray(main.plan) || !(main.sets || []).length) return null;
-  const done = planSets(main);
-  return main.plan.every((set, index) => set.warmup || (Boolean(done[index]) && storedNumber(done[index].reps) >= storedNumber(set.reps)));
-}
-
-// The next block starts once every day of this one is done. That normally happens as its last day is saved, but a
-// change of options (dropping the deload week), or a copy from another device, can also leave one finished.
-function rollOver(program) {
-  const definition = programDefinition(program);
-  return { ...program, cycle:program.cycle + 1, done:{}, lastRollover:null, ...(definition.nextBlock ? definition.nextBlock(program) : {}) };
-}
-
-// A program that is a fixed length (Sad to Savage's six weeks) is finished, not started again, once every day is done; the
-// card then offers to start it over. One that goes on rolls into its next block.
+// The program is finished once every day is done: it is a fixed length, and the card then offers to go round again as a new run.
 function settleProgram(program) {
-  if (!program || nextProgramDay(program)) return { program, rolledOver:false };
-  if (programDefinition(program).finite) return { program:program.finishedAt ? program : { ...program, finishedAt:Date.now() }, rolledOver:false };
-  return { program:rollOver(program), rolledOver:true };
+  if (!program || nextProgramDay(program) || program.finishedAt) return program;
+  return { ...program, finishedAt:Date.now() };
 }
 
-function describeChanges(program, changes) {
-  return changes.map(change => {
-    const lift = programDefinition(program).lifts.find(item => item.key === change.lift);
-    return `${lift.name} ${formatWeight(change.to)} ${weightUnit()} (${change.reset ? 'reset after a missed + set' : `+${Math.round((change.to - change.from) * 100) / 100}`})`;
-  }).join(', ');
-}
-
-function nextUpMessage(program, rolledOver) {
-  const definition = programDefinition(program);
+function nextUpMessage(program) {
   const next = nextProgramDay(program);
-  if (!next) return `That was the last day: you finished ${definition.name}.`;
-  const nextUp = `Next in ${definition.name}: ${dayLabel(program, next.week, next.day)}.`;
-  if (!rolledOver) return nextUp;
-  const complete = `${capitalize(definition.block)} ${program.cycle - 1} of ${definition.name} is complete.`;
-  return program.lastRollover?.changes.length ? `${complete} New ${definition.numbersLabel.toLowerCase()}: ${describeChanges(program, program.lastRollover.changes)}.` : `${complete} ${nextUp}`;
+  return next ? `Next in ${programDefinition(program).name}: ${dayLabel(program, next.week, next.day)}.` : `That was the last day: you finished ${programDefinition(program).name}.`;
 }
 
-// Saves a day as done, starting the next block once every day of this one is. Returns a sentence saying what comes next.
+// Saves a day as done, finishing the program once every day is. Returns a sentence saying what comes next.
 function recordProgramDay(program, week, day, entry) {
-  const settled = settleProgram({ ...program, done:{ ...program.done, [dayKey(week, day)]:entry } });
-  saveProgram(settled.program);
-  return nextUpMessage(settled.program, settled.rolledOver);
+  saveProgram(settleProgram({ ...program, done:{ ...program.done, [dayKey(week, day)]:entry } }));
+  return nextUpMessage(currentProgram);
 }
 
-// Called by finishWorkout for a workout started from the program with at least one set logged. A workout from a
-// program that has since been ended, restarted or moved on to its next block is saved, but marks nothing done. Returns the
-// sentence saying what comes next (note), and what the day did for the summary to celebrate (outcome, null when it marked
-// nothing done): the + set beating its plan, every planned rep of the main lift made, and the block it finished, with the
-// numbers it moved on to.
+// Called by finishWorkout for a workout started from the program with at least one set logged. A workout from a program that has
+// since been started over or gone round again is saved, but marks nothing done. Returns the sentence saying what comes next
+// (note), and what the day did for the summary to celebrate (outcome, null when it marked nothing done): finishing the program.
 function completeProgramDay(session) {
   const { programDay } = session;
   const program = currentProgram;
   if (!programDay || !program || program.startedAt !== programDay.startedAt || program.cycle !== programDay.cycle || !programWeeks(program)[programDay.week] || !programDays(program)[programDay.day]) return { note:'', outcome:null };
-  const definition = programDefinition(program);
-  // A program with no lifts of its own to move (Sad to Savage) has no main lift to hit and no + set to beat.
-  const tracksLifts = definition.lifts.length > 0;
-  const entry = { at:Date.now(), skipped:false, amrap:tracksLifts ? amrapResult(session.exercises) : null, hit:tracksLifts ? mainLiftHit(session.exercises) : null };
-  const progress = definition.afterWorkout ? definition.afterWorkout(program, programDay.day, entry, session.exercises) : { program, note:'' };
-  const main = tracksLifts ? session.exercises[0] : null;
-  const swapped = main && (isSwappedIn(main) || main.swappedOut) ? `${isSwappedIn(main) ? main.swappedFrom.name : main.name} was swapped out, so this workout does not count toward its progress.` : '';
-  const note = [swapped, progress.note, recordProgramDay(progress.program, programDay.week, programDay.day, entry)].filter(Boolean).join(' ');
-  // The block moved on with this day if the program is now the next run of the same one; only then is lastRollover this day's.
-  const rolledOver = Boolean(currentProgram) && currentProgram.startedAt === programDay.startedAt && currentProgram.cycle === programDay.cycle + 1;
-  const changes = rolledOver && currentProgram.lastRollover && currentProgram.lastRollover.changes && currentProgram.lastRollover.changes.length
-    ? describeChanges(currentProgram, currentProgram.lastRollover.changes) : '';
-  return { note, outcome:{ main:main && !swapped ? String(main.name).trim() : '', hit:entry.hit === true && !swapped,
-    beat:entry.amrap && entry.amrap.reps > entry.amrap.target ? entry.amrap : null,
-    completed:rolledOver ? { block:capitalize(definition.block), number:programDay.cycle, name:definition.name, changes, numbersLabel:definition.numbersLabel || '' } : null,
-    finished:Boolean(currentProgram) && currentProgram.startedAt === programDay.startedAt && currentProgram.cycle === programDay.cycle && Boolean(currentProgram.finishedAt) ? definition.name : '' } };
+  const wasFinished = Boolean(program.finishedAt);
+  const note = recordProgramDay(program, programDay.week, programDay.day, { at:Date.now(), skipped:false });
+  return { note, outcome:{ finished:!wasFinished && Boolean(currentProgram.finishedAt) ? programDefinition(currentProgram).name : '' } };
 }
 
-// The summary's lines for a program day's outcome (completeProgramDay), the biggest first.
+// The summary's lines for a program day's outcome (completeProgramDay).
 function programOutcomeLines(outcome) {
-  if (!outcome) return [];
-  const lines = [];
-  if (outcome.finished) lines.push(`You finished ${outcome.finished}: all thirty days done.`);
-  if (outcome.completed) {
-    const { block, number, name, changes, numbersLabel } = outcome.completed;
-    lines.push(`${block} ${number} of ${name} complete.${changes ? ` New ${numbersLabel.toLowerCase()}: ${changes}.` : ''}`);
-  }
-  if (outcome.beat) {
-    const { weight, reps, target } = outcome.beat;
-    lines.push(`+ set: ${plural(reps, 'rep')}${weight ? ` at ${formatWeight(weight)} ${weightUnit()}` : ''}, ${reps - target} more than the ${target} planned.`);
-  }
-  if (outcome.hit && outcome.main) lines.push(`Every planned rep of ${outcome.main} made.`);
-  return lines;
-}
-
-// ---- Progress over the program --------------------------------------------
-
-// Each lift's sessions in this run of the program (since it was set up), oldest first: when, the number it worked from
-// (a training max or working weight), and the best one-rep max its sets estimate (sets of up to 12 reps, as Progress
-// counts them). Workouts saved before they kept their number have it read back from what was lifted: through
-// definition.numberFrom from all of a block's sessions of the lift together, which shared one number, or else each
-// session's heaviest weight. All in the program's unit.
-function programProgress(program, workouts) {
-  const definition = programDefinition(program);
-  const sessions = Object.fromEntries(definition.lifts.map(lift => [lift.key, []]));
-  const unknown = new Map();
-  workouts.forEach(workout => {
-    const info = workout && workout.program;
-    if (!info || info.name !== definition.name || !(workout.createdAt >= program.startedAt) || !Array.isArray(workout.exercises)) return;
-    const lift = definition.lifts.find(item => item.key === info.lift)
-      || definition.lifts.find(item => workout.exercises[0] && exerciseKey(workout.exercises[0].name) === exerciseKey(item.name));
-    const exercise = lift && workout.exercises.find(item => exerciseKey(item.name) === exerciseKey(lift.name));
-    if (!exercise) return;
-    const from = recordUnit(workout);
-    const sets = (exercise.sets || []).map(set => ({ weight:convertWeight(storedNumber(set.weight), from, program.unit), reps:storedNumber(set.reps) }))
-      .filter(set => set.weight > 0 && set.reps > 0);
-    if (!sets.length) return;
-    const kept = positiveWeight(info.number);
-    const estimates = sets.filter(set => set.reps <= 12).map(set => estimateOneRepMax(set.weight, set.reps));
-    const session = { at:workout.createdAt, number:kept !== null ? convertWeight(kept, from, program.unit) : Math.max(...sets.map(set => set.weight)),
-      best:estimates.length ? Math.max(...estimates) : null };
-    sessions[lift.key].push(session);
-    if (kept === null && definition.numberFrom) {
-      const block = `${lift.key} ${storedNumber(info.cycle)}`;
-      if (!unknown.has(block)) unknown.set(block, []);
-      unknown.get(block).push({ session, week:Math.max(0, storedNumber(info.week) - 1), weights:sets.map(set => set.weight) });
-    }
-  });
-  unknown.forEach(block => {
-    const number = definition.numberFrom(program, block);
-    if (number > 0) block.forEach(({ session }) => { session.number = number; });
-  });
-  Object.values(sessions).forEach(list => list.sort((a, b) => a.at - b.at));
-  return sessions;
-}
-
-// A lift's number as a stepped line, from its first session to now (where it is the number the program holds now, so a
-// new cycle's training max shows), and the estimated one-rep maxes as dots. Coloured by class, from the theme.
-function progressChart(sessions, current, label) {
-  const width = 320, height = 112, left = 6, right = 6, top = 10, bottom = 10;
-  const first = sessions[0].at, now = Math.max(Date.now(), sessions[sessions.length - 1].at);
-  const values = [...sessions.map(session => session.number), current, ...sessions.map(session => session.best).filter(Boolean)];
-  const low = Math.min(...values), high = Math.max(...values), pad = Math.max(1, (high - low) * 0.12);
-  const x = at => now > first ? left + (at - first) / (now - first) * (width - left - right) : width / 2;
-  const y = value => top + (1 - (value - (low - pad)) / (high - low + 2 * pad)) * (height - top - bottom);
-  const round = value => Math.round(value * 10) / 10;
-  const steps = [...sessions.map(session => [session.at, session.number]), [now, current]];
-  const path = steps.map(([at, value], index) => index ? `H ${round(x(at))} V ${round(y(value))}` : `M ${round(x(at))} ${round(y(value))}`).join(' ');
-  const dots = sessions.filter(session => session.best).map(session => `<circle class="progress-best" cx="${round(x(session.at))}" cy="${round(y(session.best))}" r="3.5" />`).join('');
-  return `<svg class="program-progress-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHTML(label)}"><path class="progress-number" d="${path}" />${dots}</svg>`;
-}
-
-function renderProgramProgress(program) {
-  const definition = programDefinition(program);
-  const workouts = [...(typeof savedWorkouts === 'undefined' ? [] : savedWorkouts), ...readPendingWorkouts()];
-  const progress = programProgress(program, workouts);
-  const unit = weightUnit();
-  const weight = value => `${formatWeight(Math.round(value * 10) / 10)} ${unit}`;
-  const day = at => new Date(at).toLocaleDateString(undefined, { month:'short', day:'numeric' });
-  const rows = definition.lifts.filter(lift => progress[lift.key].length).map(lift => {
-    const sessions = progress[lift.key];
-    const current = program.trainingMaxes[lift.key];
-    const bests = sessions.map(session => session.best).filter(Boolean);
-    const number = `${definition.numberLabel} ${weight(sessions[0].number)}${sessions[0].number === current ? ' throughout' : ` \u2192 ${weight(current)}`}`;
-    const estimate = bests.length ? `estimated max ${weight(bests[0])}${bests.length > 1 ? ` \u2192 ${weight(bests[bests.length - 1])}` : ''}` : '';
-    const summary = `${number}${estimate ? `; ${estimate}` : ''}, over ${sessions.length} session${sessions.length === 1 ? '' : 's'} since ${day(sessions[0].at)}`;
-    return `<li><div class="program-progress-head"><strong>${escapeHTML(lift.name)}</strong><span>${escapeHTML(weight(current))}</span></div>`
-      + `${progressChart(sessions, current, `${lift.name}: ${summary}`)}<p>${escapeHTML(summary)}</p></li>`;
-  });
-  $('programProgressSection').hidden = !rows.length;
-  $('programProgressKey').innerHTML = `<span class="key-item"><span class="key-number" aria-hidden="true"></span>${escapeHTML(definition.numberLabel)}</span>`
-    + `<span class="key-item"><span class="key-best" aria-hidden="true"></span>Estimated one-rep max, from each session's sets</span>`;
-  $('programProgress').innerHTML = rows.join('');
+  return outcome && outcome.finished ? [`You finished ${outcome.finished}: all thirty days done.`] : [];
 }
 
 // ---- Formatting -----------------------------------------------------------
@@ -396,56 +154,37 @@ function formatReps(set) {
   return set.repsMax ? `${set.reps}–${set.repsMax}` : `${set.reps}${set.amrap ? '+' : ''}`;
 }
 
-// "85 lbs × 5+", or "8–12 reps" when the plan leaves the weight to the lifter. Weights are in the unit shown.
+// "12 reps each side", "30 seconds", "25 minutes", or "85 lbs × 5+" when the plan gives a weight. Weights are in the unit shown.
 function formatPlannedSet(set) {
-  // A set can count steps or seconds instead of reps, and say that it is each side's: "12 reps each side", "30 seconds". A long
-  // hold or a session is said in minutes ("25 minutes"), which is what it is to the person doing it.
+  // A long hold or a session is said in minutes, which is what it is to the person doing it.
   if (set.unit === 'seconds' && set.reps >= 120 && set.reps % 60 === 0) return `${set.reps / 60} minutes`;
   const what = `${set.unit || 'reps'}${set.per ? ` ${set.per}` : ''}`;
   return set.weight === '' || set.weight === undefined || set.weight === null ? `${formatReps(set)} ${what}` : `${formatWeight(set.weight)} ${weightUnit()} × ${formatReps(set)}`;
 }
 
-// Accessories with a rep range go up in weight once every set reaches the top of it; says so before the first set.
-// A template's planned exercise has gone up already, when it was due to (templateAdvice in training-tools.js).
-function rangeAdvice(exercise, previous) {
-  if (exercise.setCount) return templateAdvice(exercise);
-  const top = exercise.plan[0].repsMax;
-  if (!top || plannedDone(exercise) || !previous || previous.sets.length < exercise.plan.length) return '';
-  return previous.sets.every(set => set.reps >= top) ? ` Last time every set reached ${top}, so go heavier.` : '';
-}
-
-// The line under an exercise with a plan during a workout: what the next set is, or how the + set went. `previous` is
-// last time's performance of the exercise.
-function plannedTarget(exercise, previous) {
+// The line under an exercise with a plan during a workout: what the next set is, and the exercise's note (the level's weight range).
+function plannedTarget(exercise) {
   const plan = exercise.plan;
   const filled = plannedDone(exercise);
   const next = plan[filled];
   // A note that already ends a sentence is not given a second full stop.
   const note = exercise.note ? ` ${exercise.note}${/[.!?]$/.test(exercise.note) ? '' : '.'}` : '';
-  if (next) {
-    const share = next.percent ? ` (${next.percent}% of your training max)` : '';
-    return `Set ${filled + 1} of ${plan.length}${next.warmup ? ', warm-up' : ''}: ${formatPlannedSet(next)}${share}.${next.amrap ? ' As many reps as you can.' : ''}${rangeAdvice(exercise, previous)}${note}`;
-  }
-  const result = amrapResult([exercise]);
-  const done = plan.length === 1 ? 'The planned set is done.' : `All ${plan.length} planned sets done.`;
-  return result && result.weight && result.reps ? `${done} Your + set of ${formatWeight(result.weight)} ${weightUnit()} × ${result.reps} puts your one-rep max near ${estimateOneRepMax(result.weight, result.reps)} ${weightUnit()}.` : done;
+  if (next) return `Set ${filled + 1} of ${plan.length}${next.warmup ? ', warm-up' : ''}: ${formatPlannedSet(next)}.${note}`;
+  return plan.length === 1 ? 'The planned set is done.' : `All ${plan.length} planned sets done.`;
 }
 
-// Sets written the way programs write them: "4 × 5, 1 × 5+ at 135 lbs", "3 × 8–12", or one by one when the weight
-// changes from set to set: "65 × 5 · 75 × 5 · 85 × 5+".
+// Sets written the way a plan writes them: "3 × 12 reps each side".
 function describeSets(sets) {
-  if (!sets.every(set => set.weight === sets[0].weight)) return sets.map(set => `${formatWeight(set.weight)} × ${formatReps(set)}`).join(' · ');
   const runs = [];
   sets.forEach(set => {
     const last = runs[runs.length - 1];
-    if (last && formatReps(last.set) === formatReps(set)) last.count += 1;
+    if (last && formatPlannedSet(last.set) === formatPlannedSet(set)) last.count += 1;
     else runs.push({ set, count:1 });
   });
-  const scheme = runs.map(run => `${run.count} × ${formatReps(run.set)}`).join(', ');
-  return sets[0].weight === '' ? scheme : `${scheme} at ${formatWeight(sets[0].weight)} ${weightUnit()}`;
+  return runs.map(run => `${run.count} × ${formatPlannedSet(run.set)}`).join(', ');
 }
 
-// "Bench Press 4 × 5, 1 × 5+ at 135 lbs", work sets only. A template exercise with no set count has no plan: "Plank 30 s".
+// "DB Bench Chest Press 3 × 12 reps": an exercise and its work sets, as the calendar file lists a day.
 function describeExercisePlan(exercise) {
   if (!Array.isArray(exercise.plan) || !exercise.plan.length) return `${exercise.name} ${isTimed(exercise) ? `${exercise.reps} s` : `${exercise.reps} reps`}`;
   return `${exercise.name} ${describeSets(exercise.plan.filter(set => !set.warmup))}`;
@@ -510,48 +249,34 @@ $('programWalk').addEventListener('click', event => {
 
 // ---- The program card -----------------------------------------------------
 
-function programTemplateCards() {
-  return programDefinitions.map(definition => {
-    const following = Boolean(currentProgram) && currentProgram.definition === definition.id;
-    // Your own program is built in its own editor (program-builder.js) rather than set up from numbers.
-    const setup = definition.custom ? '<button class="primary" type="button" data-program-action="build">Build program</button>'
-      : `<button class="primary" type="button" data-program-action="setup" data-program-id="${escapeHTML(definition.id)}">Set up program</button>`;
-    const action = following ? '<button class="primary" type="button" data-program-action="view">View program</button>' : setup;
-    return `<article class="template-card program-template" data-program-id="${escapeHTML(definition.id)}"><div><div class="template-card-heading">`
-      + `<h3>${escapeHTML(definition.name)}</h3><span class="badge">Program</span></div>`
-      + `<p>${escapeHTML(typeof definition.summary === 'function' ? definition.summary(weightUnit()) : definition.summary)}</p>`
-      + `<p class="program-schedule">${escapeHTML(definition.schedule)}${following ? ` · ${definition.block} ${currentProgram.cycle} in progress` : ''}</p>`
-      + `</div><div class="template-actions">${action}</div></article>`;
-  }).join('');
-}
-
 // What a day says about itself in the lists: done (with the walk of the day it was done), or skipped.
 function dayStatus(program, entry) {
+  if (entry.skipped) return '<span class="program-status skipped">Skipped</span>';
   const walk = entry.at ? walkOn(program, entry.at) : null;
   const walked = walk && (walk.steps || walk.distance) ? ` · ${walk.distance ? formatWalkDistance(walk.distance, walk.unit) : `${walk.steps.toLocaleString()} steps`}` : '';
-  if (entry.skipped) return '<span class="program-status skipped">Skipped</span>';
-  // A day with no + set (a rep-range program, or a deload week) still says when its main lift fell short.
-  if (!entry.amrap) return entry.hit === false ? '<span class="program-status missed">Done (missed reps)</span>' : `<span class="program-status">Done${escapeHTML(walked)}</span>`;
-  const short = missedAmrap(entry.amrap) ? ` (short of ${escapeHTML(entry.amrap.target)})` : entry.hit === false ? ' (missed a set)' : '';
-  return `<span class="program-status${short ? ' missed' : ''}">Done · + set ${escapeHTML(entry.amrap.weight)} × ${escapeHTML(entry.amrap.reps)}${short}</span>`;
+  return `<span class="program-status">Done${escapeHTML(walked)}</span>`;
 }
 
 function programDayRow(program, week, day, next, withStart = true) {
   const entry = program.done[dayKey(week, day)];
   const isNext = Boolean(next) && next.week === week && next.day === day;
-  const definition = programDefinition(program);
-  const main = definition.workout(program, week, day)[0];
-  const description = definition.dayDescription ? definition.dayDescription(program, week, day) : main ? describeExercisePlan(main) : '';
   const label = `${entry ? 'Redo' : 'Start'} ${dayLabel(program, week, day)}`;
   const button = withStart ? `<button class="${isNext ? 'primary' : 'secondary'}" type="button" data-program-action="start" data-week="${week}" data-day="${day}" aria-label="${escapeHTML(label)}">${entry ? 'Redo' : 'Start'}</button>` : '';
   return `<li class="program-day${entry ? ' done' : ''}${isNext ? ' next' : ''}"><div><strong>Day ${day + 1} · ${escapeHTML(dayTitle(program, week, day))}</strong>`
-    + `<span>${escapeHTML(description)}</span></div><div class="program-day-actions">${entry ? dayStatus(program, entry) : ''}${button}</div></li>`;
+    + `<span>${escapeHTML(programDefinition(program).dayDescription(program, week, day))}</span></div><div class="program-day-actions">${entry ? dayStatus(program, entry) : ''}${button}</div></li>`;
 }
 
 // What the walk panel says the goal is: the next day's, which the plan words a little differently on some days.
 function programGoal(program) {
-  const definition = programDefinition(program);
-  return definition.walkGoal ? definition.walkGoal(program, nextProgramDay(program)) : '';
+  return programDefinition(program).walkGoal(program, nextProgramDay(program));
+}
+
+// The six weeks as the card lists them, the week of the next day open. Without a program there is no next day, and no Start.
+function renderProgramWeeks(program, next, withStart) {
+  const weeks = programWeeks(program), days = programDays(program);
+  $('programWeeks').innerHTML = weeks.map((week, index) => `<details class="program-week"${next && next.week === index ? ' open' : ''}><summary><strong>Week ${index + 1} · ${escapeHTML(week.name)}</strong>`
+    + `<span>${escapeHTML(week.summary)}</span>${withStart ? `<span class="program-week-count">${doneInWeek(program, index)} of ${days.length} done</span>` : ''}</summary>`
+    + `<ul>${days.map((entry, day) => programDayRow(program, index, day, next, withStart)).join('')}</ul></details>`).join('');
 }
 
 // The panel that starts the program, before there is one.
@@ -559,28 +284,20 @@ function renderProgramStart() {
   const definition = programDefinitions[0];
   $('programTitle').textContent = definition.name;
   $('programSummary').textContent = definition.schedule;
-  $('programNotice').hidden = true;
-  $('programNext').hidden = false;
   $('programNext').innerHTML = `<div><span class="program-kicker">Six weeks</span><strong>Ready when you are</strong><ul><li>${escapeHTML(definition.summary)}</li></ul></div>`
     + `<div class="program-next-actions"><button class="primary" type="button" data-program-action="setup" data-program-id="${escapeHTML(definition.id)}">Start the program</button></div>`;
-  $('programNumbersSection').hidden = true;
-  $('programProgressSection').hidden = true;
-  $('programBlockHeading').textContent = 'The six weeks';
-  const preview = { definition:definition.id, options:normalizeOptions(definition, {}, weightUnit()), done:{}, walks:{}, unit:weightUnit() };
-  $('programWeeks').innerHTML = programWeeks(preview).map((week, index) => `<details class="program-week"><summary><strong>Week ${index + 1} · ${escapeHTML(week.name)}</strong>`
-    + `<span>${escapeHTML(week.summary)}</span></summary><ul>${programDays(preview).map((entry, day) => programDayRow(preview, index, day, null, false)).join('')}</ul></details>`).join('');
+  renderProgramWeeks({ definition:definition.id, options:normalizeOptions(definition, {}), done:{}, walks:{} }, null, false);
 }
 
 // The panel when every day is done: what was done, and a way to go round again.
 function renderProgramFinished(program) {
-  const definition = programDefinition(program);
   const days = Object.values(program.done);
   const skipped = days.filter(entry => entry.skipped).length;
   const walks = Object.values(program.walks).filter(walk => walk.at >= program.startedAt);
   const distances = ['mi', 'km'].map(unit => ({ unit, total:walks.filter(walk => walk.unit === unit).reduce((sum, walk) => sum + walk.distance, 0) })).filter(item => item.total > 0);
   const lines = [`${plural(days.length - skipped, 'day')} done${skipped ? `, ${skipped} skipped` : ''}`,
     `${plural(walks.length, 'walk')} logged${distances.length ? `, ${distances.map(item => formatWalkDistance(item.total, item.unit)).join(' and ')} in all` : ''}`];
-  $('programNext').innerHTML = `<div><span class="program-kicker">All six weeks</span><strong>You finished ${escapeHTML(definition.name)}</strong><ul>${lines.map(line => `<li>${escapeHTML(line)}</li>`).join('')}</ul></div>`
+  $('programNext').innerHTML = `<div><span class="program-kicker">All six weeks</span><strong>You finished ${escapeHTML(programDefinition(program).name)}</strong><ul>${lines.map(line => `<li>${escapeHTML(line)}</li>`).join('')}</ul></div>`
     + '<div class="program-next-actions"><button class="primary" type="button" data-program-action="restart">Start again</button></div>';
 }
 
@@ -598,12 +315,8 @@ function renderProgram() {
   const finished = weeks.reduce((count, week, index) => count + doneInWeek(program, index), 0);
   $('programTitle').textContent = definition.name;
   $('programSummary').textContent = `${finished} of ${weeks.length * days.length} days done${next ? ` · week ${next.week + 1} of ${weeks.length}: ${weeks[next.week].name}` : ''}`;
-  $('programNotice').hidden = true;
-  $('programNext').hidden = false;
   if (next) {
-    const workout = programWorkout(program, next.week, next.day);
-    const plan = (definition.planLines ? definition.planLines(program, next.week, next.day) : workout.exercises.map(exercise => describeExercisePlan(exercise)))
-      .map(line => `<li>${escapeHTML(line)}</li>`).join('');
+    const plan = definition.planLines(program, next.week, next.day).map(line => `<li>${escapeHTML(line)}</li>`).join('');
     $('programNext').innerHTML = `<div><span class="program-kicker">Next up · week ${next.week + 1}, day ${next.day + 1}</span><strong>${escapeHTML(dayTitle(program, next.week, next.day))}</strong><ul>${plan}</ul></div>`
       + `<div class="program-next-actions"><button class="primary" type="button" data-program-action="start" data-week="${next.week}" data-day="${next.day}">Start workout</button>`
       + `<button class="secondary" type="button" data-program-action="skip" data-week="${next.week}" data-day="${next.day}">Skip</button></div>`;
@@ -611,36 +324,10 @@ function renderProgram() {
     renderProgramFinished(program);
   }
   renderProgramWalk(program, programGoal(program));
-  // This program has no numbers per lift to show or chart.
-  $('programNumbersSection').hidden = !definition.lifts.length;
-  $('programProgressSection').hidden = true;
-  $('programBlockHeading').textContent = 'The six weeks';
-  const rows = week => days.map((entry, day) => programDayRow(program, week, day, next)).join('');
-  $('programWeeks').innerHTML = weeks.map((week, index) => `<details class="program-week"${next && next.week === index ? ' open' : ''}><summary><strong>Week ${index + 1} · ${escapeHTML(week.name)}</strong>`
-    + `<span>${escapeHTML(week.summary)}</span><span class="program-week-count">${doneInWeek(program, index)} of ${days.length} done</span></summary>`
-    + `<ul>${rows(index)}</ul></details>`).join('');
+  renderProgramWeeks(program, next, true);
 }
 
-// ---- Setting up and editing -----------------------------------------------
-
-// A one-rep max read off the most recent logged sets of an exercise (lastPerformance, kept by records.js and saved-workouts.js), so the lifter
-// does not have to work one out; null if the exercise has never been logged with a weight.
-function estimatedOneRepMax(name) {
-  const previous = lastTime(name);
-  const best = previous ? Math.max(0, ...previous.sets.filter(set => set.weight > 0 && set.reps > 0).map(set => estimateOneRepMax(set.weight, set.reps))) : 0;
-  return best || null;
-}
-
-// The heaviest weight lifted for `reps` or more reps the last time an exercise was done; null if there is none.
-function heaviestSetOf(name, reps) {
-  const previous = lastTime(name);
-  const best = previous ? Math.max(0, ...previous.sets.filter(set => set.reps >= reps).map(set => set.weight)) : 0;
-  return best ? prefillWeight(best, previous.converted) : null;
-}
-
-function heaviestSetOfFive(name) {
-  return heaviestSetOf(name, 5);
-}
+// ---- Starting, and changing the level -------------------------------------
 
 function optionElementId(option) {
   return `program${capitalize(option.id)}`;
@@ -648,66 +335,37 @@ function optionElementId(option) {
 
 function optionField(option, value) {
   const id = optionElementId(option);
-  if (option.type === 'check') return `<label class="setting-check" id="${id}Field"><input id="${id}" type="checkbox"${value ? ' checked' : ''} /> ${escapeHTML(option.label)}</label>`;
-  const choices = optionChoices(option, weightUnit()).map(choice => `<option value="${escapeHTML(choice.value)}"${String(choice.value) === String(value) ? ' selected' : ''}>${escapeHTML(choice.label)}</option>`).join('');
-  const help = option.help || optionChoices(option, weightUnit()).some(choice => choice.help) ? `<p class="subtitle program-help" id="${id}Help"></p>` : '';
-  return `<div class="program-option" id="${id}Field"><label for="${id}">${escapeHTML(option.label)}</label><select id="${id}">${choices}</select>${help}</div>`;
+  const choices = option.choices.map(choice => `<option value="${escapeHTML(choice.value)}"${String(choice.value) === String(value) ? ' selected' : ''}>${escapeHTML(choice.label)}</option>`).join('');
+  return `<div class="program-option" id="${id}Field"><label for="${id}">${escapeHTML(option.label)}</label><select id="${id}">${choices}</select><p class="subtitle program-help" id="${id}Help"></p></div>`;
 }
 
-// What the form says now: whether the numbers are one-rep maxes, and every option's value.
+// What the form says now: every option's value.
 function readProgramForm() {
   const { definition } = programForm;
-  const options = Object.fromEntries(definition.options.map(option => {
-    const element = $(optionElementId(option));
-    return [option.id, option.type === 'check' ? element.checked : optionChoices(option, weightUnit()).find(choice => String(choice.value) === element.value).value];
-  }));
-  return { oneRepMax:definition.oneRepMaxes && $('programMaxKind').value === '1rm', options, unit:weightUnit() };
+  return Object.fromEntries(definition.options.map(option => [option.id, option.choices.find(choice => String(choice.value) === $(optionElementId(option)).value).value]));
 }
 
-// Shows what each number entered works out to, and the help for each option as chosen.
+// Shows the help for each option as chosen.
 function syncProgramForm() {
   const { definition } = programForm;
   const form = readProgramForm();
-  $('programMaxKindField').hidden = !definition.oneRepMaxes;
-  definition.options.forEach(option => {
-    const id = optionElementId(option);
-    if (option.oneRepMaxOnly) $(`${id}Field`).hidden = !form.oneRepMax;
-    const help = $(`${id}Help`);
-    if (help) help.textContent = optionChoices(option, form.unit).find(choice => choice.value === form.options[option.id]).help || option.help || '';
-  });
-  definition.lifts.forEach(lift => {
-    $(`programHint-${lift.key}`).textContent = definition.setup.hint(lift, positiveWeight($(`programMax-${lift.key}`).value), form);
-  });
+  definition.options.forEach(option => { $(`${optionElementId(option)}Help`).textContent = option.choices.find(choice => choice.value === form[option.id]).help || ''; });
 }
 
-// Setting up a program fills the numbers in from history where it can; editing starts from the program's own. Setting
-// up a program while following another replaces it.
 function openProgramForm(definition) {
   const editing = Boolean(currentProgram) && currentProgram.definition === definition.id;
-  const replacing = Boolean(currentProgram) && !editing;
-  const options = editing ? currentProgram.options : normalizeOptions(definition, {}, weightUnit());
+  const options = editing ? currentProgram.options : normalizeOptions(definition, {});
   programForm = { definition, editing };
   rememberOpener('program');
   $('programModalTitle').textContent = `${editing ? 'Edit' : 'Start'} ${definition.name}`;
-  $('programMaxKind').value = editing ? 'tm' : '1rm';
   $('programOptions').innerHTML = definition.options.map(option => optionField(option, options[option.id])).join('');
-  let estimated = 0;
-  $('programMaxInputs').innerHTML = definition.lifts.map(lift => {
-    const value = editing ? currentProgram.trainingMaxes[lift.key] : definition.setup.estimate(lift);
-    if (!editing && value) estimated += 1;
-    return `<div class="program-max-row"><label for="programMax-${lift.key}">${escapeHTML(lift.name)} (${weightUnit()})</label>`
-      + `<input id="programMax-${lift.key}" type="number" min="0" step="0.5" inputmode="decimal" value="${escapeHTML(value || '')}" />`
-      + `<span class="program-hint" id="programHint-${lift.key}"></span></div>`;
-  }).join('');
-  const current = replacing ? programDefinition(currentProgram).name : '';
-  $('programIntro').textContent = [definition.setup.intro(editing), estimated ? definition.setup.estimated : '',
-    replacing ? `This replaces ${current}, which you are following now; its finished workouts stay in your history.` : ''].filter(Boolean).join(' ');
-  $('programSubmit').textContent = editing ? 'Save changes' : replacing ? 'Switch program' : 'Start program';
+  $('programIntro').textContent = definition.setup.intro(editing);
+  $('programSubmit').textContent = editing ? 'Save changes' : 'Start program';
   $('programFormError').hidden = true;
   syncProgramForm();
   $('programModal').hidden = false;
   rememberForm($('programForm'));
-  (definition.lifts.length ? $(`programMax-${definition.lifts[0].key}`) : $(optionElementId(definition.options[0]))).focus();
+  $(optionElementId(definition.options[0])).focus();
 }
 
 function closeProgramForm() {
@@ -718,52 +376,19 @@ function closeProgramForm() {
 $('programForm').onsubmit = event => {
   event.preventDefault();
   const { definition, editing } = programForm;
-  const form = readProgramForm();
-  const trainingMaxes = {};
-  let firstInvalid = null;
-  definition.lifts.forEach(lift => {
-    const input = $(`programMax-${lift.key}`);
-    const value = positiveWeight(input.value);
-    markInvalid(input, value === null);
-    if (value === null) firstInvalid = firstInvalid || input;
-    else trainingMaxes[lift.key] = definition.setup.toNumber(value, form, lift);
-  });
-  if (firstInvalid) {
-    $('programFormError').textContent = 'Enter a weight above zero for every lift.';
-    $('programFormError').hidden = false;
-    firstInvalid.focus();
-    return;
-  }
-  // A number changed by hand starts its run of missed sessions again.
-  const stalls = editing ? Object.fromEntries(Object.entries(currentProgram.stalls).filter(([lift]) => trainingMaxes[lift] === currentProgram.trainingMaxes[lift])) : {};
-  const base = editing ? currentProgram : { definition:definition.id, unit:weightUnit(), startedAt:Date.now(), cycle:1, done:{}, lastRollover:null };
-  const settled = settleProgram(normalizeProgram({ ...base, trainingMaxes, stalls, options:form.options }));
-  saveProgram(settled.program);
+  const base = editing ? currentProgram : { definition:definition.id, startedAt:Date.now(), cycle:1, done:{}, walks:{} };
+  saveProgram(normalizeProgram({ ...base, options:readProgramForm() }));
   closeProgramForm();
-  if (settled.rolledOver) showFeedback(nextUpMessage(settled.program, true), 'success');
-  else showFeedback(editing ? `${definition.name} updated. The rest of this ${definition.block} uses the new weights.` : `${definition.name} is set up. ${nextUpMessage(settled.program, false)}`, 'success');
+  showFeedback(editing ? `${definition.name} updated. The days still to do use the new level.` : `${definition.name} is set up. ${nextUpMessage(currentProgram)}`, 'success');
   scrollToCard($('programCard'), 'start');
 };
-['input', 'change'].forEach(type => $('programForm').addEventListener(type, event => {
-  if (event.target.matches('.program-max-row input')) markInvalid(event.target, false);
-  syncProgramForm();
-}));
+$('programForm').addEventListener('change', syncProgramForm);
 $('closeProgram').onclick = closeProgramForm;
 $('cancelProgram').onclick = closeProgramForm;
 $('programModal').onclick = event => { if (event.target === $('programModal') && !formEdited($('programForm'))) closeProgramForm(); };
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('programModal').hidden) closeProgramForm(); });
 trapFocus($('programModal'));
 
-$('templateList').addEventListener('click', event => {
-  const button = event.target.closest('[data-program-action]');
-  if (!button) return;
-  if (button.dataset.programAction === 'setup') {
-    const definition = findProgramDefinition(button.dataset.programId);
-    if (definition) openProgramForm(definition);
-  }
-  if (button.dataset.programAction === 'build') openProgramBuilder();
-  if (button.dataset.programAction === 'view') scrollToCard($('programCard'), 'start');
-});
 $('programCard').addEventListener('click', event => {
   const button = event.target.closest('[data-program-action]');
   if (!button) return;
@@ -782,20 +407,19 @@ $('programCard').addEventListener('click', event => {
   const week = Number(button.dataset.week), day = Number(button.dataset.day);
   if (!programWeeks(currentProgram)[week] || !programDays(currentProgram)[day]) return;
   if (button.dataset.programAction === 'start') startWorkout(programWorkout(currentProgram, week, day));
-  // A skipped day counts as done, so the program moves on, but it changes no weights; Redo on its row still starts it.
-  // Skip is beside Start workout, and skipping a block's last day starts the next with new training maxes, so the banner
-  // offers it back for a few seconds, in case the tap was the slip.
+  // A skipped day counts as done, so the program moves on, and Redo on its row still starts it. Skip is beside Start workout, and
+  // skipping the last day finishes the program, so the banner offers it back for a few seconds, in case the tap was the slip.
   if (button.dataset.programAction === 'skip') {
     const before = currentProgram;
     const label = dayLabel(currentProgram, week, day);
-    const said = recordProgramDay(currentProgram, week, day, { at:Date.now(), skipped:true, amrap:null, hit:null });
+    const said = recordProgramDay(currentProgram, week, day, { at:Date.now(), skipped:true });
     const skipped = currentProgram;
     showFeedback(`Skipped ${label}. ${said}`, 'success', { label:'Undo', run:() => undoSkip(before, skipped, label) });
   }
 });
 
 // Puts the program back as it was before a day was skipped, unless it has changed since (another day done, the program
-// edited or ended), when going back would undo that too.
+// edited or started over), when going back would undo that too.
 function undoSkip(before, skipped, label) {
   if (currentProgram !== skipped) {
     showFeedback(`Skipping ${label} cannot be undone: the program has changed since.`);
@@ -805,9 +429,7 @@ function undoSkip(before, skipped, label) {
   showFeedback(`${label} is back on the plan.`, 'success');
 }
 $('editProgramBtn').onclick = () => {
-  if (!currentProgram) return;
-  if (programDefinition(currentProgram).custom) openProgramBuilder(currentProgram);
-  else openProgramForm(programDefinition(currentProgram));
+  if (currentProgram) openProgramForm(programDefinition(currentProgram));
 };
 $('endProgramBtn').onclick = () => {
   if (!currentProgram) return;
@@ -816,9 +438,4 @@ $('endProgramBtn').onclick = () => {
   saveProgram(null);
   showFeedback(`${name} was reset. Start it again when you are ready.`, 'success');
 };
-// A change of unit in Settings converts the program being followed, which saves it (and shows it) in the new unit.
-window.addEventListener('settingschange', () => {
-  if (currentProgram && currentProgram.unit !== weightUnit()) saveProgram(programInUnit(currentProgram, weightUnit()));
-});
-// Once every script has run: a built program's days are templates, which templates.js and training-tools.js bring.
 document.addEventListener('DOMContentLoaded', renderProgram);

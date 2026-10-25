@@ -1,4 +1,4 @@
-"""Saved-workout flow: start links, replacing an active workout, editing, repeating, and the chart."""
+"""Saved-workout flow: a workout in progress surviving a reload, replacing an active workout, editing a finished one, and the chart."""
 
 import json
 import time
@@ -11,12 +11,12 @@ INTERCEPT = False
 def run(t):
     cdp, check, api, token = t.cdp, t.check, t.api, t.token
     workouts, workout = t.workouts, t.workout
-    W1, W2, W3 = t.W1, t.W2, t.W3
+    W1, W2 = t.W1, t.W2
 
-    print('T1  ?start= handling')
-    cdp.goto(f'/index.html?start={W1}')
-    check('start link opens the requested workout', cdp.wait(f"{ACTIVE} && {TITLE} === 'Seed Push'"))
-    check('?start is removed from the URL', cdp.ev('location.search') == '', cdp.ev('location.search'))
+    print('T1  a workout in progress and a reload')
+    t.open_tracker()
+    t.start_saved(W1)
+    check('starting a saved workout opens it', cdp.wait(f"{ACTIVE} && {TITLE} === 'Seed Push'"))
     cdp.ev("document.getElementById('completedReps').value = '8'; document.getElementById('completeSetBtn').click();")
     cdp.pause(0.8)
     cdp.send('Page.reload')
@@ -36,9 +36,8 @@ def run(t):
     check('no active session left on the server', api('GET', '/api/active-session', token=token)[0]['session'] is None)
 
     print('T2  replace-in-progress confirmation')
-    cdp.goto('/index.html')
-    cdp.wait("document.querySelectorAll('#templateList [data-template-action=start]').length >= 3")
-    start = lambda i: cdp.ev(f"document.querySelectorAll('#templateList [data-template-action=start]')[{i}].click()")
+    t.open_tracker()
+    start = t.start
     start(0)
     cdp.pause(0.8)
     cdp.dialogs.clear(); cdp.answer = False
@@ -57,15 +56,15 @@ def run(t):
     check('no prompt when confirm-end is off', not cdp.dialogs and cdp.ev(TITLE) == 'Leg Day', f'{cdp.dialogs} {cdp.ev(TITLE)}')
     cdp.pause(0.8)
 
-    print('T3  ?start= with a workout already in progress')
+    print('T3  starting a saved workout with one already in progress')
+    cdp.ev('getWorkoutSettings = window.__realSettings')
     cdp.dialogs.clear(); cdp.answer = False
-    cdp.goto(f'/index.html?start={W2}')
-    cdp.wait(ACTIVE)
+    t.start_saved(W2)
     cdp.pause(0.5)
-    check('page-load start asks before replacing', len(cdp.dialogs) == 1, str(cdp.dialogs))
+    check('it asks before replacing', len(cdp.dialogs) == 1, str(cdp.dialogs))
     check('declining keeps the in-progress workout', cdp.ev(TITLE) == 'Leg Day', cdp.ev(TITLE))
     cdp.answer = True
-    cdp.goto(f'/index.html?start={W2}')
+    t.start_saved(W2)
     cdp.wait(f"{TITLE} === 'Seed Pull'")
     check('accepting starts the requested workout', cdp.ev(TITLE) == 'Seed Pull', cdp.ev(TITLE))
     cdp.pause(0.8)
@@ -73,9 +72,10 @@ def run(t):
     cdp.pause(0.8)
 
     print('T4  editing / repeating workouts that have logged sets')
-    cdp.goto('/index.html')
-    cdp.wait(f"document.querySelector('.saved-workout[data-id=\"{W1}\"]')")
-    edit = lambda: (cdp.ev(f"document.querySelector('.saved-workout[data-id=\"{W1}\"] [data-action=edit]').click()"), cdp.wait('exercises.length === 2'))
+    # History's Edit goes to the Tracker's form by an address, which is taken off the address once it is open.
+    def edit():
+        cdp.goto(f'/index.html?edit={W1}')
+        cdp.wait('exercises.length === 2')
     edit()
     cdp.ev("document.getElementById('saveBtn').click()")
     cdp.pause(1.0)
@@ -120,19 +120,6 @@ def run(t):
     type_row(0, 'name', kept)
     check('typing again takes the mark off', cdp.ev(f"{row_input(0, 'name')}.getAttribute('aria-invalid')") == 'false')
     cdp.ev("document.getElementById('clearBtn').click()")
-    before_new = len(workouts())
-    cdp.ev("document.getElementById('createWorkoutBtn').click()")
-    for field, value in (('exercise', 'Curl'), ('weight', '20'), ('reps', '8')):
-        cdp.ev(f"document.getElementById('{field}').value = '{value}'")
-    cdp.ev("document.getElementById('addBtn').click()")
-    type_row(0, 'reps', '')
-    cdp.ev("document.getElementById('saveBtn').click()")
-    cdp.pause(0.8)
-    feedback = cdp.ev("document.getElementById('formFeedback').textContent")
-    check('a new workout whose reps were emptied is refused, at the reps', feedback == 'Enter at least 1 rep for this exercise.'
-          and cdp.ev(f"document.activeElement === {row_input(0, 'reps')}") is True, feedback)
-    check('and nothing was queued or saved', len(workouts()) == before_new and cdp.ev("exercises.length") == 1, len(workouts()))
-    cdp.ev("document.getElementById('clearBtn').click()")
     edit()
     change_set(0, 1, 'reps', '0')
     check('a set’s reps below 1 snap back, and say why', set_rows(0)[1][1] == '8' and cdp.ev("document.getElementById('formFeedback').textContent") == 'Reps must be at least 1.', set_rows(0))
@@ -172,15 +159,6 @@ def run(t):
     cdp.ev("document.getElementById('saveBtn').click()")
     check('and a set taken away is gone once saved', t.wait_for(lambda: saved_sets(0) == [(100, 8)]), saved_sets(0))
     cdp.pause(0.6)
-    known = {w['id'] for w in workouts()}
-    cdp.ev(f"document.querySelector('.saved-workout[data-id=\"{W3}\"] [data-action=repeat]').click()")
-    cdp.wait('exercises.length === 2')
-    check('repeat loads a plan without the old sets', cdp.ev("exercises.every(e => !('sets' in e))") is True)
-    cdp.ev("document.getElementById('saveBtn').click()")
-    cdp.pause(1.0)
-    created = [w for w in workouts() if w['id'] not in known]
-    check('repeated workout is saved without fake sets', len(created) == 1 and all('sets' not in e for e in created[0]['exercises']), json.dumps([w['exercises'] for w in created]))
-
     print('T5  progress chart with several workout types')
     cdp.goto('/progress.html')
     cdp.wait('typeof chartData !== "undefined" && chartData && chartData.points.length > 0')
@@ -202,11 +180,12 @@ def run(t):
     # workout it left in progress threw on every load after, on every device, hiding the saved workouts with it.
     print('T6  a workout with no exercises cannot break the Tracker')
     empty = t.seed('Empty Day', 30, [])
-    rows = "document.querySelectorAll('.saved-workout').length"
+    rows = "savedWorkouts.length"
     feedback = "document.getElementById('formFeedback').textContent"
     cdp.console.clear()
-    cdp.goto(f'/index.html?start={empty}')
+    t.open_tracker()
     cdp.wait(f'{rows} > 0')
+    t.start_saved(empty)
     cdp.pause(0.5)
     check('starting it says there is nothing to start', cdp.ev(feedback) == '“Empty Day” has no exercises to start.'
           and cdp.ev("document.getElementById('activeWorkout').hidden") is True, cdp.ev(feedback))
@@ -235,8 +214,7 @@ def run(t):
     canceller = cookie.split('session=')[1].split(';')[0]
     api('POST', '/api/workouts', {'name': 'Earlier Press', 'notes': '', 'createdAt': int(time.time() * 1000) - 2 * 86400000,
                                   'exercises': [t.ex('Overhead Press', 95, 5, [(5, 95)])]}, canceller)
-    api('PUT', '/api/state', {'program': {'definition': 'wendler-531', 'unit': 'lbs',
-                                          'trainingMaxes': {'press': 100, 'deadlift': 300, 'bench': 200, 'squat': 250}}}, canceller)
+    api('PUT', '/api/state', {'program': {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'options': {'level': 'nts'}, 'done': {}, 'walks': {}}}, canceller)
     t.set_cookie(canceller)
     cdp.goto('/index.html')
     cdp.wait("document.querySelector('#programNext [data-program-action=start]') && Object.keys(lastPerformance).length > 0")
@@ -275,18 +253,19 @@ def run(t):
     cdp.ev("document.getElementById('endWorkoutBtn').click()")
     cdp.pause(0.3)
     check('with sets logged it asks first, saying how many would go', cdp.dialogs == ['Cancel this workout? Its 2 logged sets will not be saved.'], cdp.dialogs)
-    check('and declining keeps the workout and its sets', cdp.ev(ACTIVE) and cdp.ev('activeSession.exercises[activeSession.currentIndex].sets.length') == 2)
+    logged = 'activeSession.exercises.reduce((count, item) => count + item.sets.length, 0)'  # the program's first moves are a circuit, so the two sets are on two of them
+    check('and declining keeps the workout and its sets', cdp.ev(ACTIVE) and cdp.ev(logged) == 2)
     cdp.answer = True
     cdp.ev("document.getElementById('endWorkoutBtn').click()")
     cdp.pause(0.4)
     check('accepting cancels it', cdp.ev("document.getElementById('activeWorkout').hidden") is True)
     cdp.ev("document.querySelector('#formFeedback .feedback-action').click()")
     cdp.pause(0.4)
-    check('and Undo brings it back with its sets', cdp.ev(ACTIVE) and cdp.ev('activeSession.exercises[activeSession.currentIndex].sets.length') == 2)
+    check('and Undo brings it back with its sets', cdp.ev(ACTIVE) and cdp.ev(logged) == 2)
     # Cancelled again, and another workout started before Undo: the cancelled one cannot take its place.
     cdp.ev("window.__cancelled = activeSession; document.getElementById('endWorkoutBtn').click()")
     cdp.pause(0.4)
-    cdp.ev("document.querySelectorAll('#templateList [data-template-action=start]')[0].click()")
+    t.start(0)
     cdp.wait(f"{ACTIVE} && {TITLE} === 'Push Day'")
     cdp.ev('resumeWorkout(window.__cancelled)')
     cdp.pause(0.2)
@@ -322,7 +301,7 @@ def run(t):
     check('(the script is being held, and the Settings change it follows has gone ahead of it)', len(cdp.held) == 1 and cdp.ev("typeof getWorkoutSettings") == 'function', len(cdp.held))
     check('with the answer in and the Tracker’s script still to come, nothing throws', not early, early[:2])
     cdp.release_held()
-    check('and the Tracker then starts as usual', cdp.wait("typeof activeSession !== 'undefined' && document.querySelectorAll('#templateList [data-template-action=start]').length >= 3", timeout=15))
+    check('and the Tracker then starts as usual', cdp.wait("typeof activeSession !== 'undefined' && document.querySelectorAll('#programNext button').length >= 1", timeout=15))
     cdp.pause(0.5)
     late = [line for line in cdp.console if line.startswith('exceptionThrown')]
     check('with nothing thrown once it has', not late, late[:2])

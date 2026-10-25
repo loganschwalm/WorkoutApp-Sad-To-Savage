@@ -24,6 +24,16 @@ DISPLAY = "document.getElementById('timerDisplay').textContent"
 TOGGLE = "document.getElementById('restToggleBtn').textContent"
 
 
+# The workouts `start` runs: the exercises the suites were written around, now that the app has no templates to start them from.
+WORKOUTS = [
+    ('Push Day', [('Bench Press', 8, False), ('Overhead Press', 8, False), ('Tricep Pushdown', 12, False)]),
+    ('Pull Day', [('Deadlift', 5, False), ('Barbell Row', 8, False), ('Lat Pulldown', 10, False), ('Bicep Curl', 12, False)]),
+    ('Leg Day', [('Back Squat', 8, False), ('Romanian Deadlift', 10, False), ('Leg Press', 10, False), ('Calf Raise', 15, False)]),
+    ('Upper Body', [('Bench Press', 8, False), ('Pull-up', 8, False), ('Dumbbell Row', 10, False), ('Lateral Raise', 12, False)]),
+    ('Full Body', [('Goblet Squat', 10, False), ('Push-up', 10, False), ('Dumbbell Row', 10, False), ('Plank', 30, True)]),
+]
+
+
 def exercise(name, weight, reps, sets):
     """Build an exercise payload. `sets` is a list of (reps, weight) pairs; empty means skipped."""
     return {'name': name, 'weight': weight, 'reps': reps,
@@ -208,15 +218,24 @@ class AppTest:
 
     def open_tracker(self):
         self.cdp.goto('/index.html')
-        self.cdp.wait("document.querySelectorAll('#templateList [data-template-action=start]').length >= 3")
+        self.cdp.wait("!!document.getElementById('programCard') && !document.getElementById('programCard').hidden && document.getElementById('programNext').children.length > 0")
         # Until the saved workouts have loaded (or failed to), last time's numbers and the records are only this device's
         # copy, so a workout started sooner can show older ones. A fixed pause covered that, until a busy machine was slower.
         self.cdp.wait('initialLoadDone === true', timeout=12)
         self.cdp.pause(0.4)
 
     def start(self, index):
-        """Start the nth built-in template (0 = Push Day, 1 = Pull Day, 2 = Leg Day)."""
-        self.cdp.ev(f"document.querySelectorAll('#templateList [data-template-action=start]')[{index}].click()")
+        """Start the nth of the workouts the suites run (0 = Push Day, 1 = Pull Day, 2 = Leg Day, 3 = Upper Body, 4 = Full Body).
+        The app starts only the days of its program, so these are the shapes the suites exercise the workout screen with: the page's
+        own startWorkout, given a workout of exercises with no plan, as a saved workout is when it is started again."""
+        name, exercises = WORKOUTS[index]
+        workout = {'name': name, 'notes': '', 'exercises': [{'name': exercise, 'weight': '', 'reps': str(reps), **({'timed': True} if timed else {})}
+                                                          for exercise, reps, timed in exercises]}
+        self.cdp.ev(f"startWorkout({json.dumps(workout)})")
+
+    def start_saved(self, workout_id):
+        """Start a saved workout through the page's startWorkout, as a link from History once did: the app lists none to start now."""
+        self.cdp.ev(f"startWorkout(savedWorkouts.find(item => item.id === {int(workout_id)}))")
 
     def log_set(self, reps):
         self.cdp.ev(f"document.getElementById('completedReps').value = '{reps}'; "
