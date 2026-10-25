@@ -89,8 +89,8 @@ def run(t):
     cdp.pause(0.5)
     catch_downloads()
     menu = lambda key: cdp.ev(f"[...document.querySelectorAll('.history-workout[data-id=\"{ids[key]}\"] .row-menu-items button')].map(b => b.textContent)")
-    check('the menu offers Download .tcx between Edit and Delete', menu('run') == ['Copy as new', 'Edit', 'Download .tcx', 'Delete'], menu('run'))
-    check('but not for a workout saved with no time', menu('untimed') == ['Copy as new', 'Edit', 'Delete'], menu('untimed'))
+    check('the menu offers Download .tcx before Delete (a cardio session, imported, has no Edit)', menu('run') == ['Download .tcx', 'Delete'], menu('run'))
+    check('but not for a workout saved with no time', menu('untimed') == ['Edit', 'Delete'], menu('untimed'))
 
     file = from_history('run')
     day = cdp.ev(f'calendarDayKey(new Date({times["run"]}))')
@@ -137,24 +137,7 @@ def run(t):
     check('control characters are dropped and the rest escaped', cdp.ev("tcxText('a\\u0001b & c\\td')") == 'ab &amp; c\td')
 
     # ------------------------------------------------------------------ A2 the summaries
-    print('A2  the button on the summary of a finished session and workout')
-    cdp.goto('/cardio.html')
-    cdp.wait('cardioLoaded === true')
-    cdp.pause(0.4)
-    catch_downloads()
-    done = {'kind': 'cardio', 'name': 'Run', 'notes': '', 'createdAt': finished, 'exercises': [], 'duration': 1680,
-            'cardio': {'activity': 'run', 'distance': 5, 'distanceUnit': 'km', 'heartRate': 150}}
-    cdp.ev(f'showCardioSummary({json.dumps(done)}, [])')
-    check('a finished session offers its file', cdp.ev("document.getElementById('cardioSummaryExport').hidden") is False)
-    cdp.ev("document.getElementById('cardioSummaryExport').click()")
-    first = saved_file()
-    check('which is the session just finished, held in memory before it reaches the server',
-          first is not None and read(first['content'])['metres'] == '5000' and read(first['content'])['heart'] == '150', first and first['name'])
-    check('and says so', cdp.ev("document.getElementById('formFeedback').textContent").startswith('Downloaded run-'),
-          cdp.ev("document.getElementById('formFeedback').textContent"))
-    cdp.ev(f'showCardioSummary({json.dumps({**done, "duration": 0})}, [])')
-    check('a session with no time offers nothing', cdp.ev("document.getElementById('cardioSummaryExport').hidden") is True)
-
+    print('A2  the button on the summary of a finished workout')
     t.open_tracker()
     catch_downloads()
     workout = {'name': 'Upper', 'notes': '', 'createdAt': finished, 'duration': 2400, 'unit': 'lbs', 'exercises': [ex('Overhead Press', 85, 5, [(5, 85)] * 3)]}

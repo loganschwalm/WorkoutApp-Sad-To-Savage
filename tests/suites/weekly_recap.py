@@ -109,8 +109,8 @@ def run(t):
     check('and it is back after', ev("getComputedStyle(document.getElementById('recapCard')).display") != 'none')
     ev("document.getElementById('recapDone').click()")
     cdp.pause(0.2)
-    check('Dismiss puts it away, and the keyboard carries on from the templates', ev("document.getElementById('recapCard').hidden") is True
-          and ev('document.activeElement.id') == 'templatesToggle', ev('document.activeElement.id'))
+    check('Dismiss puts it away, and the keyboard carries on from the program card', ev("document.getElementById('recapCard').hidden") is True
+          and ev("document.activeElement.matches('#programNext .primary')") is True, ev('document.activeElement.id'))
     t.open_tracker()
     check('for the rest of the week', ev("document.getElementById('recapCard').hidden") is True)
     ev("writeLocal(localKey('recap-dismissed'), calendarDayKey(addDays(startOfWeek(new Date()), -14)))")

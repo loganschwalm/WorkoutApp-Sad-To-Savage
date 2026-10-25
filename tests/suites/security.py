@@ -32,25 +32,18 @@ def run(t):
 
     # ------------------------------------------------------------------ S1 the policy costs nothing
     print('S1  every page works under the Content-Security-Policy')
-    settle('/index.html', "document.querySelectorAll('#templateList [data-template-action=start]').length >= 3")
-    cdp.ev("document.querySelector('#templateList [data-template-action=start]').click()")
+    settle('/index.html', "document.querySelectorAll('#programNext button').length >= 1")
+    cdp.ev("document.querySelector('#programNext [data-program-action=setup]').click(); document.getElementById('programSubmit').click()")
     cdp.pause(0.3)
-    cdp.ev("document.getElementById('completedReps').value = '8'; document.getElementById('completeSetBtn').click()")
+    cdp.ev("document.querySelector('#programNext [data-program-action=start]').click()")
+    cdp.pause(0.3)
+    cdp.ev("document.getElementById('completedReps').value = '15'; document.getElementById('completeSetBtn').click()")
     cdp.ev("document.getElementById('settingsButton').click(); document.getElementById('closeSettings').click()")
-    cdp.ev("document.getElementById('createTemplateBtn').click(); document.getElementById('cancelTemplate').click()")
-    cdp.ev("document.querySelector('#savedWorkoutList [data-action=view]').click()")
-    cdp.pause(0.5)
-    check('the tracker: start, log a set, settings, template editor, saved workouts', violations() == [], violations())
+    cdp.ev("document.getElementById('editProgramBtn').click(); document.getElementById('cancelProgram').click()")
     cdp.ev("confirm = () => true; document.getElementById('endWorkoutBtn').click()")
-
-    settle('/cardio.html', "cardioLoaded === true")
-    cdp.ev("document.querySelector('#cardioActivityGrid [data-activity=run]').click()")
-    cdp.ev("document.getElementById('cardioPauseBtn').click(); document.getElementById('cardioFinishBtn').click()")
-    cdp.ev("document.getElementById('cardioFormCancel').click(); confirm = () => true; document.getElementById('cardioCancelBtn').click()")
-    cdp.ev("document.getElementById('cardioModeManual').click(); document.querySelector('#cardioActivityGrid [data-activity=rower]').click()")
-    cdp.ev("document.getElementById('cardioFormCancel').click(); document.getElementById('cardioModeTimer').click()")
+    cdp.ev("document.getElementById('walkSteps').value = '5000'; document.querySelector('#programWalk [data-walk-action=save]').click()")
     cdp.pause(0.5)
-    check('the Cardio page: the timer, the form and its fields', violations() == [], violations())
+    check('the Today page: start the program, a day, log a set, settings, the level dialog, a walk', violations() == [], violations())
 
     settle('/history.html', "document.querySelectorAll('.history-workout').length >= 3")
     check('the History page', violations() == [], violations())
@@ -64,7 +57,7 @@ def run(t):
     check('the sign-in page', violations() == [], violations())
 
     # The same check with the policy doing its job: an injected inline script must not run.
-    settle('/index.html', "document.querySelectorAll('#templateList [data-template-action=start]').length >= 3")
+    settle('/index.html', "document.querySelectorAll('#programNext button').length >= 1")
     cdp.ev("const s = document.createElement('script'); s.textContent = 'window.__inlineRan = true'; document.body.append(s);"
            "const i = document.createElement('img'); i.setAttribute('onerror', 'window.__handlerRan = true'); i.src = '/missing.png'; document.body.append(i);")
     # The handler of an image that fails to load would run after the request fails, so the browser's two reports are waited for first:
@@ -96,20 +89,6 @@ def run(t):
     db.commit()
     db.close()
     injected = "document.querySelectorAll('[id^=pwn]').length"
-
-    settle('/index.html', "document.querySelectorAll('#savedWorkoutList .saved-workout').length >= 4")
-    cdp.ev("document.querySelectorAll('#savedWorkoutList [data-action=view]').forEach(b => b.click())")
-    cdp.pause(0.8)
-    check('the tracker creates no elements from it', cdp.ev(injected) == 0, cdp.ev(injected))
-    text = cdp.ev("document.getElementById('savedWorkoutList').textContent")
-    check('and shows it literally', '<img src=x id=pwn1>' in text, text[:200])
-
-    settle('/cardio.html', "document.querySelectorAll('#cardioList .saved-workout').length >= 1")
-    cdp.ev("document.querySelectorAll('#cardioList [data-action=view]').forEach(b => b.click())")
-    cdp.pause(0.5)
-    check('the Cardio page creates no elements from a session', cdp.ev(injected) == 0, cdp.ev(injected))
-    text = cdp.ev("document.getElementById('cardioList').textContent")
-    check('and shows it literally', 'Hostile <b id=pwn5>run</b>' in text and '<img src=x id=pwn6>' in text, text[:300])
 
     settle('/history.html', "document.querySelectorAll('.history-workout').length >= 5")
     cdp.ev("document.querySelectorAll('#historyList [data-action=view]').forEach(b => b.click())")

@@ -37,7 +37,7 @@ function icsLocal(date) {
 }
 
 // The program's remaining workouts on the days to train: [{ date, entry, workout }], the day's workout as the card plans it
-// (what it will be, going by the weights today: they move as workouts are done). [] with no days chosen or nothing left.
+// (what it is, at the level chosen today). [] with no days chosen or nothing left.
 function programCalendarEvents(program, trained = new Set(), schedule = scheduleFrom(getWorkoutSettings())) {
   if (!schedule.days.length) return [];
   const blockSize = programWeeks(program).length * programDays(program).length;
@@ -57,8 +57,7 @@ function programCalendarText(program, events, now = new Date()) {
   const stamp = `${now.toISOString().slice(0, 19).replace(/[-:]/g, '')}Z`;
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Workout Tracker//Program//EN', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${icsEscape(name)}`];
   events.forEach(({ date, entry, workout }) => {
-    const plan = workout.exercises.map(describeExercisePlan);
-    const description = [...plan, ...plan.length ? [''] : [], 'Planned from your numbers today; the weights move as you train.'].join('\n');
+    const description = programDefinition(program).planLines(program, entry.week, entry.day).join('\n');
     lines.push('BEGIN:VEVENT', `UID:${program.startedAt}-${program.cycle}-${entry.week}-${entry.day}@workout-tracker`, `DTSTAMP:${stamp}`,
       `DTSTART:${icsLocal(date)}`, `DTEND:${icsLocal(new Date(date.getTime() + calendarEventMinutes * 60000))}`,
       `SUMMARY:${icsEscape(`${name}: ${entry.label}`)}`, `DESCRIPTION:${icsEscape(description)}`, 'END:VEVENT');

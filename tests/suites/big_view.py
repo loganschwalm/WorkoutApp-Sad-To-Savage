@@ -1,11 +1,13 @@
 """The big view: the set to do and the rest clock in very large type, a mirror of the workout on the Tracker."""
 
+import json
+
 INTERCEPT = False
 
-# A Reddit PPL with its first day done, so the next workout is Push (Bench), whose sets are planned.
-PPL = {'definition': 'reddit-ppl', 'startedAt': 1000, 'cycle': 1, 'lastRollover': None,
-       'trainingMaxes': {'deadlift': 225, 'row': 115, 'bench': 135, 'press': 85, 'squat': 185}, 'options': {'rounding': 5},
-       'done': {'0-0': {'at': 2000, 'skipped': False, 'amrap': None, 'hit': None}}}
+# A workout whose sets are planned, three of a press and then three of a row, as a program's days are (but with no superset between them).
+PLANNED = {'name': 'Planned Day', 'notes': '', 'exercises': [
+    {'name': 'Planned Press', 'weight': '', 'reps': '5', 'plan': [{'weight': 50, 'reps': 5}] * 3},
+    {'name': 'Planned Row', 'weight': '', 'reps': '8', 'plan': [{'weight': 40, 'reps': 8}] * 3}]}
 
 # WCAG's contrast ratio of two rgb() strings the browser gives for a colour.
 CONTRAST = """((a, b) => {
@@ -17,7 +19,7 @@ CONTRAST = """((a, b) => {
 
 
 def run(t):
-    cdp, check, api, token = t.cdp, t.check, t.api, t.token
+    cdp, check = t.cdp, t.check
     text, field = t.text, t.field
 
     def view_open():
@@ -151,9 +153,8 @@ def run(t):
 
     # ------------------------------------------------------------------ B2 a program's planned sets
     print('B2  a planned workout counts its sets, goes to the next exercise and finishes')
-    api('PUT', '/api/state', {'program': PPL}, token)
     t.open_tracker()
-    cdp.ev("document.querySelector('#programNext [data-program-action=start]').click()")
+    cdp.ev(f"startWorkout({json.dumps(PLANNED)})")
     cdp.wait("!document.getElementById('activeWorkout').hidden")
     cdp.pause(0.4)
     planned = cdp.ev('activeSession.exercises[0].plan.length')

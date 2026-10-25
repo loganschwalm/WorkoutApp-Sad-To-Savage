@@ -1,19 +1,16 @@
-// The first-login welcome, on the Tracker: a full-screen run of six steps (welcome, units, training, week, tour, ready) that says
-// what the app is for, sets the few things worth choosing on day one, and hands over to whatever the person picked: a program's
-// own setup form, the templates, or just the Tracker. It is shown once per account, after Create account in this tab (login.js
-// leaves a flag in sessionStorage), and again on request from Settings. Finishing or skipping saves `welcomed`, a setting like any
-// other, so the welcome stops on every device. Nothing here creates a program or asks for notifications: those stay the
-// person's own choice, made where the rest of the app makes them.
+// The first-login welcome, on the Tracker: a full-screen run of six steps (welcome, level, units, week, tour, ready) that says what the
+// app is for, sets the few things worth choosing on day one, and starts the program at the level chosen. It is shown once per account,
+// after Create account in this tab (login.js leaves a flag in sessionStorage), and again on request from Settings. Finishing or skipping
+// saves `welcomed`, a setting like any other, so the welcome stops on every device. Finishing starts Sad to Savage (or, seen again with
+// the program under way, changes its level); skipping starts nothing, and the Today page has its own button for that.
 //
 // The overlay is made here and added to <body> the first time it opens, as settings-dialog.js adds the Settings dialog, so a
 // page that never shows it carries none of it. Every way in is wrapped: a welcome that breaks must never stand between a new
 // person and their first workout, so an error closes it as if skipped. Loaded on index.html after script.js and big-view.js;
 // script.js calls maybeStartOnboarding() once the page has started and the account's settings have arrived.
 
-const onboardingSteps = ['welcome', 'units', 'training', 'week', 'tour', 'ready'];
+const onboardingSteps = ['welcome', 'level', 'units', 'week', 'tour', 'ready'];
 const onboardingFlag = 'workout-tracker-welcome';
-// The programs offered, in this order. Your own program is left out: it is built from templates, which a new account has none of.
-const onboardingProgramIds = ['wendler-531', 'reddit-ppl', 'apartment-gym'];
 let onboardingIndex = 0;
 // Until a distance unit is picked (here or in Settings), it goes with the weight unit, as distanceUnitOf has it.
 let onboardingDistanceChosen = false;
@@ -66,14 +63,9 @@ function onboardingChoice(name, value, title, detail = '', text = '', kind = 'ro
     + `${text ? `<span class="onboarding-choice-text">${escapeHTML(text)}</span>` : ''}</span></label>`;
 }
 
-// Each program's own name, schedule and summary, so the welcome says of it what its setup and card say. Apartment Gym's
-// summary names its dumbbells in the unit shown, so it is written for the unit chosen on the step before (see
-// onboardingRenderPrograms); a program missing from this version of the definitions is just not offered.
-function onboardingProgramChoices() {
-  return onboardingProgramIds.map(id => findProgramDefinition(id)).filter(Boolean)
-    .map(definition => `<label class="onboarding-choice onboarding-row"><input type="radio" name="onboardingPath" value="program:${escapeHTML(definition.id)}" />`
-      + `<span class="onboarding-choice-body"><strong>${escapeHTML(definition.name)}</strong><small>${escapeHTML(definition.schedule || '')}</small>`
-      + `<span class="onboarding-choice-text" data-program-summary="${escapeHTML(definition.id)}"></span></span></label>`).join('');
+// The program's levels, each as the setup form words it, so the welcome says of them what the program does.
+function onboardingLevelChoices() {
+  return programDefinitions[0].options[0].choices.map(choice => onboardingChoice('onboardingLevel', choice.value, choice.label, '', choice.help)).join('');
 }
 
 // Monday first, as Settings and the calendar show the week, each with the number the settings keep (Sunday is 0).
@@ -92,8 +84,7 @@ function onboardingStep(name, title, body) {
 function onboardingMarkup() {
   const goals = [1, 2, 3, 4, 5, 6, 7].map(goal => `<option value="${goal}">${goal} workout${goal === 1 ? '' : 's'} a week</option>`).join('');
   const pages = [
-    ['strength', 'Strength', 'The Tracker. Start a workout and log each set; the rest timer counts down between them, the big view shows the set and the clock from across the room, and new records are called out as you set them.'],
-    ['cardio', 'Cardio', 'Walks, runs, rides, rows and more, with their time and distance.'],
+    ['strength', 'Today', 'The next day of the program: its warm-up and supersets, or the mat Pilates session, and the daily walk to log. Start it and log each set; the rest timer counts down between rounds, and new records are called out as you set them.'],
     ['progress', 'Progress', 'A chart for each exercise, your personal records, and the achievements you earn along the way.'],
     ['history', 'History', 'Every workout on a calendar, with your weekly goal and the streaks you build.']
   ].map(([page, name, text]) => `<li><span class="onboarding-tour-icon" data-page="${page}" aria-hidden="true"></span><div><strong>${name}</strong><p>${text}</p></div></li>`).join('');
@@ -105,27 +96,23 @@ function onboardingMarkup() {
       <button class="onboarding-skip" id="onboardingSkip" type="button">Skip</button>
     </div>
     <div class="onboarding-steps">
-      ${onboardingStep('welcome', 'Welcome to Workout Tracker', `<p class="onboarding-lead">Log your strength workouts and cardio, follow a training program if you like, and watch your progress build week by week.</p>
+      ${onboardingStep('welcome', 'Welcome to Sad to Savage', `<p class="onboarding-lead">Six weeks of strength, mat Pilates and a daily walk, one day at a time. Open the app and it says what today is; log it, and the program moves on.</p>
         <p class="onboarding-text">It keeps working when the connection drops: what you log is saved on this device and uploads once you are back online.</p>
-        <p class="onboarding-note">A few choices and you are ready to train. It takes about a minute, and any of it can be changed later in Settings.</p>`)}
-      ${onboardingStep('units', 'Pounds or kilograms?', `<p class="onboarding-lead">Every weight is shown in the unit you choose, from the Tracker to your charts. Switching later never changes what you logged.</p>
+        <p class="onboarding-note">A few choices and you are ready to start. It takes about a minute, and any of it can be changed later.</p>`)}
+      ${onboardingStep('level', 'Which weights?', `<p class="onboarding-lead">Every exercise in the program gives a range of weight (or a band) for two levels. Choose the one you will follow; you can change it at any time, and the days still to do follow it.</p>
+        <fieldset class="onboarding-group"><legend>Your level</legend><div class="onboarding-choices">${onboardingLevelChoices()}</div></fieldset>`)}
+      ${onboardingStep('units', 'Pounds or kilograms?', `<p class="onboarding-lead">Every weight is shown in the unit you choose, from Today to your charts. Switching later never changes what you logged.</p>
         <fieldset class="onboarding-group"><legend>Weight</legend><div class="onboarding-segments">${onboardingChoice('onboardingUnit', 'lbs', 'Pounds', 'lbs', '', 'segment')}${onboardingChoice('onboardingUnit', 'kg', 'Kilograms', 'kg', '', 'segment')}</div></fieldset>
-        <fieldset class="onboarding-group"><legend>Distance, for cardio</legend><div class="onboarding-segments">${onboardingChoice('onboardingDistance', 'mi', 'Miles', 'mi', '', 'segment')}${onboardingChoice('onboardingDistance', 'km', 'Kilometres', 'km', '', 'segment')}</div></fieldset>
-        <p class="onboarding-note">Distance goes with the weight unit until you pick one. A rowing machine is always in metres.</p>`)}
-      ${onboardingStep('training', 'How do you want to train?', `<p class="onboarding-lead">Pick a starting point. You can change course at any time, and every workout you finish stays in your history.</p>
-        <fieldset class="onboarding-group"><legend>Follow a program</legend><div class="onboarding-choices">${onboardingProgramChoices()}</div></fieldset>
-        <fieldset class="onboarding-group"><legend>Or keep it simple</legend><div class="onboarding-choices">
-          ${onboardingChoice('onboardingPath', 'templates', 'Start from templates', '', 'Ready-made workouts such as Push Day, Pull Day and Leg Day, and any you make yourself. Start one whenever you train.')}
-          ${onboardingChoice('onboardingPath', 'log', 'Just log as you go', '', 'Create a workout and add each exercise with its weight and reps. Nothing is planned for you.')}
-        </div></fieldset>`)}
-      ${onboardingStep('week', 'Plan your week', `<p class="onboarding-lead">Set a weekly goal. The History calendar counts your workouts against it, and each week in a row you reach it adds to your streak.</p>
+        <fieldset class="onboarding-group"><legend>Distance, for your walk</legend><div class="onboarding-segments">${onboardingChoice('onboardingDistance', 'mi', 'Miles', 'mi', '', 'segment')}${onboardingChoice('onboardingDistance', 'km', 'Kilometres', 'km', '', 'segment')}</div></fieldset>
+        <p class="onboarding-note">Distance goes with the weight unit until you pick one.</p>`)}
+      ${onboardingStep('week', 'Plan your week', `<p class="onboarding-lead">The program is five days a week. The History calendar counts your workouts against a weekly goal, and each week in a row you reach it adds to your streak.</p>
         <div class="onboarding-group"><label for="onboardingGoal">Weekly goal</label><select id="onboardingGoal">${goals}</select></div>
         <fieldset class="onboarding-group weekday-choices onboarding-days"><legend>Days you train (optional)</legend>${onboardingDayChoices()}</fieldset>
-        <p class="onboarding-note">With days chosen, the Tracker says what is planned for today and what comes next. Leave them empty to train whenever suits you.</p>`)}
-      ${onboardingStep('tour', 'Find your way around', `<p class="onboarding-lead">Four pages, in the bar along the bottom on a phone and across the top on a wider screen.</p>
+        <p class="onboarding-note">With days chosen, Today says what is planned and your phone can remind you. Leave them empty to train whenever suits you: the program waits for you either way.</p>`)}
+      ${onboardingStep('tour', 'Find your way around', `<p class="onboarding-lead">Three pages, in the bar along the bottom on a phone and across the top on a wider screen.</p>
         <ul class="onboarding-tour">${pages}</ul>
         <p class="onboarding-note">Everything else is in Settings, under the gear button: themes, text size, the rest timer and your account.</p>`)}
-      ${onboardingStep('ready', 'You are all set', `<p class="onboarding-lead">Here is how you are starting. Any of it can be changed later in Settings.</p>
+      ${onboardingStep('ready', 'You are all set', `<p class="onboarding-lead">Here is how you are starting. Any of it can be changed later.</p>
         <dl class="onboarding-summary" id="onboardingSummary"></dl>
         <p class="onboarding-text" id="onboardingReadyNext"></p>
         <p class="onboarding-note">You can see this welcome again from Settings.</p>`)}
@@ -133,7 +120,7 @@ function onboardingMarkup() {
     <div class="onboarding-actions">
       <button class="secondary onboarding-back" id="onboardingBack" type="button">Back</button>
       <button class="primary onboarding-next" id="onboardingNext" type="button">Get started</button>
-      <button class="primary onboarding-next" id="onboardingStart" type="button" hidden>Go to the Tracker</button>
+      <button class="primary onboarding-next" id="onboardingStart" type="button" hidden>Start Sad to Savage</button>
     </div>
   </div>
 </div>`;
@@ -160,46 +147,37 @@ function onboardingSetRadio(name, value) {
   $('onboarding').querySelectorAll(`input[name="${name}"]`).forEach(input => { input.checked = input.value === value; });
 }
 
-// What the steps say now. A path whose program is not in this version's definitions is taken as logging as you go.
+// What the steps say now.
 function onboardingChoices() {
   const unit = onboardingRadio('onboardingUnit')?.value === 'kg' ? 'kg' : 'lbs';
   const distanceUnit = onboardingRadio('onboardingDistance')?.value === 'km' ? 'km' : 'mi';
   const days = [...$('onboarding').querySelectorAll('input[name="onboardingDay"]:checked')].map(input => Number(input.value)).sort((a, b) => a - b);
-  let path = onboardingRadio('onboardingPath')?.value || 'templates';
-  const definition = path.startsWith('program:') ? findProgramDefinition(path.slice('program:'.length)) : null;
-  if (path.startsWith('program:') && !definition) path = 'log';
-  return { unit, distanceUnit, weeklyGoal:weeklyGoalFrom($('onboardingGoal').value), days, path, definition };
+  const definition = programDefinitions[0];
+  const chosen = onboardingRadio('onboardingLevel')?.value;
+  const level = definition.options[0].choices.find(choice => choice.value === chosen) || definition.options[0].choices[0];
+  return { unit, distanceUnit, weeklyGoal:weeklyGoalFrom($('onboardingGoal').value), days, definition, level };
 }
 
-// Every opening starts from the settings as they are, so a welcome seen again shows what was chosen since.
+// Every opening starts from the settings as they are, so a welcome seen again shows what was chosen since. The program is five days a
+// week, so for an account not yet welcomed (whose goal is still the default) it starts at five.
 function onboardingPrefill() {
   const settings = getWorkoutSettings();
   onboardingSetRadio('onboardingUnit', settings.unit === 'kg' ? 'kg' : 'lbs');
   onboardingSetRadio('onboardingDistance', distanceUnitOf(settings));
   onboardingDistanceChosen = settings.distanceUnit === 'mi' || settings.distanceUnit === 'km';
-  $('onboardingGoal').value = String(weeklyGoalFrom(settings.weeklyGoal));
+  $('onboardingGoal').value = String(settings.welcomed === true ? weeklyGoalFrom(settings.weeklyGoal) : 5);
   const { days } = scheduleFrom(settings);
   $('onboarding').querySelectorAll('input[name="onboardingDay"]').forEach(input => { input.checked = days.includes(Number(input.value)); });
-  onboardingSetRadio('onboardingPath', 'templates');
-}
-
-function onboardingRenderPrograms() {
-  const { unit } = onboardingChoices();
-  $('onboarding').querySelectorAll('[data-program-summary]').forEach(text => {
-    const definition = findProgramDefinition(text.dataset.programSummary);
-    const summary = definition ? definition.summary : '';
-    text.textContent = typeof summary === 'function' ? summary(unit) : summary || '';
-  });
+  onboardingSetRadio('onboardingLevel', currentProgram ? currentProgram.options.level : programDefinitions[0].options[0].default);
 }
 
 // The last step says back what was chosen, and its button says what it will do.
 function onboardingRenderReady() {
   const choices = onboardingChoices();
   const dayNames = trainingDays.filter(([value]) => choices.days.includes(value)).map(([, short]) => short);
-  const training = choices.definition ? choices.definition.name : choices.path === 'templates' ? 'Templates' : 'Logging as you go';
   const rows = [
+    ['Level', choices.level.label],
     ['Units', `${choices.unit === 'kg' ? 'Kilograms' : 'Pounds'} and ${choices.distanceUnit === 'km' ? 'kilometres' : 'miles'}`],
-    ['Training', training],
     ['Weekly goal', `${choices.weeklyGoal} workout${choices.weeklyGoal === 1 ? '' : 's'} a week`],
     ['Training days', dayNames.length ? dayNames.join(', ') : 'None yet']
   ];
@@ -213,11 +191,9 @@ function onboardingRenderReady() {
     row.append(name, text);
     return row;
   }));
-  $('onboardingReadyNext').textContent = choices.definition
-    ? `Next, ${choices.definition.name} asks for your current weights, and plans every set from them.`
-    : choices.path === 'templates' ? 'Next, the templates open on the Tracker. Start one when you are ready to train.'
-      : 'Next, the Tracker. Create a workout whenever you are ready to train.';
-  $('onboardingStart').textContent = choices.definition ? `Set up ${choices.definition.name}` : choices.path === 'templates' ? 'Choose a template' : 'Go to the Tracker';
+  $('onboardingReadyNext').textContent = currentProgram ? `Next, ${choices.definition.name} carries on at this level.`
+    : `Next, ${choices.definition.name} starts, and Today says what the first day is.`;
+  $('onboardingStart').textContent = currentProgram ? 'Save and go to Today' : `Start ${choices.definition.name}`;
 }
 
 // ---- Moving through it ----------------------------------------------------
@@ -227,7 +203,6 @@ function onboardingShowStep(index) {
   const name = onboardingSteps[onboardingIndex];
   const last = onboardingIndex === onboardingSteps.length - 1;
   const dialog = $('onboarding');
-  if (name === 'training') onboardingRenderPrograms();
   if (name === 'ready') onboardingRenderReady();
   dialog.querySelectorAll('.onboarding-step').forEach(step => { step.hidden = step.dataset.step !== name; });
   dialog.setAttribute('aria-labelledby', `onboardingTitle-${name}`);
@@ -273,14 +248,12 @@ function onboardingClick(event) {
   else if (button.id === 'onboardingStart') finishOnboarding('done');
 }
 
-// Picking a weight unit moves the distance with it, until a distance has been picked. Apartment Gym's summary names its
-// dumbbells in the weight unit, so it follows too.
+// Picking a weight unit moves the distance with it, until a distance has been picked.
 function onboardingChange(event) {
   const { name, value } = event.target;
   if (name === 'onboardingDistance') onboardingDistanceChosen = true;
   if (name === 'onboardingUnit') {
     if (!onboardingDistanceChosen) onboardingSetRadio('onboardingDistance', value === 'kg' ? 'km' : 'mi');
-    onboardingRenderPrograms();
   }
 }
 
@@ -298,30 +271,31 @@ function onboardingKey(event) {
 
 // ---- Finishing ------------------------------------------------------------
 
-// Put away, with the keyboard left on the Tracker: on the templates' button between workouts (as Last week's Done does), or
+// Put away, with the keyboard left on the Tracker: on the program card's button between workouts (as Last week's Done does), or
 // on Settings when a workout has put the rest of the Tracker away.
 function onboardingClose() {
   onboardingForgetFlag();
   const dialog = $('onboarding');
   if (dialog) dialog.hidden = true;
   document.body.classList.remove('onboarding-open');
-  const target = ['templatesToggle', 'settingsButton'].map(id => $(id)).find(element => element && element.getClientRects().length);
+  const target = [document.querySelector('#programNext .primary'), $('settingsButton')].find(element => element && element.getClientRects().length);
   if (target) target.focus({ preventScroll:true });
 }
 
 // Done keeps the choices; skipped keeps nothing but having been welcomed. Either way the welcome is over on every device, since
-// `welcomed` syncs with the rest of the settings. Done then hands over: a program to its own setup form (which asks for the
-// starting weights, so the welcome never makes up a program), templates to the template list, and logging to the Tracker as it is.
+// `welcomed` syncs with the rest of the settings. Done then starts the program at the level chosen, or changes the level of the one
+// under way; skipping starts nothing.
 function finishOnboarding(reason) {
   const dialog = $('onboarding');
   if (!dialog || dialog.hidden) return; // a second tap on Start, or Escape as it closes
-  let choices = null;
   try {
     const settings = getWorkoutSettings();
     if (reason === 'done') {
-      choices = onboardingChoices();
+      const choices = onboardingChoices();
       saveLocalState('settings', { ...settings, unit:choices.unit, distanceUnit:choices.distanceUnit, weeklyGoal:choices.weeklyGoal,
         schedule:{ days:choices.days, time:scheduleFrom().time }, welcomed:true });
+      const options = { [choices.definition.options[0].id]:choices.level.value };
+      saveProgram(normalizeProgram(currentProgram ? { ...currentProgram, options } : { definition:choices.definition.id, startedAt:Date.now(), cycle:1, done:{}, walks:{}, options }));
     } else {
       saveLocalState('settings', { ...settings, welcomed:true });
     }
@@ -333,19 +307,6 @@ function finishOnboarding(reason) {
     return;
   }
   onboardingClose();
-  if (reason !== 'done' || !choices) return;
-  // After closing, so the program form remembers a button on the Tracker to hand the focus back to, not one in the welcome.
-  try {
-    if (choices.definition) openProgramForm(choices.definition);
-    else if (choices.path === 'templates') onboardingShowTemplates();
-  } catch (error) {
-    console.error('Unable to open what the welcome chose; the Tracker is there instead.', error);
-  }
-}
-
-function onboardingShowTemplates() {
-  if ($('templateArea').hidden) $('templatesToggle').click();
-  scrollToCard($('templateArea').closest('section'), 'start');
 }
 
 // Whatever goes wrong, the person gets into the app: the welcome closes as if skipped. Each part is tried on its own, so one

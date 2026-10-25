@@ -1,14 +1,14 @@
 """The first-login welcome (onboarding.js): shown on the Tracker after Create account and at no other time, its six steps,
-the choices it offers and what finishing, skipping and Escape save, the hand-off to a program's setup, the templates or the
-Tracker, seeing it again from Settings, never over a workout, and how it fits and reads on a phone, in landscape, at the largest
-Text size and in every theme."""
+the choices it offers and what finishing, skipping and Escape save, finishing starting the program at the level chosen, seeing it
+again from Settings, never over a workout, and how it fits and reads on a phone, in landscape, at the largest Text size and in
+every theme."""
 
 import json
 
 INTERCEPT = False
 
 FLAG = 'workout-tracker-welcome'
-STEPS = ['welcome', 'units', 'training', 'week', 'tour', 'ready']
+STEPS = ['welcome', 'level', 'units', 'week', 'tour', 'ready']
 PASSWORD = 'chalk-and-plates-42'
 
 # What the welcome shows now: the step, the focus, the progress, which buttons are there and what the dialog is labelled by.
@@ -178,10 +178,6 @@ def run(t):
     def synced():
         return cdp.wait("readLocalState('settings') && readLocalState('settings').dirty === false", timeout=10)
 
-    def fold_templates():
-        cdp.ev("if (!document.getElementById('templateArea').hidden) document.getElementById('templatesToggle').click()")
-        return cdp.ev("document.getElementById('templateArea').hidden") is True
-
     def expected_state(index):
         name = STEPS[index]
         last = index == len(STEPS) - 1
@@ -252,8 +248,13 @@ def run(t):
           and cdp.ev('document.activeElement.id') == 'onboardingStart', [wrapped, cdp.ev('document.activeElement.id')])
 
     # ------------------------------------------------------------------ O4 the choices
-    print('O4  the choices: units, a way to train, a goal and days, and the Start button saying what it will do')
+    print('O4  the choices: a level, units, a goal and days, and the Start button saying what it will do')
     go(1)
+    levels = cdp.ev("[...document.querySelectorAll('#onboarding input[name=onboardingLevel]')].map(input => input.value)")
+    check('the levels are the program’s: New to strength and Shelby’s weights', levels == ['nts', 'sw'], levels)
+    check('with New to strength chosen to start with', picked('onboardingLevel') == ['nts'], picked('onboardingLevel'))
+    check('each says what it is', 'Shelby' in cdp.ev("document.querySelectorAll('#onboarding .onboarding-choice-text')[1].textContent"))
+    go(2)
     check('units start from the settings: pounds and miles for a new account', picked('onboardingUnit') == ['lbs'] and picked('onboardingDistance') == ['mi'],
           [picked('onboardingUnit'), picked('onboardingDistance')])
     pick('onboardingUnit', 'kg')
@@ -267,25 +268,13 @@ def run(t):
     check('but once a distance is chosen, the weight unit leaves it alone', picked('onboardingUnit') == ['lbs'] and picked('onboardingDistance') == ['km'],
           [picked('onboardingUnit'), picked('onboardingDistance')])
     pick('onboardingUnit', 'kg')
-    go(2)
-    paths = cdp.ev("[...document.querySelectorAll('#onboarding input[name=onboardingPath]')].map(input => input.value)")
-    check('the ways to train are the three programs, templates and logging as you go',
-          paths == ['program:wendler-531', 'program:reddit-ppl', 'program:apartment-gym', 'templates', 'log'], paths)
-    check('with templates chosen to start with', picked('onboardingPath') == ['templates'], picked('onboardingPath'))
     go(3)
-    check('the weekly goal is 1 to 7, starting from the setting (3)', cdp.ev("[...document.getElementById('onboardingGoal').options].map(option => option.value)")
-          == [str(n) for n in range(1, 8)] and t.field('onboardingGoal') == '3', t.field('onboardingGoal'))
+    check('the weekly goal is 1 to 7, starting from five (the program is five days a week)', cdp.ev("[...document.getElementById('onboardingGoal').options].map(option => option.value)")
+          == [str(n) for n in range(1, 8)] and t.field('onboardingGoal') == '5', t.field('onboardingGoal'))
     days = cdp.ev("[...document.querySelectorAll('#onboarding input[name=onboardingDay]')].map(input => input.value)")
     check('the training days are shown Monday first, Sunday as 0, none ticked', days == ['1', '2', '3', '4', '5', '6', '0'] and picked('onboardingDay') == [], days)
-    labels = {}
-    for path in paths:
-        go(2)
-        pick('onboardingPath', path)
-        go(5)
-        labels[path] = t.text('onboardingStart')
-    names = {pid: cdp.ev(f"findProgramDefinition('{pid}').name") for pid in ['wendler-531', 'reddit-ppl', 'apartment-gym']}
-    wanted = {**{f'program:{pid}': f'Set up {name}' for pid, name in names.items()}, 'templates': 'Choose a template', 'log': 'Go to the Tracker'}
-    check("the Start button says what it will do for each way: Set up <program>, Choose a template, Go to the Tracker", labels == wanted, [labels, wanted])
+    go(5)
+    check('the Start button says what it will do: Start Sad to Savage', t.text('onboardingStart') == 'Start Sad to Savage', t.text('onboardingStart'))
 
     # ------------------------------------------------------------------ O6a Escape
     print('O6a Escape skips: it saves having been welcomed and nothing else')
@@ -299,38 +288,42 @@ def run(t):
     check('saving welcomed: true and changing nothing else', after == {**first_before, 'welcomed': True},
           {key: (first_before.get(key), after.get(key)) for key in set(first_before) | set(after) if first_before.get(key) != after.get(key)})
     check('the flag is gone from the tab', flag_gone(), flag())
-    check('and the keyboard is left on the Tracker', cdp.ev('document.activeElement.id') in ('templatesToggle', 'settingsButton'), cdp.ev('document.activeElement.id'))
+    check('and the keyboard is left on the Tracker', cdp.ev("document.activeElement.matches('#programNext .primary') || document.activeElement.id === 'settingsButton'") is True, cdp.ev('document.activeElement.id'))
+    check('no program was started', cdp.ev('currentProgram === null') is True and server_state(first_token).get('program') is None)
     check('the server has welcomed: true, and kept pounds', synced() and t.wait_for(lambda: server_settings(first_token).get('welcomed') is True)
           and server_settings(first_token).get('unit') != 'kg', server_settings(first_token))
     set_flag()
     reload_tracker()
     check('a reload, even with the flag set again, does not show it', is_closed() is True)
 
-    # ------------------------------------------------------------------ O5 finishing, one way to train at a time
-    print('O5  Start saves the choices and hands over to what was chosen')
+    # ------------------------------------------------------------------ O5 finishing
+    print('O5  Start saves the choices and starts the program at the level chosen')
     time_default = cdp.ev('scheduleFrom().time')
     cases = [
-        ('a program', 'program:wendler-531', 'kg', None, 4, [1, 3, 5]),
-        ('templates', 'templates', 'lbs', 'km', 2, []),
-        ('logging as you go', 'log', 'kg', 'mi', 7, [0, 6]),
+        ('New to strength', 'nts', 'kg', None, 4, [1, 3, 5]),
+        ('Shelby’s weights', 'sw', 'lbs', 'km', 2, []),
+        ('Shelby’s weights, in kilograms', 'sw', 'kg', 'mi', 7, [0, 6]),
     ]
     tokens = {}
-    for label, path, unit, distance, goal, chosen_days in cases:
-        token = tokens[path] = account(f"finish{path.split(':')[-1].replace('-', '')}")
+    for label, level, unit, distance, goal, chosen_days in cases:
+        token = tokens[level + unit] = account(f"finish{level}{unit}")
         check(f'[{label}] a new account sees the welcome', open_welcomed(token) is True)
         before = settings()
-        check(f'[{label}] (the templates are folded first, to see what Start opens)', fold_templates())
+        check(f'[{label}] it has no program yet', cdp.ev('currentProgram === null') is True)
         go(1)
+        pick('onboardingLevel', level)
+        go(2)
         pick('onboardingUnit', unit)
         if distance:
             pick('onboardingDistance', distance)
-        go(2)
-        pick('onboardingPath', path)
         go(3)
         t.set_field('onboardingGoal', goal)
         for day in chosen_days:
             pick('onboardingDay', day)
         go(5)
+        summary = cdp.ev("[...document.querySelectorAll('#onboardingSummary div')].map(row => [row.children[0].textContent, row.children[1].textContent])")
+        check(f'[{label}] the last step says back what was chosen', summary[0] == ['Level', cdp.ev(f"programDefinitions[0].options[0].choices.find(c => c.value === '{level}').label")]
+              and summary[2] == ['Weekly goal', f'{goal} workout{"" if goal == 1 else "s"} a week'], summary)
         distance_unit = distance or ('km' if unit == 'kg' else 'mi')
         expected = {**before, 'unit': unit, 'distanceUnit': distance_unit, 'weeklyGoal': goal,
                     'schedule': {'days': sorted(chosen_days), 'time': time_default}, 'welcomed': True}
@@ -340,6 +333,10 @@ def run(t):
         check(f'[{label}] Start saves exactly the units, goal, days and welcomed', after == expected,
               {key: (expected.get(key), after.get(key)) for key in set(expected) | set(after) if expected.get(key) != after.get(key)})
         check(f'[{label}] closes the welcome and removes the flag', is_closed() is True and flag_gone(), flag())
+        check(f'[{label}] and starts the program at the level chosen', cdp.ev('currentProgram') is not None and cdp.ev('currentProgram.options.level') == level
+              and cdp.ev('currentProgram.definition') == 'sad-to-savage' and cdp.ev('currentProgram.done') == {}, cdp.ev('currentProgram'))
+        check(f'[{label}] with its first day on the card, and the keyboard on its Start', cdp.ev("document.querySelector('#programNext strong').textContent") == 'Upper Body Focus'
+              and cdp.ev("document.activeElement.matches('#programNext .primary')") is True, cdp.ev('document.activeElement.id'))
         # Once this device's copy is uploaded (offline.js marks it clean), what the server keeps.
         synced()
         t.wait_for(lambda: server_settings(token).get('welcomed') is True)
@@ -348,26 +345,7 @@ def run(t):
         stored = {**cdp.ev('defaultSettings'), **server_settings(token)}
         check(f'[{label}] and the server has the same', {key: stored.get(key) for key in ('unit', 'distanceUnit', 'weeklyGoal', 'schedule', 'welcomed')}
               == {key: expected[key] for key in ('unit', 'distanceUnit', 'weeklyGoal', 'schedule', 'welcomed')}, stored)
-        modal = cdp.ev("!document.getElementById('programModal').hidden")
-        folded = cdp.ev("document.getElementById('templateArea').hidden")
-        if path.startswith('program:'):
-            name = cdp.ev(f"findProgramDefinition('{path[8:]}').name")
-            check(f'[{label}] its own setup form opens, to ask for the starting weights', modal is True
-                  and t.text('programModalTitle') == f'Start {name}', [modal, t.text('programModalTitle')])
-            check(f'[{label}] with the focus in it, and the weights in the unit just chosen', cdp.ev("document.getElementById('programModal').contains(document.activeElement)") is True
-                  and '(kg)' in cdp.ev("document.querySelector('#programMaxInputs label').textContent"), cdp.ev("document.querySelector('#programMaxInputs label').textContent"))
-            check(f'[{label}] but the welcome made no program itself', cdp.ev('currentProgram === null') is True and server_state(token).get('program') is None,
-                  [cdp.ev('currentProgram'), server_state(token).get('program')])
-            t.click('cancelProgram')
-            cdp.pause(0.2)
-        elif path == 'templates':
-            cdp.pause(0.8)  # a smooth scroll to the templates
-            check(f'[{label}] the template list opens, and nothing else', folded is False and modal is False
-                  and cdp.ev("document.getElementById('templatesToggle').getAttribute('aria-expanded')") == 'true', [folded, modal])
-            check(f'[{label}] scrolled into view', cdp.ev("(box => box.top < innerHeight && box.bottom > 0)(document.getElementById('templateArea').closest('section').getBoundingClientRect())") is True)
-        else:
-            check(f'[{label}] nothing more opens: no program form, the templates still folded', modal is False and folded is True, [modal, folded])
-            check(f'[{label}] and the keyboard is on the Tracker', cdp.ev('document.activeElement.id') in ('templatesToggle', 'settingsButton'), cdp.ev('document.activeElement.id'))
+        check(f'[{label}] and the program', t.wait_for(lambda: (server_state(token).get('program') or {}).get('options') == {'level': level}), server_state(token).get('program'))
 
     # ------------------------------------------------------------------ O6b Skip
     print('O6b Skip saves having been welcomed and nothing else, and the account is not welcomed again')
@@ -402,7 +380,7 @@ def run(t):
 
     # ------------------------------------------------------------------ O7 seeing it again
     print('O7  Settings shows it again, from the Tracker and from another page')
-    program_token = tokens['program:wendler-531']
+    program_token = tokens['nts' + 'kg']
     t.set_cookie(program_token)
     t.open_tracker()
     settled()
@@ -418,13 +396,13 @@ def run(t):
           and replay['current'] == 'welcome' and replay['focus'] == 'onboardingTitle-welcome', replay)
     check('marked as a replay', cdp.ev("document.getElementById('onboarding').dataset.replay") == 'true')
     go(1)
-    units = [picked('onboardingUnit'), picked('onboardingDistance')]
+    level_now = picked('onboardingLevel')
     go(2)
-    path_now = picked('onboardingPath')
+    units = [picked('onboardingUnit'), picked('onboardingDistance')]
     go(3)
     week = [t.field('onboardingGoal'), picked('onboardingDay')]
-    check('with the choices made since filled in: kilograms, kilometres, 4 a week, Monday, Wednesday and Friday',
-          units == [['kg'], ['km']] and week == ['4', ['1', '3', '5']] and path_now == ['templates'], [units, week, path_now])
+    check('with the choices made since filled in: the level, kilograms, kilometres, 4 a week, Monday, Wednesday and Friday',
+          level_now == ['nts'] and units == [['kg'], ['km']] and week == ['4', ['1', '3', '5']], [level_now, units, week])
     escape()
     check('Escape closes it again, changing nothing', is_closed() is True and settings() == {**kept, 'welcomed': True}, settings())
 

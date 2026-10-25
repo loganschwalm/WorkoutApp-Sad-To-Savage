@@ -121,7 +121,7 @@ async function startTodaysWorkout() {
   if (activeSession) return;
   const next = currentProgram ? nextProgramDay(currentProgram) : null;
   if (next) startWorkout(programWorkout(currentProgram, next.week, next.day));
-  else showFeedback(currentProgram ? 'Your program has no workouts left to start.' : 'Today’s workout comes from a training program. Choose a workout below, or set one up.');
+  else showFeedback(currentProgram ? 'Your program has no workouts left to start.' : 'Today’s workout comes from the program. Start the program first.');
 }
 
 // ---- The Tracker's nudge ----------------------------------------------------

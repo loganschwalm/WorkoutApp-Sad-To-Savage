@@ -5,11 +5,10 @@ import json
 INTERCEPT = False
 
 DAY_MS = 86400000
-# A Reddit PPL with its first day done, so what is left is Push (Bench), Legs, Pull (Row), Push (Overhead Press), Legs.
-PPL = {'definition': 'reddit-ppl', 'startedAt': 1000, 'cycle': 1, 'lastRollover': None,
-       'trainingMaxes': {'deadlift': 225, 'row': 115, 'bench': 135, 'press': 85, 'squat': 185}, 'options': {'rounding': 5},
-       'done': {'0-0': {'at': 2000, 'skipped': False, 'amrap': None, 'hit': None}}}
-LEFT = ['Push (Bench)', 'Legs', 'Pull (Row)', 'Push (Overhead Press)', 'Legs']
+# Sad to Savage with its first day done, so what is left is the other 29 days, from week 1's Pilates day to the last of week 6.
+PROGRAM = {'definition': 'sad-to-savage', 'startedAt': 1000, 'cycle': 1, 'options': {'level': 'nts'}, 'walks': {},
+           'done': {'0-0': {'at': 2000, 'skipped': False}}}
+LEFT_JS = "(() => { const out = []; for (let w = 0; w < 6; w += 1) for (let d = 0; d < 5; d += 1) if (!(w === 0 && d === 0)) out.push(dayLabel(currentProgram, w, d)); return out; })()"
 EVERY_DAY = [0, 1, 2, 3, 4, 5, 6]
 
 
@@ -43,7 +42,7 @@ def run(t):
 
     # ------------------------------------------------------------------ the file
     print('F   the calendar file')
-    api('PUT', '/api/state', {'program': PPL}, token)
+    api('PUT', '/api/state', {'program': PROGRAM}, token)
     t.open_tracker()
     catch_downloads()
     check('Add to calendar is in the program card’s menu', cdp.ev("document.getElementById('programCard').contains(document.getElementById('calendarProgramBtn'))") is True)
@@ -54,17 +53,18 @@ def run(t):
 
     set_schedule(EVERY_DAY)
     saved = download()
-    check('with days chosen, a file is saved', saved is not None and saved['name'] == 'reddit-ppl.ics', saved and saved['name'])
+    check('with days chosen, a file is saved', saved is not None and saved['name'] == 'sad-to-savage.ics', saved and saved['name'])
     content = saved['content']
     check('it is a calendar', saved['type'] == 'text/calendar;charset=utf-8' and content.startswith('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n') and content.endswith('END:VCALENDAR\r\n'), content[:60])
     check('every line ends CRLF and none is over 75 octets', '\n' not in content.replace('\r\n', '') and all(len(line.encode()) <= 75 for line in content.split('\r\n')))
     found = events(content)
-    check('one event for each workout left in the block, and none from the next', [e['SUMMARY'] for e in found] == [f'Reddit PPL: {name}' for name in LEFT], [e['SUMMARY'] for e in found])
+    left = [name.replace(',', '\,') for name in cdp.ev(LEFT_JS)]  # as the file escapes a comma
+    check('one event for each of the 29 days left, in order, and none beyond the six weeks', [e['SUMMARY'] for e in found] == [f'Sad to Savage: {name}' for name in left], [e['SUMMARY'] for e in found])
     check('each starts at the schedule’s time and lasts an hour', all(e['DTSTART'].endswith('T170000') and e['DTEND'][:8] == e['DTSTART'][:8] and e['DTEND'].endswith('T180000') for e in found), found[0])
-    check('on consecutive days, as every day is a training day', all(int(b['DTSTART'][6:8]) != int(a['DTSTART'][6:8]) for a, b in zip(found, found[1:])) and len({e['DTSTART'] for e in found}) == 5)
-    check('each is stamped in UTC and has a UID of its own, from this run of the program', all(e['DTSTAMP'].endswith('Z') and e['UID'].startswith('1000-1-') for e in found) and len({e['UID'] for e in found}) == 5, [e['UID'] for e in found])
+    check('on consecutive days, as every day is a training day', all(int(b['DTSTART'][6:8]) != int(a['DTSTART'][6:8]) for a, b in zip(found, found[1:])) and len({e['DTSTART'] for e in found}) == 29)
+    check('each is stamped in UTC and has a UID of its own, from this run of the program', all(e['DTSTAMP'].endswith('Z') and e['UID'].startswith('1000-1-') for e in found) and len({e['UID'] for e in found}) == 29, [e['UID'] for e in found])
     description = found[0]['DESCRIPTION']
-    check('the description lists the day’s exercises as planned', description.startswith('Bench Press ') and '\\n' in description and 'weights move as you train' in description, description[:80])
+    check('the description is the day as the card plans it: Shelby’s note for a Pilates day, and what to have to hand', description.startswith('Today we are going to do a 25 minute full body mat pilates workout') and '\\n' in description and 'You need: Mat\\, Hand Weights\\, Ankle Weights' in description, description[:80])
     again = download()
     check('saving again gives the same UIDs, so a calendar updates rather than doubles', [e['UID'] for e in events(again['content'])] == [e['UID'] for e in found])
 
@@ -74,11 +74,11 @@ def run(t):
     found = events(download()['content'])
     days = cdp.ev(f"{json.dumps([e['DTSTART'] for e in found])}.map(start => new Date(+start.slice(0, 4), +start.slice(4, 6) - 1, +start.slice(6, 8)).getDay())")
     check('only the days chosen are used, at the time chosen', set(days) <= {1, 4} and all(e['DTSTART'].endswith('T063000') for e in found), days)
-    check('and still every workout left, once each, in order', [e['SUMMARY'] for e in found] == [f'Reddit PPL: {name}' for name in LEFT])
+    check('and still every day left, once each, in order', [e['SUMMARY'] for e in found] == [f'Sad to Savage: {name}' for name in left])
     set_schedule([2], '17:00')
     starts = [e['DTSTART'] for e in events(download()['content'])]
     gaps = cdp.ev(f"{json.dumps(starts)}.map(start => Date.UTC(+start.slice(0, 4), +start.slice(4, 6) - 1, +start.slice(6, 8)))")
-    check('one day a week is a workout a week', [b - a for a, b in zip(gaps, gaps[1:])] == [7 * DAY_MS] * 4, gaps)
+    check('one day a week is a workout a week', [b - a for a, b in zip(gaps, gaps[1:])] == [7 * DAY_MS] * 28, gaps)
 
     # ------------------------------------------------------------------ the text
     print('T   the format')

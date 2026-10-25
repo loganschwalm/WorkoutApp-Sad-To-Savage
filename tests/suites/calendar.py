@@ -110,11 +110,6 @@ expect('and a time in the middle of a week is in it', mondayOf(weeksAfter(monday
 return JSON.stringify(problems);
 })()"""
 
-CARDIO = "(() => {" + ORACLE + """
-const start = cardioWeekStart();
-expect('Cardio’s week starts on a Monday midnight, the one the calendar counts', weekday(new Date(start)) === 1 && midnight(new Date(start)) && start === startOfWeek(new Date()).getTime(), [parts(new Date(start))]);
-return JSON.stringify(problems);
-})()"""
 
 
 def run(t):
@@ -136,12 +131,10 @@ def run(t):
         pinned = int(when.timestamp() * 1000)
         problems = examine('/history.html', HISTORY % {'pinned': pinned}, "typeof trainingByDate === 'function' && typeof plannedDays === 'function'", when, zone)
         check(f'History, Tracker and the schedule count days and weeks right: {name}', not problems, problems[:3])
-    print('P   Progress and Cardio count the week the same way')
+    print('P   Progress counts the week the same way')
     for when, zone in CASES[::3]:
         name = f'{when.strftime("%Y-%m-%d %H:%M:%S")}Z in {zone}'
         problems = examine('/progress.html', PROGRESS, "typeof mondayOf === 'function'", when, zone)
         check(f'Progress: {name}', not problems, problems[:3])
-        problems = examine('/cardio.html', CARDIO, "typeof cardioWeekStart === 'function'", when, zone)
-        check(f'Cardio: {name}', not problems, problems[:3])
     cdp.set_time_zone(None)
     cdp.unpin_clock()

@@ -5,10 +5,9 @@ import json
 
 INTERCEPT = True
 
-PAGES = [('the tracker', '/index.html', "document.querySelectorAll('#templateList [data-template-action=start]').length >= 3"),
+PAGES = [('the tracker', '/index.html', "document.querySelectorAll('#programNext button').length >= 1"),
          ('History', '/history.html', "document.querySelectorAll('.history-workout').length >= 3"),
-         ('Progress', '/progress.html', "document.querySelectorAll('#exerciseFilter option').length > 1"),
-         ('Cardio', '/cardio.html', 'cardioLoaded === true')]
+         ('Progress', '/progress.html', "document.querySelectorAll('#exerciseFilter option').length > 1")]
 
 # Everything on the page a keyboard can reach, one at a time, focused as the Tab key would focus it (the browser has been told a key was pressed), and whether a ring is
 # drawn: on the control itself, or on the label or drawn box beside a hidden input (the theme swatches, the training days).
@@ -222,20 +221,14 @@ def run(t):
             if label == 'History':
                 reached = cdp.ev("({ links: document.querySelectorAll('.workout-details a').length, menu: document.querySelectorAll('.row-menu-items button').length })")
                 check('History: the exercise links in the sets and the buttons in the row menus were measured', reached['links'] >= 3 and reached['menu'] >= 3, reached)
-        # The tracker's dialogs are built when they are opened: a template with a superset, the program builder with its days, and
-        # Settings. They are also measured on the smallest phones still in use (the seven training days have the least room there).
+        # The tracker's dialogs are built when they are opened: the program's setup, and Settings. They are also measured on the smallest phones still in use (the seven training days have the least room there).
         for width in (375, 320):
             cdp.send('Emulation.setDeviceMetricsOverride', width=width, height=800, deviceScaleFactor=1, mobile=True)
             suffix = '' if width == 375 else f' on a {width}px phone'
             open_tracker()
-            cdp.ev("openTemplateEditor({ id: 'f6', name: 'F6', exercises: [{ name: 'Bench Press', reps: '8' }, { name: 'Plank', reps: '30', timed: true }] })")
-            found['the template editor' + suffix] = measure('#templateModal')
-            check('the template editor: its move and remove buttons were measured',
-                  cdp.ev("document.querySelectorAll('#templateModal [data-template-row-action]').length") >= 6)
-            open_tracker()
-            cdp.ev("openProgramBuilder()")
-            found['the program builder' + suffix] = measure('#builderModal')
-            check('the program builder: its day buttons were measured', cdp.ev("document.querySelectorAll('#builderModal .template-row-actions button').length") >= 3)
+            cdp.ev("openProgramForm(programDefinitions[0])")
+            found['the program setup' + suffix] = measure('#programModal')
+            check('the program setup: its level choice was measured', cdp.ev("document.querySelectorAll('#programModal select').length") >= 1)
             open_settings()
             found['Settings' + suffix] = measure('#settingsModal')
         cdp.send('Emulation.setDeviceMetricsOverride', width=375, height=800, deviceScaleFactor=1, mobile=True)
@@ -271,9 +264,8 @@ def run(t):
     check('Settings: every button is named with the words on it', cdp.ev(MISNAMED) == [], cdp.ev(MISNAMED))
     cdp.ev("document.getElementById('closeSettings').click()")
     open_tracker()
-    cdp.ev("openTemplateEditor({ id: 'f7', name: 'F7', exercises: [{ name: 'Bench Press', reps: '8' }, { name: 'Plank', reps: '30', timed: true }] })")
-    cdp.ev("openProgramBuilder()")
-    check('the template editor and the program builder: every button is named with the words on it', cdp.ev(MISNAMED) == [], cdp.ev(MISNAMED))
+    cdp.ev("openProgramForm(programDefinitions[0])")
+    check('the program setup: every button is named with the words on it', cdp.ev(MISNAMED) == [], cdp.ev(MISNAMED))
 
     # ------------------------------------------------------------------ F8 less motion
     print('F8  a device set to less motion is not glided across the page')
@@ -283,7 +275,7 @@ def run(t):
                                                           {'name': 'prefers-reduced-motion', 'value': 'reduce' if reduced else 'no-preference'}])
         open_tracker()
         cdp.ev(WATCH_SCROLL)
-        cdp.ev("document.getElementById('createWorkoutBtn').click()")
+        cdp.ev("loadWorkoutIntoForm(savedWorkouts[0], true)")
         seen = cdp.ev('window.__scrolls')
         check(f'{"with less motion asked for" if reduced else "otherwise"}, the form opens with a {"jump" if reduced else "glide"}', seen == [expected], seen)
     cdp.send('Emulation.setEmulatedMedia', features=[{'name': 'prefers-color-scheme', 'value': 'light'}])
@@ -312,16 +304,8 @@ def run(t):
             check(f'{label}: {"Shift+Tab" if shift else "Tab"} stays inside it, {count + 6} presses', all(inside), inside.index(False) if False in inside else '')
 
     open_tracker()
-    cdp.ev("openTemplateEditor({ id: 'f9', name: 'F9', exercises: [{ name: 'Bench Press', reps: '8' }, { name: 'Plank', reps: '30', timed: true }] })")
-    goes_round('the template editor', 'templateModal')
-    press('Escape', 'Escape', 27)
-    check('Escape closes the template editor', cdp.ev("document.getElementById('templateModal').hidden") is True)
-    open_tracker()
     cdp.ev("openProgramForm(programDefinitions[0])")
     goes_round('the program setup', 'programModal')
-    open_tracker()
-    cdp.ev("openProgramBuilder()")
-    goes_round('the program builder', 'builderModal')
     open_settings()
     goes_round('Settings', 'settingsModal')
     cdp.ev("document.getElementById('settingsModal').querySelectorAll('details').forEach(details => { details.open = true; })")

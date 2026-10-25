@@ -1,5 +1,5 @@
 """Kilograms: the unit setting, showing pound workouts in kilograms and back, logging in kilograms, a unit change in the
-middle of a workout, Progress, and training programs in kilograms."""
+middle of a workout, Progress, and the program, which has no weights of its own to convert."""
 
 import json
 
@@ -28,8 +28,11 @@ def run(t):
         return api('GET', '/api/state', token=token)[0]['settings']
 
     def details(name):
-        """The exercise lines of the first saved workout with this name on the Tracker, opened."""
-        return cdp.ev(f"""(() => {{ const row = [...document.querySelectorAll('#savedWorkoutList .saved-workout')].find(li => li.querySelector('strong').textContent === {json.dumps(name)});
+        """The exercise lines of the newest saved workout with this name, as History shows it, opened."""
+        cdp.goto('/history.html')
+        cdp.wait("document.querySelectorAll('.history-workout').length >= 3")
+        return cdp.ev(f"""(() => {{ const row = [...document.querySelectorAll('.history-workout')].find(li => li.querySelector('strong').textContent === {json.dumps(name)});
+          row.querySelector('[data-action=view]').click();
           return [...row.querySelectorAll('.workout-details li')].map(li => li.textContent); }})()""")
 
     def complete_set(weight, reps):
@@ -61,8 +64,9 @@ def run(t):
     check('weight labels say kg', labels == ['kg', 'kg'], labels)
     steppers = cdp.ev("[...document.querySelectorAll('#weightStepper [data-weight-step]')].map(b => [b.textContent, b.dataset.weightStep, b.getAttribute('aria-label')])")
     check('the weight buttons step 2.5 kg', steppers == [['−2.5', '-2.5', '2.5 kg lighter'], ['+2.5', '2.5', '2.5 kg heavier']], steppers)
-    cdp.ev("document.querySelector('#savedWorkoutList .saved-workout:not(.is-due) [data-action=view]').click()")
-    check('saved pound workouts are shown in kilograms', details('Seed Push') == ['Bench Press' + f'{kg(105)} kg × 8', 'Overhead Press' + f'{kg(62)} kg × 8'], details('Seed Push'))
+    shown = details('Seed Push')
+    check('saved pound workouts are shown in kilograms', shown == ['Bench Press' + f'{kg(105)} kg × 8', 'Overhead Press' + f'{kg(62)} kg × 8'], shown)
+    open_tracker()
     stored = t.workout(t.W1)
     check('while the stored workout is untouched, in pounds', stored.get('unit') is None and stored['exercises'][0]['sets'][0]['weight'] == 100, stored)
 
@@ -102,7 +106,7 @@ def run(t):
     # ------------------------------------------------------------------ K3 a workout in kilograms
     print('K3  logging a workout in kilograms')
     known = t.ids()
-    cdp.ev("document.querySelector('#savedWorkoutList .saved-workout:not(.is-due) [data-action=start]').click()")
+    t.start_saved(t.W3)
     cdp.pause(0.5)
     check('last time is shown in kilograms', text('activeExerciseLast').endswith(f'{kg(105)} kg × 8'), text('activeExerciseLast'))
     check('the weight to lift is rounded to the nearest half kilo', text('activeExerciseTarget') == 'Target: 8 reps at 47.5 kg'
@@ -129,9 +133,7 @@ def run(t):
     check('History shows the kilogram workout in pounds', lines[0] == f'Bench Press{kg_in_lbs} lbs × 5', lines[0])
     check('and the pound workouts exactly as logged', lines[1:] == ['Bench Press105 lbs × 8', 'Barbell Row80 lbs × 8', 'Bench Press2 × 8 at 100 lbs'], lines[1:])
     open_tracker()
-    cdp.ev("document.querySelector('#templateList [data-template-action=start]')?.click() || document.getElementById('templatesToggle').click()")
-    cdp.pause(0.2)
-    cdp.ev("document.querySelector('#templateList [data-template-action=start]').click()")
+    t.start(0)
     cdp.pause(0.5)
     check('last time, logged in kilograms, is shown in pounds', text('activeExerciseLast').endswith(f'{kg_in_lbs} lbs × 5'), text('activeExerciseLast'))
     check('and filled in rounded to the nearest half pound', field('activeWeight') == '132.5', field('activeWeight'))
@@ -178,51 +180,23 @@ def run(t):
     values = cdp.ev("chartData.types.flatMap(type => [...type.values.values()]).sort((a, b) => a - b)")
     check('and redraws in pounds when the unit changes', values == sorted([100, 105, kg_in_lbs, round(kg(100) / LBS_TO_KG, 2)]), values)
 
-    # ------------------------------------------------------------------ K7 programs in kilograms
-    print('K7  a training program in kilograms')
+    # ------------------------------------------------------------------ K7 the program in kilograms
+    print('K7  the program has no weights of its own, so a change of unit leaves it alone')
     open_tracker()
-    choose_unit('kg')
-    cdp.ev("if (document.getElementById('templateArea').hidden) document.getElementById('templatesToggle').click()")
-    cdp.ev("document.querySelector('#templateList .program-template[data-program-id=\"reddit-ppl\"] [data-program-action=setup]').click()")
-    cdp.pause(0.3)
-    rounding = cdp.ev("[...document.getElementById('programRounding').options].map(o => o.textContent)")
-    check('rounding is offered in kilograms', rounding == ['The nearest 2.5 kg', 'The nearest 1.25 kg'], rounding)
-    check('the lifts ask for kilograms', cdp.ev("document.querySelector('label[for=programMax-deadlift]').textContent") == 'Deadlift (kg)')
-    check('and go up 5 kg for the deadlift, 2.5 for the rest', text('programHint-deadlift') == '+5 kg each good session' and text('programHint-bench') == '+2.5 kg each good session',
-          text('programHint-deadlift'))
-    check('the setup advice is in kilograms', 'take off 2.5 kg' in text('programIntro'), text('programIntro'))
-    for lift, value in (('deadlift', 100), ('row', 50), ('bench', 60), ('press', 40), ('squat', 80)):
-        set_field(f'programMax-{lift}', value)
+    cdp.ev("document.querySelector('#programNext [data-program-action=setup]').click()")
+    cdp.ev("document.getElementById('programLevel').value = 'sw'")
     cdp.ev("document.getElementById('programForm').requestSubmit()")
-    cdp.pause(0.5)
-    numbers = cdp.ev("[...document.querySelectorAll('#programMaxes li')].map(li => li.textContent)")
-    check('the working weights are in kilograms', numbers[0] == 'Deadlift100 kg+5 kg after each good session', numbers)
-    check('and the plan too', 'Deadlift 1 × 5+ at 100 kg' in text('programNext'), text('programNext'))
-    check('the program is saved in kilograms', wait_for(lambda: (api('GET', '/api/state', token=token)[0].get('program') or {}).get('unit') == 'kg'))
+    cdp.pause(0.4)
+    before = cdp.ev('currentProgram')
+    choose_unit('kg')
+    check('changing the unit leaves the program as it was', cdp.ev('currentProgram') == before and 'unit' not in before, before)
+    check('and its days ask for no weights: the range is the lifter’s, in the text the plan gives', cdp.ev("programWorkout(currentProgram, 0, 0).exercises.every(e => e.plan.every(s => s.weight === ''))") is True)
     cdp.ev("document.querySelector('#programNext [data-program-action=start]').click()")
     cdp.pause(0.4)
-    complete_set(100, 7)
-    finish()
-    check('a good session adds 5 kg', 'Deadlift goes up to 105 kg next time.' in text('formFeedback'), text('formFeedback'))
-
-    # ------------------------------------------------------------------ K8 converting a program
-    print('K8  switching units converts the program')
-    choose_unit('lbs')
-    program = cdp.ev('currentProgram')
-    check('its numbers land on pound steps', program['unit'] == 'lbs' and program['trainingMaxes'] == {'deadlift': 230, 'row': 110, 'bench': 130, 'press': 90, 'squat': 175},
-          program['trainingMaxes'])
-    check('and its rounding moves to the nearest pound choice', program['options'] == {'rounding': 5}, program['options'])
-    numbers = cdp.ev("[...document.querySelectorAll('#programMaxes li')].map(li => li.textContent)")
-    check('the card shows pounds', numbers[0] == 'Deadlift230 lbs+10 lbs after each good session', numbers)
-    check('the converted program reaches the server', wait_for(lambda: (api('GET', '/api/state', token=token)[0].get('program') or {}).get('unit') == 'lbs'))
-    choose_unit('kg')
-    cdp.ev("document.querySelector('#templateList .program-template[data-program-id=\"apartment-gym\"] [data-program-action=setup]').click()")
-    cdp.pause(0.3)
-    check('Apartment Gym starts from 22.5 kg dumbbells and 5 kg stack plates', field('programDumbbellMax') == '22.5' and field('programMachineStep') == '5'
-          and cdp.ev("document.getElementById('programDumbbellMax').selectedOptions[0].textContent") == '22.5 kg each', f"{field('programDumbbellMax')} {field('programMachineStep')}")
-    card = cdp.ev("document.querySelector('#templateList .program-template[data-program-id=\"apartment-gym\"] p').textContent")
-    check('and its card says so', 'dumbbells up to about 22.5 kg' in card, card)
-    cdp.ev("document.getElementById('cancelProgram').click()")
+    check('the first set of a workout is a warm-up of reps, in no unit', 'kg' not in text('activeExerciseTarget') and 'lbs' not in text('activeExerciseTarget'), text('activeExerciseTarget'))
+    check('the weight to lift is still in kilograms', cdp.ev("document.querySelector('.unit-label').textContent") == 'kg')
+    cdp.ev("confirm = () => true; document.getElementById('endWorkoutBtn').click()")
+    cdp.pause(0.4)
 
     # ------------------------------------------------------------------ K8b a unit changed elsewhere
     print('K8b a unit changed on another device')
@@ -232,21 +206,18 @@ def run(t):
         open_tracker()
         cdp.wait("initialLoadDone")
         cdp.pause(0.3)
-        cdp.ev("document.querySelector('#savedWorkoutList .saved-workout:not(.is-due) [data-action=view]').click()")
         shown = details('Seed Push')
         # The newest Seed Push is the one logged in kilograms in K3.
         if shown != [f'Bench Press{kg_in_lbs} lbs × 5']:
             break
     check('the saved workouts follow it, however the page load goes', shown == [f'Bench Press{kg_in_lbs} lbs × 5']
-          and cdp.ev("document.querySelector('.unit-label').textContent") == 'lbs', shown)
+          and cdp.ev('getWorkoutSettings().unit') == 'lbs', shown)
     choose_unit('kg')
 
     # ------------------------------------------------------------------ K9 the server
     print('K9  the server keeps units honest')
     status, _, reply = t.request('POST', '/api/workouts', json.dumps({'name': 'Stones', 'unit': 'stone', 'exercises': []}).encode(), {'Content-Type': 'application/json'}, token=token)
     check('a workout in any other unit is refused', status == 400 and reply.get('error') == 'unit must be lbs or kg.', f'{status} {reply}')
-    status, _, reply = t.request('PUT', '/api/state', json.dumps({'program': {'definition': 'reddit-ppl', 'unit': 'st', 'trainingMaxes': {}}}).encode(), {'Content-Type': 'application/json'}, token=token)
-    check('and so is a program', status == 400 and reply.get('error') == 'program.unit must be lbs or kg.', f'{status} {reply}')
     stored = t.workout(t.W1)
     check('after all that, the pound workouts on the server are still exactly as logged',
           stored.get('unit') is None and [s['weight'] for s in stored['exercises'][0]['sets']] == [100, 100], stored)

@@ -14,10 +14,10 @@ INTERCEPT = False
 
 PASSWORD = 'chalk-and-plates-42'
 DAY_MS = 86400000
-# A Reddit PPL with its first day done, so what is next is Push (Bench), then Legs, Pull (Row), Push (Overhead Press), Legs.
-PPL = {'definition': 'reddit-ppl', 'startedAt': 1000, 'cycle': 1, 'lastRollover': None,
-       'trainingMaxes': {'deadlift': 225, 'row': 115, 'bench': 135, 'press': 85, 'squat': 185}, 'options': {'rounding': 5},
-       'done': {'0-0': {'at': 2000, 'skipped': False, 'amrap': None, 'hit': None}}}
+# Sad to Savage with its first day done, so what is next is the Pilates day, then Lower Body, Core, Full Body and week 2's Upper Body and Arms + Abs.
+PROGRAM = {'definition': 'sad-to-savage', 'startedAt': 1000, 'cycle': 1, 'options': {'level': 'nts'}, 'walks': {},
+           'done': {'0-0': {'at': 2000, 'skipped': False}}}
+NEXT = 'Full Body Focus, week 1'
 
 
 def run(t):
@@ -137,27 +137,27 @@ def run(t):
     check('a missed day and a training day today are both said', nudge(f'[{ago(3)}]')['text'] == f'You missed {weekday(5)}. Today is a training day.', nudge(f'[{ago(3)}]'))
 
     # With a program, the next workout is planned for the next training day, and the one after for the day after.
-    api('PUT', '/api/state', {'program': PPL}, token)
+    api('PUT', '/api/state', {'program': PROGRAM}, token)
     t.open_tracker()
     set_schedule([today])
-    check('with a program, today’s workout is named', text('scheduleText') == 'Today is a training day: Push (Bench).', text('scheduleText'))
+    check('with a program, today’s workout is named', text('scheduleText') == f'Today is a training day: {NEXT}.', text('scheduleText'))
     check('the program’s card has Start workout for it, so the nudge has no second button for the same thing',
           not visible('scheduleStart') and cdp.ev("document.querySelector('#programNext [data-program-action=start]') !== null") is True)
-    check('Done for today says what the next training day brings', nudge('[{ createdAt: Date.now() }]')['text'] == f'Done for today. Next up: {weekday(0)}, Push (Bench).', nudge('[{ createdAt: Date.now() }]'))
+    check('Done for today says what the next training day brings', nudge('[{ createdAt: Date.now() }]')['text'] == f'Done for today. Next up: {weekday(0)}, {NEXT}.', nudge('[{ createdAt: Date.now() }]'))
     set_schedule([number(2), number(4)])
-    check('the next training day gets the next workout', nudge('[]')['text'] == f'Rest day. Next up: {weekday(2)}, Push (Bench).', nudge('[]'))
+    check('the next training day gets the next workout', nudge('[]')['text'] == f'Rest day. Next up: {weekday(2)}, {NEXT}.', nudge('[]'))
     set_schedule([today])
     cdp.ev("document.querySelector('#programNext [data-program-action=start]').click()")
     cdp.wait(ACTIVE)
     cdp.pause(0.3)
-    check('Start begins the program’s next workout', text('activeExerciseName') == 'Bench Press', text('activeExerciseName'))
+    check('Start begins the program’s next workout', text('activeExerciseName') == 'Mat Pilates: Full Body Focus', text('activeExerciseName'))
     check('and the nudge is out of the way while it goes on', cdp.ev("getComputedStyle(document.getElementById('scheduleCard')).display") == 'none')
     t.end_workout()
 
     # The home screen's order: what to do first, then the news.
     after = "(a, b) => Boolean(document.getElementById(a).compareDocumentPosition(document.getElementById(b)) & Node.DOCUMENT_POSITION_FOLLOWING)"
-    check('the nudge and the program’s card come before the news and the templates',
-          cdp.ev(f"[['scheduleCard', 'programCard'], ['programCard', 'whatsNewCard'], ['programCard', 'recapCard'], ['recapCard', 'templateArea']].every(([a, b]) => ({after})(a, b))") is True)
+    check('the nudge and the program’s card come before the news',
+          cdp.ev(f"[['scheduleCard', 'programCard'], ['programCard', 'whatsNewCard'], ['programCard', 'recapCard']].every(([a, b]) => ({after})(a, b))") is True)
     cdp.send('Emulation.setDeviceMetricsOverride', width=375, height=800, deviceScaleFactor=1, mobile=True)
     t.open_tracker()
     order = cdp.ev("""(() => { const box = selector => document.querySelector(selector).getBoundingClientRect();
@@ -172,7 +172,7 @@ def run(t):
 
     # ------------------------------------------------------------------ H the calendar
     print('H   History marks the planned days')
-    api('PUT', '/api/state', {'settings': {'schedule': {'days': [0, 1, 2, 3, 4, 5, 6], 'time': '17:00'}}, 'program': PPL}, token)
+    api('PUT', '/api/state', {'settings': {'schedule': {'days': [0, 1, 2, 3, 4, 5, 6], 'time': '17:00'}}, 'program': PROGRAM}, token)
     cdp.console.clear()
     cdp.goto('/history.html')
     cdp.wait("document.querySelectorAll('.history-workout').length >= 3")
@@ -180,16 +180,16 @@ def run(t):
     behind = (today + 6) % 7  # where today falls in a week that starts on Monday
     planned = cdp.ev("[...document.querySelectorAll('#trainingCalendar .calendar-day.planned')].map(day => day.getAttribute('aria-label'))")
     check('today and every day left of this week are planned', len(planned) == 7 - behind, planned)
-    check('today’s square names its workout', 'planned: Push (Bench)' in planned[0], planned[0])
-    check('and the next day’s the one after', len(planned) < 2 or 'planned: Legs' in planned[1], planned)
+    check('today’s square names its workout', f'planned: {NEXT}' in planned[0], planned[0])
+    check('and the next day’s the one after', len(planned) < 2 or 'planned: Lower Body Focus, week 1' in planned[1], planned)
     check('planned days to come can be reached, and the rest of the days to come are only squares',
           cdp.ev("[...document.querySelectorAll('#trainingCalendar .calendar-day.future.planned')].every(day => day.tagName === 'BUTTON')") is True
           and cdp.ev("[...document.querySelectorAll('#trainingCalendar span.calendar-day.future')].every(day => day.getAttribute('aria-hidden') === 'true' && !day.classList.contains('planned'))") is True)
     cdp.ev("document.querySelector('#trainingCalendar .calendar-day.planned').click()")
-    check('tapping one writes it out below the calendar', 'planned: Push (Bench)' in text('calendarDetail'), text('calendarDetail'))
+    check('tapping one writes it out below the calendar', f'planned: {NEXT}' in text('calendarDetail'), text('calendarDetail'))
     coming = cdp.ev("[...document.querySelectorAll('#comingUp li')].map(li => [...li.children].map(c => c.textContent))")
-    check('Coming up lists six, from today, each with its workout', len(coming) == 6 and coming[0] == ['Today', 'Push (Bench)']
-          and [row[1] for row in coming] == ['Push (Bench)', 'Legs', 'Pull (Row)', 'Push (Overhead Press)', 'Legs', 'Pull (Deadlift)'], coming)
+    check('Coming up lists six, from today, each with its workout', len(coming) == 6 and coming[0] == ['Today', NEXT]
+          and [row[1] for row in coming] == [NEXT, 'Lower Body Focus, week 1', 'Core Focus, week 1', 'Full Body Focus, week 1', 'Upper Body Focus, week 2', 'Arms + Abs Focus, week 2'], coming)
     check('and the hint to choose days is gone', visible('comingUpBlock') and not visible('scheduleHint'))
     check('History loads with no errors', not [line for line in cdp.console if line.startswith('exceptionThrown')], [line for line in cdp.console if line.startswith('exceptionThrown')][:3])
     api('POST', '/api/workouts', {'name': 'Just now', 'notes': '', 'createdAt': int(time.time() * 1000), 'exercises': [t.ex('Bench Press', 100, 5, [(5, 100)])]}, token)
@@ -199,7 +199,7 @@ def run(t):
     planned = cdp.ev("[...document.querySelectorAll('#trainingCalendar .calendar-day.planned')].map(day => day.getAttribute('aria-label'))")
     coming = cdp.ev("[...document.querySelectorAll('#comingUp li')].map(li => [...li.children].map(c => c.textContent))")
     check('once today is trained it is no longer planned, and Coming up says it is done', len(planned) == 6 - behind and coming[0] == ['Today', 'Done'], [planned, coming[:2]])
-    check('and tomorrow gets the workout that was due', coming[1][1] == 'Push (Bench)', coming[:2])
+    check('and tomorrow gets the workout that was due', coming[1][1] == NEXT, coming[:2])
     api('PUT', '/api/state', {'settings': {'schedule': {'days': [], 'time': '17:00'}}}, token)
     cdp.goto('/history.html')
     cdp.wait("document.querySelectorAll('.history-workout').length >= 4")
@@ -303,7 +303,7 @@ def run(t):
     # The shortcut, Today’s workout: the Tracker at #today.
     shortcuts = api('GET', '/manifest.webmanifest')[0]['shortcuts']
     check('the installed icon offers it, first', shortcuts[0]['name'] == "Today's workout" and shortcuts[0]['url'] == '/index.html#today', shortcuts[0])
-    api('PUT', '/api/state', {'program': PPL}, token)
+    api('PUT', '/api/state', {'program': PROGRAM}, token)
     t.open_tracker()
     expected = cdp.ev("(() => { const next = nextProgramDay(currentProgram); return programWorkout(currentProgram, next.week, next.day).name; })()")
     cdp.goto('/history.html')
@@ -327,7 +327,7 @@ def run(t):
     cdp.goto('/index.html#today')
     cdp.wait('initialLoadDone === true', timeout=15)
     cdp.pause(0.6)
-    check('with no program there is nothing to start, and the page says so', cdp.ev('activeSession') is None and 'training program' in text('formFeedback'), text('formFeedback'))
+    check('with no program there is nothing to start, and the page says so', cdp.ev('activeSession') is None and 'Start the program' in text('formFeedback'), text('formFeedback'))
     t.set_cookie(t.token)
 
     # ------------------------------------------------------------------ R reminders

@@ -73,7 +73,7 @@ def run(t):
     t.open_tracker()
     ev("document.getElementById('whatsNewDone').click()")
     cdp.pause(0.2)
-    check('Dismiss puts it away, and the keyboard carries on from the templates', shown() is False and ev('document.activeElement.id') == 'templatesToggle',
+    check('Dismiss puts it away, and the keyboard carries on from the program card', shown() is False and ev("document.activeElement.matches('#programNext .primary')") is True,
           ev('document.activeElement.id'))
     check('saving the release as seen, as a setting', ev('getWorkoutSettings().seenWhatsNew') == ev('whatsNewRelease.id'))
     check('which reaches the account', t.wait_for(lambda: server_settings(veteran).get('seenWhatsNew') == ev('whatsNewRelease.id')))

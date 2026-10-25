@@ -1,4 +1,4 @@
-"""Page scripts: shared helpers, exercise names on the Progress page, and the saved-workout buttons."""
+"""Page scripts: shared helpers, exercise names on the Progress page, hidden elements, History and the Progress page."""
 
 import json
 import re
@@ -19,8 +19,7 @@ def run(t):
 
     # ------------------------------------------------------------------ P1 scripts load cleanly
     print('P1  every page loads its scripts without an error')
-    pages = [('/index.html', "document.querySelectorAll('#savedWorkoutList .saved-workout').length >= 3"),
-             ('/cardio.html', "cardioLoaded === true"),
+    pages = [('/index.html', "document.querySelectorAll('#programNext button').length >= 1"),
              ('/history.html', "document.querySelectorAll('.history-workout').length >= 3"),
              ('/progress.html', "document.querySelectorAll('#exerciseFilter option').length > 1")]
     for path, ready in pages:
@@ -59,47 +58,21 @@ def run(t):
     names = cdp.ev("[...document.querySelectorAll('#legend .legend-item')].map(i => i.textContent)")
     check('across all the workout types that include it', sorted(names) == ['Seed Push', 'Variant Caps', 'Variant Lower'], names)
 
-    # ------------------------------------------------------------------ P3 saved-workout buttons
-    print('P3  the saved-workout buttons use the list already on screen')
-    settle('/index.html', "document.querySelectorAll('#savedWorkoutList .saved-workout').length >= 5")
-
-    def list_requests():
-        return cdp.ev("performance.getEntriesByType('resource').filter(e => new URL(e.name).pathname === '/api/workouts').length")
-
-    before = list_requests()
-    cdp.ev("document.querySelector('#savedWorkoutList [data-action=view]').click()")
-    cdp.pause(0.4)
-    check('View opens the details', cdp.ev("!document.querySelector('#savedWorkoutList .workout-details').hidden") is True)
-    check('without fetching the whole list again', list_requests() == before, f'{before} -> {list_requests()}')
-
-    cdp.block_api = True
-    cdp.ev("document.querySelectorAll('#savedWorkoutList [data-action=view]')[1].click()")
-    cdp.pause(0.4)
-    check('with the server unreachable, View still works',
-          cdp.ev("!document.querySelectorAll('#savedWorkoutList .workout-details')[1].hidden") is True)
-    target = cdp.ev("document.querySelectorAll('#savedWorkoutList .saved-workout-summary strong')[1].textContent")
-    cdp.ev("document.querySelectorAll('#savedWorkoutList [data-action=repeat]')[1].click()")
-    cdp.pause(0.4)
-    loaded = cdp.ev("document.getElementById('workoutName').value")
-    check('and so does Repeat, for the workout it belongs to', loaded == target, f'{loaded} vs {target}')
-    cdp.block_api = False
-
     # ------------------------------------------------------------------ P4 hidden means hidden
     print('P4  nothing marked hidden is showing')
     # A class that sets display (flex, grid) beats the browser's own [hidden] rule; that left the empty-chart
     # message over a full chart and the rest timer up before the first set.
     leaks = """[...document.querySelectorAll('[hidden]')].filter(e => getComputedStyle(e).display !== 'none')
       .map(e => `${e.tagName.toLowerCase()}#${e.id}.${[...e.classList].join('.')}`)"""
-    states = [('the tracker', '/index.html', "document.querySelectorAll('#savedWorkoutList .saved-workout').length >= 3", None),
-              ('a workout before its first set', '/index.html', "document.querySelectorAll('#savedWorkoutList .saved-workout').length >= 3",
-               "document.querySelector('#templateList [data-template-action=start]').click()"),
+    states = [('the tracker', '/index.html', "document.querySelectorAll('#programNext button').length >= 1", None),
+              ('a workout before its first set', '/index.html', "document.querySelectorAll('#programNext button').length >= 1", lambda: t.start(0)),
               ('History', '/history.html', "document.querySelectorAll('.history-workout').length >= 3", None),
               ('Progress with workouts to chart', '/progress.html', "chartData && chartData.points.length > 0", None),
               ('the sign-in page', '/login.html', "!!document.getElementById('authForm')", None)]
     for label, path, ready, action in states:
         settle(path, ready)
         if action:
-            cdp.ev(action)
+            action()
             cdp.pause(0.4)
         showing = cdp.ev(leaks)
         check(f'{label}: every hidden element is invisible', showing == [], showing)
@@ -129,26 +102,7 @@ def run(t):
     history = cdp.ev("document.getElementById('historyList').textContent")
     check('and bodyweight sets as reps, never 0 lbs', not re.search(r'(?<![\d.])0 lbs', history), re.findall(r'.{20}(?<![\d.])0 lbs', history))
 
-    settle('/index.html', "document.querySelectorAll('#savedWorkoutList .saved-workout').length >= 10")
-    names = cdp.ev("[...document.querySelectorAll('#savedWorkoutList .saved-workout-summary strong')].map(s => s.textContent)")
-    # The one that is due leads, so the newest is found by name.
-    check('the Tracker lists the ten most recent workouts', len(names) == 10 and 'Format Check' in names and names.count('Older Session') == 4, names)
-    # A workout left going from before would keep the list out of the way (and out of reach of the focus).
-    if cdp.ev("!document.getElementById('activeWorkout').hidden"):
-        t.end_workout()
-    rows_shown = lambda: cdp.ev("[...document.querySelectorAll('#savedWorkoutList .saved-workout')].filter(li => !li.hidden).length")
-    check('showing the first three', rows_shown() == 3, rows_shown())
-    more = cdp.ev("(() => { const a = document.querySelector('#savedWorkoutList .more-workouts a'); return a && [a.textContent, a.getAttribute('href')]; })()")
-    check('with a link to all of them in History', more == [f'See all {total} workouts in History', 'history.html'], more)
-    check('and Show more for the other seven', cdp.ev("document.querySelector('#savedWorkoutList [data-action=more]').textContent") == 'Show 7 more')
-    cdp.ev("document.querySelector('#savedWorkoutList [data-action=more]').click()")
-    check('which shows them, and goes to the first of them', rows_shown() == 10 and cdp.ev("!document.querySelector('#savedWorkoutList [data-action=more]')")
-          and cdp.ev("document.activeElement === document.querySelectorAll('#savedWorkoutList .saved-workout-toggle')[3]"),
-          rows_shown())
-    format_row = "[...document.querySelectorAll('#savedWorkoutList .saved-workout')].find(li => li.querySelector('strong').textContent === 'Format Check')"
-    cdp.ev(f"{format_row}.querySelector('[data-action=view]').click()")
-    spans = cdp.ev(f"[...{format_row}.querySelectorAll('.workout-details li span')].map(s => s.textContent)")
-    check('its details write sets the same way', spans == expected, spans)
+    t.open_tracker()
     t.start(0)
     cdp.pause(0.4)
     last = cdp.ev("document.getElementById('activeExerciseLast').textContent")
@@ -194,10 +148,10 @@ def run(t):
     t.open_tracker()
     look = "(e => (s => ({ family: s.fontFamily, weight: s.fontWeight }))(getComputedStyle(e)))"
     fonts = cdp.ev(f"""({{ body: getComputedStyle(document.body).fontFamily,
-                        button: {look}(document.getElementById('createWorkoutBtn')),
-                        link: {look}(document.querySelector('a.button-link')) }})""")
+                        button: {look}(document.querySelector('#programNext button')),
+                        link: {look}(document.querySelector('.site-nav a')) }})""")
     check('buttons use the page font, in bold', fonts['button'] == {'family': fonts['body'], 'weight': '700'}, fonts)
-    check('and so do links drawn as buttons', fonts['link'] == {'family': fonts['body'], 'weight': '700'}, fonts)
+    check('and so do the links in the navigation', fonts['link']['family'] == fonts['body'], fonts)
     # Both typefaces come with the app, so the page looks and measures the same on every device, whatever it has installed.
     loaded = cdp.ev("document.fonts.ready.then(() => [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family.replace(/\"/g, '')))")
     check('the page draws in Schibsted Grotesk and Figtree, served with the app', {'Schibsted Grotesk', 'Figtree'} <= set(loaded or []), loaded)
@@ -214,24 +168,24 @@ def run(t):
     plain = [name for name in ('clock', 'text') if kinds[name] != fonts['body']]
     check('the clocks and the rest of the text are in the body face', not plain and fonts['body'].startswith('Figtree'), kinds)
 
-    # Every number field the Tracker can show: the page's own, a built workout's rows, the template editor's, and a
+    # Every number field the Tracker can show: the page's own (the walk's among them), a saved workout's rows when it is edited, and a
     # logged set's. Each has to ask a phone for its number pad: decimal for weights (they take .5), numeric otherwise.
     fields = """[...document.querySelectorAll('input[type=number]')].map(i => ({
-        name: i.id || i.className, pad: i.inputMode, weight: i.step === '0.5' }))"""
+        name: i.id || i.className, pad: i.inputMode, weight: i.step === '0.5' || i.step === '0.01' }))"""
     seen = {}
-    cdp.ev("document.getElementById('createWorkoutBtn').click(); document.getElementById('exercise').value = 'Curl';"
-           "document.getElementById('weight').value = '20'; document.getElementById('reps').value = '10'; document.getElementById('addBtn').click()")
+    cdp.ev("document.querySelector('#programNext [data-program-action=setup]').click(); document.getElementById('programSubmit').click()")
+    cdp.pause(0.3)
     seen.update({f['name']: f for f in cdp.ev(fields)})
-    cdp.ev("document.getElementById('createTemplateBtn').click()")
+    cdp.ev("loadWorkoutIntoForm(savedWorkouts[0], true)")
     seen.update({f['name']: f for f in cdp.ev(fields)})
-    cdp.ev("document.getElementById('cancelTemplate').click(); document.getElementById('clearBtn').click()")
+    cdp.ev("document.getElementById('clearBtn').click()")
     t.start(0)
     t.log_set(8)
     cdp.pause(0.3)
     seen.update({f['name']: f for f in cdp.ev(fields)})
     t.end_workout()
     expected = {'weight', 'reps', 'activeWeight', 'completedReps', 'activeAddReps', 'restDurationSetting', 'barSetting',
-                'templateReps0', 'exercise-edit', 'set-edit'}
+                'walkSteps', 'walkDistance', 'set-edit'}
     check('every kind of number field was on screen', expected <= set(seen), sorted(set(seen)))
     wrong = {name: field['pad'] for name, field in seen.items() if field['pad'] != ('decimal' if field['weight'] else 'numeric')}
     check('each asks for a number pad, with a decimal point for weights', not wrong, wrong)
@@ -347,135 +301,11 @@ def run(t):
     cdp.send('Page.removeScriptToEvaluateOnNewDocument', identifier=at_body)
     cdp.send('Emulation.setEmulatedMedia', features=LIGHT_DEVICE)
 
-    # ------------------------------------------------------------------ P7 the Tracker's order and its rows
-    print('P7  the Tracker puts your own workouts first, each a tap from starting')
     DAY = 86400000
 
     def account(name):
         cookie = t.api('POST', '/api/auth/register', {'username': name, 'email': f'{name}@example.test', 'password': 'chalk-and-plates-42'})[1]
         return cookie.split('session=')[1].split(';')[0]
-
-    def top(selector):
-        return cdp.ev(f"document.querySelector({json.dumps(selector)}).getBoundingClientRect().top")
-
-    # A rotation of three workouts, most recently B: A, B and C are each done, then A and B again. C is due next.
-    rotation = account('rotation')
-    base = int(time.time() * 1000) - 10 * DAY
-    for day, name in enumerate(['A Day', 'B Day', 'C Day', 'A Day', 'B Day']):
-        t.api('POST', '/api/workouts', {'name': name, 'createdAt': base + day * DAY,
-                                        'exercises': [t.ex('Bench Press', 135, 5, [(5, 135)])]}, rotation)
-    t.set_cookie(rotation)
-    t.open_tracker()
-    cdp.wait('initialLoadDone')
-    # The one done longest ago of the recent ones is due, and leads Recent workouts, marked and with a solid Start; it is not listed
-    # again where it was done.
-    rows = cdp.ev("[...document.querySelectorAll('#savedWorkoutList .saved-workout')].map(r => [r.querySelector('strong').textContent, r.classList.contains('is-due')])")
-    check('the workout that is due leads the recent workouts, marked, and is not listed twice',
-          rows == [['C Day', True], ['B Day', False], ['A Day', False], ['B Day', False], ['A Day', False]], rows)
-    start_fill = cdp.ev("[...document.querySelectorAll('#savedWorkoutList .saved-workout')].slice(0, 2).map(r => getComputedStyle(r.querySelector('[data-action=start]')).backgroundColor)")
-    check('with a tag, and the one solid Start among outlines',
-          cdp.ev("document.querySelector('#savedWorkoutList .is-due .due-tag').textContent") == 'Due next'
-          and start_fill[0] != 'rgba(0, 0, 0, 0)' and start_fill[1] == 'rgba(0, 0, 0, 0)', start_fill)
-    check('there is no Start again card, and the templates are above the recent workouts',
-          cdp.ev("document.getElementById('recentCard') === null") is True and top('#templatesToggle') < top('#savedWorkoutList'), top('#templatesToggle'))
-    # Who is due: the oldest of the recent workouts, leaving out a program's while one is followed, and only among two different ones.
-    due = cdp.ev("""(() => {
-      const make = (name, createdAt, program) => ({ name, createdAt, program, exercises: [] });
-      const kept = currentProgram;
-      const list = [make('X', 3), make('Y', 2), make('P', 1, { name: 'p' })];
-      currentProgram = null;
-      const without = dueWorkout(list)?.name;
-      currentProgram = { definition: 'x' };
-      const following = dueWorkout(list)?.name;
-      const alone = dueWorkout([make('X', 3), make('X', 2)]) === null && dueWorkout([make('P', 3, { name: 'p' }), make('X', 2)]) === null;
-      currentProgram = kept;
-      return { without, following, alone }; })()""")
-    check('the oldest recent workout is due, a followed program\'s are left out, and one workout alone is no rotation',
-          due == {'without': 'P', 'following': 'Y', 'alone': True}, due)
-    # The header says when you last trained (the next workout is the panel under it), by calendar day.
-    status = cdp.ev("document.getElementById('pageStatus').textContent")
-    check('the header says when you last trained', status == 'Last workout: B Day, 6 days ago.', status)
-    headings = cdp.ev("[...document.querySelectorAll('h2')].map(h => h.textContent)")
-    check('and the list of workouts is called Recent workouts', 'Recent workouts' in headings and 'Saved workouts' not in headings, headings)
-    # The templates and the recent workouts lie flat on the page, set off by a hairline.
-    surfaces = cdp.ev("""['templatesToggle', 'savedWorkoutList'].map(id => {
-        const style = getComputedStyle(document.getElementById(id).closest('section'));
-        return { fill: style.backgroundColor, top: style.borderTopWidth, side: style.borderLeftWidth }; })""")
-    clear = 'rgba(0, 0, 0, 0)'
-    check('the templates and the recent workouts are flat on the page, with a rule above',
-          all(s == {'fill': clear, 'top': '1px', 'side': '0px'} for s in surfaces), surfaces)
-    check('with the templates folded away, since there is history', cdp.ev("document.getElementById('templateArea').hidden") is True)
-    check('a button says how many there are', cdp.ev("document.getElementById('templatesToggle').textContent") == 'Show templates (9)',
-          cdp.ev("document.getElementById('templatesToggle').textContent"))
-    cdp.ev("document.getElementById('templatesToggle').click()")
-    check('and shows them', cdp.ev("!document.getElementById('templateArea').hidden && document.getElementById('templatesToggle').textContent === 'Hide templates'") is True)
-    cdp.ev("document.getElementById('templatesToggle').click()")
-    cdp.ev("document.querySelector('#savedWorkoutList .is-due [data-action=start]').click()")
-    cdp.pause(0.4)
-    check("Start begins the workout that is due", cdp.ev("document.getElementById('activeWorkoutTitle').textContent") == 'C Day')
-    t.end_workout()
-
-    menu_hidden = "[...document.querySelectorAll('#savedWorkoutList .row-menu-items button')].every(b => !b.checkVisibility())"
-    counts = cdp.ev("""[...document.querySelectorAll('#savedWorkoutList .saved-workout')].filter(row => !row.hidden).map(row =>
-        [...row.querySelectorAll('button')].filter(b => b.checkVisibility() && !b.closest('.row-menu-items')).map(b => b.dataset.action).join(' '))""")
-    check('each saved workout shows only its name and Start, with the rest in its menu',
-          counts and all(c == 'view start' for c in counts) and cdp.ev(menu_hidden) is True, counts)
-    # The triangle after a name says it opens: it is the accent, as the triangles of the other folded things are.
-    marker = cdp.ev("""[getComputedStyle(document.querySelector('#savedWorkoutList .saved-workout-toggle strong'), '::after').color,
-                       getComputedStyle(document.getElementById('createWorkoutBtn')).color]""")
-    check('the triangle after a saved workout is in the accent', marker[0] == marker[1], marker)
-    cdp.ev("document.querySelector('#savedWorkoutList .saved-workout-toggle').click()")
-    check('tapping the name shows what was done',
-          cdp.ev("(b => b.getAttribute('aria-expanded') === 'true' && !b.closest('.saved-workout').querySelector('.workout-details').hidden)(document.querySelector('#savedWorkoutList .saved-workout-toggle'))") is True)
-    cdp.ev("document.querySelector('#savedWorkoutList .row-menu summary').click()")
-    items = cdp.ev("[...document.querySelectorAll('#savedWorkoutList .row-menu[open] .row-menu-items button')].filter(b => b.checkVisibility()).map(b => b.textContent)")
-    check('the menu holds Copy as new, Edit and Delete', items == ['Copy as new', 'Edit', 'Delete'], items)
-    cdp.ev("document.querySelector('main h1, header h1').click()")
-    check('and closes when anything else is tapped', cdp.ev("document.querySelectorAll('.row-menu[open]').length") == 0)
-    cdp.ev("document.querySelector('#savedWorkoutList .row-menu summary').click(); document.querySelector('#savedWorkoutList .row-menu [data-action=edit]').click()")
-    cdp.pause(0.3)
-    check('Edit opens the workout in its own card, and closes the menu',
-          cdp.ev("!document.getElementById('workoutBuilderCard').hidden && document.getElementById('workoutBuilderTitle').textContent === 'Edit workout' && !document.querySelector('.row-menu[open]')") is True)
-    cdp.ev("document.getElementById('clearBtn').click()")
-    check('Cancel closes it again', cdp.ev("document.getElementById('workoutBuilderCard').hidden") is True)
-    cdp.ev("document.getElementById('createWorkoutBtn').click()")
-    check('Create workout, beside the saved workouts, opens an empty one',
-          cdp.ev("!document.getElementById('workoutBuilderCard').hidden && document.getElementById('workoutBuilderTitle').textContent === 'Create a workout' && exercises.length === 0") is True)
-    cdp.ev("document.getElementById('clearBtn').click()")
-    cdp.ev("if (document.getElementById('templateArea').hidden) document.getElementById('templatesToggle').click();"
-           "document.getElementById('createTemplateBtn').focus(); document.getElementById('createTemplateBtn').click()")
-    opened = cdp.ev("!document.getElementById('templateModal').hidden && document.activeElement.id")
-    cdp.ev("document.getElementById('cancelTemplate').click()")
-    check('the template editor, once closed, gives the focus back to the button that opened it',
-          opened == 'templateName' and cdp.ev('document.activeElement.id') == 'createTemplateBtn', [opened, cdp.ev('document.activeElement.id')])
-
-    cdp.send('Emulation.setDeviceMetricsOverride', width=375, height=800, deviceScaleFactor=1, mobile=True)
-    cdp.pause(0.3)
-    line = cdp.ev("""(() => {
-        const row = document.querySelector('#savedWorkoutList .saved-workout');
-        const middle = selector => (r => (r.top + r.bottom) / 2)(row.querySelector(selector).getBoundingClientRect());
-        const middles = ['.saved-workout-toggle', '[data-action=start]', '.row-menu summary'].map(middle);
-        return { spread: Math.max(...middles) - Math.min(...middles), overflow: document.documentElement.scrollWidth - innerWidth };
-    })()""")
-    check('on a phone a row keeps its name, Start and menu on one line', line['spread'] < 8 and line['overflow'] <= 0, line)
-    cdp.send('Emulation.clearDeviceMetricsOverride')
-
-    t.set_cookie(account('newcomer'))
-    t.open_tracker()
-    cdp.wait('initialLoadDone')
-    cdp.pause(0.3)
-    check('someone new sees the templates straight away, and nothing is due',
-          cdp.ev("!document.getElementById('templateArea').hidden && !document.querySelector('.is-due')") is True)
-    # One workout done again and again is no rotation: nothing is due, and the newest leads as in any list.
-    repeater = account('repeater')
-    for day in range(3):
-        t.api('POST', '/api/workouts', {'name': 'Same Day', 'createdAt': base + day * DAY,
-                                        'exercises': [t.ex('Bench Press', 135, 5, [(5, 135)])]}, repeater)
-    t.set_cookie(repeater)
-    t.open_tracker()
-    cdp.wait('initialLoadDone')
-    check('one workout done over and over has nothing due', cdp.ev("!document.querySelector('.is-due') && document.querySelectorAll('#savedWorkoutList .saved-workout').length === 3") is True)
-    t.set_cookie(t.token)
 
     # ------------------------------------------------------------------ the training calendar
     print('C   the training calendar and weekly streak')
@@ -1199,25 +1029,18 @@ def run(t):
     check('a day in a month still folded away opens its year and month first',
           cdp.ev(f"!document.querySelector('.history-workout[data-date=\"{old}\"]').closest('details:not([open])') && !document.querySelector('.history-workout[data-date=\"{old}\"] .workout-details').hidden") is True)
 
-    # The ⋯ menu: copying and editing open the Tracker's form; deleting happens here.
+    # The ⋯ menu: editing opens the Tracker's form; deleting happens here.
     cdp.ev(f"{row(legs)}.querySelector('.row-menu summary').click()")
     items = cdp.ev(f"[...{row(legs)}.querySelectorAll('.row-menu-items button')].filter(b => b.checkVisibility()).map(b => b.textContent)")
     # Legs was saved with a time, so it can be downloaded for Strava (activity_export covers the file); a workout with none cannot.
-    check("each workout's menu holds Copy as new, Edit, Download .tcx and Delete", items == ['Copy as new', 'Edit', 'Download .tcx', 'Delete'], items)
+    check("each workout's menu holds Edit, Download .tcx and Delete", items == ['Edit', 'Download .tcx', 'Delete'], items)
+    check('and a row has no Start: the program is what is started', cdp.ev(f"!{row(legs)}.querySelector('.row-actions > a, .row-actions > button')") is True)
     cdp.ev(f"{row(legs)}.querySelector('[data-action=edit]').click()")
     cdp.pause(0.3)
     opened = cdp.wait("location.pathname === '/index.html' && !document.getElementById('workoutBuilderCard').hidden", timeout=10)
     check('Edit opens it in the Tracker, in the form, to change', opened and cdp.ev("document.getElementById('workoutBuilderTitle').textContent") == 'Edit workout'
           and cdp.ev("document.getElementById('workoutName').value") == 'Leg Day' and cdp.ev("exercises.map(e => e.name)") == ['Squat'])
     check('taking the request off the address, so a reload does not open it again', cdp.ev('location.search') == '', cdp.ev('location.search'))
-    settle('/history.html', f"document.querySelectorAll('.history-workout').length === {total}")
-    cdp.ev(f"{row(legs)}.querySelector('[data-action=copy]').click()")
-    cdp.pause(0.3)
-    opened = cdp.wait("location.pathname === '/index.html' && !document.getElementById('workoutBuilderCard').hidden", timeout=10)
-    check('Copy as new opens it there as a new workout', opened and cdp.ev("document.getElementById('workoutBuilderTitle').textContent") == 'Create a workout'
-          and cdp.ev("document.getElementById('workoutName').value") == 'Leg Day' and cdp.ev("document.getElementById('saveBtn').textContent") == 'Save workout')
-    cdp.ev("document.getElementById('clearBtn').click()")
-
     settle('/history.html', f"document.querySelectorAll('.history-workout').length === {total}")
     cdp.block_api = True
     cdp.ev(f"{row(push)}.querySelector('[data-action=delete]').click()")

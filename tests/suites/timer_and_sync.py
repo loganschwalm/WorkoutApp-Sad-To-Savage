@@ -214,8 +214,8 @@ def run(t):
     check('local queue is empty afterwards', wait_for(lambda: safe_ev('readPendingWorkouts().length', -1) == 0), safe_ev('readPendingWorkouts().length', -1))
     check('server no longer has an active workout', wait_for(lambda: server_sets() is None), server_sets())
     uploaded = created[0]['id'] if created else None
-    check('saved-workouts list refreshes on its own', wait_for(lambda: cdp.ev(f"!!document.querySelector('#savedWorkoutList .saved-workout[data-id=\"{uploaded}\"]')") is True),
-          cdp.ev("[...document.querySelectorAll('#savedWorkoutList .saved-workout')].map(li => li.dataset.id)"))
+    check('the saved workouts the page holds refresh on their own', wait_for(lambda: cdp.ev(f"savedWorkouts.some(w => w.id === {uploaded})") is True),
+          cdp.ev("savedWorkouts.map(w => w.id)"))
 
     print('P4  a retried upload never duplicates a workout')
     body = {'name': 'Dupe Check', 'notes': '', 'createdAt': int(time.time() * 1000), 'clientId': 'abc123', 'exercises': [ex('Squat', 100, 5, [(5, 100)])]}
@@ -409,44 +409,10 @@ def run(t):
     cdp.ev("localStorage.removeItem('workout-tracker-held-test')")
     end_workout()
 
-    print('P14 a workout written in the form is saved on the device first, and once')
-    form_workout = lambda name: cdp.ev(f"document.getElementById('createWorkoutBtn').click(); document.getElementById('workoutName').value = '{name}';"
-                                       " document.getElementById('exercise').value = 'Curl'; document.getElementById('weight').value = '30';"
-                                       " document.getElementById('reps').value = '10'; document.getElementById('addBtn').click()")
-    named = lambda name: [w for w in workouts() if w['name'] == name]
-    open_tracker()
-    form_workout('Form Offline')
-    cdp.block_api = True
-    cdp.ev("document.getElementById('saveBtn').click(); document.getElementById('saveBtn').click()")
-    cdp.pause(0.8)
-    fb = cdp.ev("document.getElementById('formFeedback').textContent") or ''
-    check('saving offline says it is kept on this device', 'saved on this device' in fb, fb)
-    check('a double tap queues it once', safe_ev("readPendingWorkouts().filter(w => w.name === 'Form Offline').length", -1) == 1,
-          safe_ev("readPendingWorkouts().map(w => w.name)", None))
-    check('with a clientId, so a retry cannot store it twice', bool(safe_ev("readPendingWorkouts().find(w => w.name === 'Form Offline')?.clientId", '')))
-    check('and the form is closed', cdp.ev("document.getElementById('workoutBuilderCard').hidden") is True)
-    cdp.send('Page.reload')
-    time.sleep(0.4)
-    cdp.wait("document.readyState === 'complete'")
-    cdp.pause(1.0)
-    check('it survives a reload', safe_ev("readPendingWorkouts().filter(w => w.name === 'Form Offline').length", -1) == 1)
-    cdp.block_api = False
-    check('it uploads once the server is back', wait_for(lambda: len(named('Form Offline')) == 1), len(named('Form Offline')))
-    check('and the queue empties', wait_for(lambda: safe_ev('readPendingWorkouts().length', -1) == 0), safe_ev('readPendingWorkouts().length', -1))
-    check('one copy only', len(named('Form Offline')) == 1, len(named('Form Offline')))
-    open_tracker()
-    form_workout('Form Online')
-    cdp.ev("document.getElementById('saveBtn').click(); document.getElementById('saveBtn').click()")
-    check('online, a double tap saves it once too', wait_for(lambda: len(named('Form Online')) == 1) and (cdp.pause(1.0) or len(named('Form Online')) == 1),
-          len(named('Form Online')))
-    # Among the page's saved workouts, not necessarily on screen: it is dated noon today, and this suite has finished more
-    # than the 10 the list shows since then.
-    check('and the page has it without a reload', wait_for(lambda: safe_ev("savedWorkouts.some(w => w.name === 'Form Online')", False) is True))
-
-    print('P15 opened offline, the pages list the saved workouts as this device last loaded them')
+    print('P15 opened offline, the pages show the saved workouts as this device last loaded them')
     me_id = api('GET', '/api/auth/me', token=token)[0]['user']['id']
     copy_key = f'workout-tracker-workouts-{me_id}'
-    recent = "[...document.querySelectorAll('#savedWorkoutList .saved-workout strong')].map(name => name.textContent)"
+    recent = "savedWorkouts.map(workout => workout.id)"
     status = "document.getElementById('storageStatus').textContent"
     on_server = workouts()
     open_tracker()
@@ -457,7 +423,7 @@ def run(t):
     cdp.goto('/index.html')
     cdp.wait('initialLoadDone === true', timeout=12)
     cdp.pause(0.4)
-    check('offline, the Tracker lists the recent workouts from it', online and cdp.ev(recent) == online, (cdp.ev(recent), online))
+    check('offline, the Tracker holds the workouts from it', online and cdp.ev(recent) == online, (cdp.ev(recent), online))
     check('and still says the server is out of reach', 'unreachable' in (cdp.ev(status) or '').lower(), cdp.ev(status))
     cdp.goto('/history.html')
     check('History lists every workout from it', cdp.wait(f"document.querySelectorAll('.history-workout').length === {len(on_server)}"),
@@ -468,10 +434,6 @@ def run(t):
     cdp.pause(1.0)
     check('Progress draws its chart from it', cdp.ev("document.getElementById('chartEmpty').hidden") is True
           and cdp.ev("document.getElementById('exerciseFilter').options.length") > 1, cdp.ev("document.getElementById('chartEmpty').textContent"))
-    cdp.goto('/cardio.html')
-    cdp.pause(1.0)
-    check('Cardio lists from it, saying the server is out of reach', 'could not be loaded' not in (cdp.ev("document.getElementById('cardioList').textContent") or '')
-          and 'unreachable' in (cdp.ev("document.getElementById('cardioStatus').textContent") or '').lower(), cdp.ev("document.getElementById('cardioList').textContent"))
     cdp.block_api = False
     # Only a copy, so it makes room for work kept nowhere else: with the storage full until it goes, a set is stored, not held.
     open_tracker()
@@ -514,26 +476,27 @@ def run(t):
     check('and nothing more is sent from this page', 'another account' in sent.lower(), sent)
 
     print('P17 a change made in another tab is not undone by one made here')
+    api('PUT', '/api/state', {'program': {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'options': {'level': 'nts'}, 'done': {}, 'walks': {}}}, token)
     open_tracker()
-    key = f'workout-tracker-templates-{me_id}'
-    names = lambda: [x.get('name') for x in api('GET', '/api/state', token=token)[0]['templates']]
-    before = json.loads(cdp.ev("JSON.stringify(readLocalState('templates')?.value || [])"))
-    theirs = {'id': 'other-tab', 'name': 'Other Tab Template', 'exercises': [{'name': 'Row', 'reps': '10'}]}
-    # Stands in for another tab adding a template and uploading it: the server has it, this device's stored copy has it, and
+    cdp.wait("currentProgram !== null")
+    key = cdp.ev("localKey('program')")
+    walks = lambda: sorted(api('GET', '/api/state', token=token)[0]['program'].get('walks', {}))
+    before = cdp.ev("currentProgram")
+    theirs = {**before, 'walks': {'2026-01-05': {'at': 5, 'steps': 4000, 'distance': 1.5, 'unit': 'mi'}}}
+    # Stands in for another tab logging a walk and uploading it: the server has it, this device's stored copy has it, and
     # the browser tells this page its storage changed. This page's own copy is the one it loaded, without it.
-    api('PATCH', '/api/state', {'templates': {'value': before + [theirs], 'base': before}}, token)
-    cdp.ev(f"""localStorage.setItem('{key}', JSON.stringify({{ value: {json.dumps(before + [theirs])}, dirty: false, stamp: 'other-tab-1' }}));
+    api('PATCH', '/api/state', {'program': {'value': theirs, 'base': before}}, token)
+    cdp.ev(f"""localStorage.setItem('{key}', JSON.stringify({{ value: {json.dumps(theirs)}, dirty: false, stamp: 'other-tab-1' }}));
       window.dispatchEvent(new StorageEvent('storage', {{ key: '{key}' }}))""")
-    check('the page takes in the other tab’s template', cdp.wait("customTemplates.some(template => template.id === 'other-tab')"))
-    mine = {'id': 'this-tab', 'name': 'This Tab Template', 'exercises': [{'name': 'Curl', 'reps': '12'}]}
-    cdp.ev(f"customTemplates = [...customTemplates, {json.dumps(mine)}]; saveCustomTemplates()")
-    check('a template added here afterwards keeps it on the server', wait_for(lambda: 'This Tab Template' in names()) and 'Other Tab Template' in names(), names())
+    check('the page takes in the other tab’s walk', cdp.wait("'2026-01-05' in currentProgram.walks"))
+    cdp.ev("document.getElementById('walkSteps').value = '9000'; document.querySelector('#programWalk [data-walk-action=save]').click()")
+    check('a walk logged here afterwards keeps it on the server', wait_for(lambda: len(walks()) == 2) and '2026-01-05' in walks(), walks())
     # A page the browser froze in the background hears nothing, so coming back into view looks again.
-    cdp.ev(f"""localStorage.setItem('{key}', JSON.stringify({{ value: {json.dumps([theirs])}, dirty: false, stamp: 'other-tab-2' }}));
+    cdp.ev(f"""localStorage.setItem('{key}', JSON.stringify({{ value: {json.dumps(before)}, dirty: false, stamp: 'other-tab-2' }}));
       document.dispatchEvent(new Event('visibilitychange'))""")
-    check('and one changed while the page was frozen is taken in when it is seen again', cdp.wait("customTemplates.length === 1"),
-          cdp.ev("customTemplates.map(template => template.name)"))
-    api('PATCH', '/api/state', {'templates': {'value': before}}, token)
+    check('and one changed while the page was frozen is taken in when it is seen again', cdp.wait("Object.keys(currentProgram.walks).length === 0"),
+          cdp.ev("Object.keys(currentProgram.walks)"))
+    api('PATCH', '/api/state', {'program': {'value': before}}, token)
 
     print('R2  30 seconds more or less rest')
     open_tracker()

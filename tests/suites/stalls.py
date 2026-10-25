@@ -57,11 +57,8 @@ def run(t):
 
     # ------------------------------------------------------------------ T2 the Strength page
     print('T2  before the first set of a stalled lift, the deload is a tap away')
-    cdp.goto('/index.html')
-    cdp.wait("document.querySelectorAll('#savedWorkoutList .saved-workout').length > 0")
-    cdp.pause(0.5)
-    newest = "[...document.querySelectorAll('#savedWorkoutList .saved-workout')].find(li => li.querySelector('strong').textContent === 'Push')"
-    cdp.ev(f"{newest}.querySelector('[data-action=start]').click()")
+    t.open_tracker()
+    t.start_saved(cdp.ev("savedWorkouts.find(workout => workout.name === 'Push').id"))
     cdp.wait("!document.getElementById('activeWorkout').hidden")
     cdp.pause(0.4)
     hint = lambda: None if cdp.ev("document.getElementById('progressionHint').hidden") else cdp.ev("document.getElementById('progressionHint').textContent")

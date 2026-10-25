@@ -154,27 +154,15 @@ def run(t):
     check('and summaryBefore holds no history until the saved workouts have loaded',
           ev("(() => { const was = savedWorkoutsLoaded; savedWorkoutsLoaded = false; const got = summaryBefore({ name: 'X', createdAt: Date.now(), exercises: [] }).history; savedWorkoutsLoaded = was; return got; })()") is None)
 
-    # ------------------------------------------------------------------ C the Cardio page's summary, counted with strength
-    print('C   a cardio session counts with the strength workouts')
+    # ------------------------------------------------------------------ C a cardio session, counted with strength
+    print('C   a cardio session (imported: there is no page to log one) counts with the strength workouts')
     runner = account('mixed')
     for n in range(9):
         api('POST', '/api/workouts', {'name': 'Old', 'notes': '', 'createdAt': now - (60 - n * 5) * DAY_MS, 'clientId': f'mixed-{n}',
                                       'exercises': [ex('Curl', 20, 10, [(10, 20)])]}, runner)
+    api('POST', '/api/workouts', {'kind': 'cardio', 'name': 'Run', 'notes': '', 'createdAt': now - DAY_MS, 'clientId': 'mixed-run', 'exercises': [],
+                                  'duration': 1800, 'cardio': {'activity': 'run'}}, runner)
     t.set_cookie(runner)
-    cdp.goto('/cardio.html')
-    cdp.wait('cardioLoaded === true')
-    cdp.pause(0.4)
-    cdp.ev("document.getElementById('cardioModeManual').click()")
-    cdp.pause(0.2)
-    cdp.ev("document.querySelector('#cardioActivityGrid [data-activity=run]').click()")
-    cdp.pause(0.3)
-    cdp.ev("""(e => { e.value = '30'; e.dispatchEvent(new Event('input', { bubbles: true })); })(document.getElementById('cardioMinutes'))""")
-    cdp.ev("document.getElementById('cardioSave').click()")
-    cdp.wait("!document.getElementById('cardioSummary').hidden", timeout=10)
-    cdp.pause(0.3)
-    got = ev("[...document.querySelectorAll('#cardioSummaryAchievementList li strong')].map(e => e.textContent)")
-    check('a first run after nine strength workouts is the tenth workout, and the cardio page says so', '10 workouts' in got, got)
-    check('with a line to cheer it', text('cardioSummarySplash') in ev("splashLines.achievement"), text('cardioSummarySplash'))
 
     # ------------------------------------------------------------------ P Progress
     print('P   Progress has a row for each kind, the best earned and a bar to the next')
@@ -299,38 +287,28 @@ def run(t):
           text('workoutReach').startswith('Finishing this workout reaches your weekly goal') and text('workoutReach').endswith('and earns “50 workouts”.'), text('workoutReach'))
     t.end_workout()
 
-    # ------------------------------------------------------------------ M a program's moments
-    print('M   a program day: a + set past its plan, every planned rep made, and the week it finishes')
+    # ------------------------------------------------------------------ M finishing the program
+    print('M   the last day of the program: the summary says it is finished, with the biggest fireworks')
     programmer = account('programmer')
-    last_day = {'definition': 'reddit-ppl', 'startedAt': 1000, 'cycle': 1, 'lastRollover': None,
-                'trainingMaxes': {'deadlift': 225, 'row': 115, 'bench': 135, 'press': 85, 'squat': 185}, 'options': {'rounding': 5},
-                'done': {f'0-{day}': {'at': 2000 + day, 'skipped': False, 'amrap': None, 'hit': None} for day in range(5)}}
+    last_day = {'definition': 'sad-to-savage', 'startedAt': 1000, 'cycle': 1, 'options': {'level': 'nts'}, 'walks': {},
+                'done': {f'{week}-{day}': {'at': 2000 + week * 5 + day, 'skipped': False} for week in range(6) for day in range(5) if (week, day) != (5, 4)}}
     api('PUT', '/api/state', {'program': last_day}, programmer)
     t.set_cookie(programmer)
     t.open_tracker()
     ev("document.querySelector('#programNext [data-program-action=start]').click()")
     cdp.wait("!document.getElementById('activeWorkout').hidden")
     cdp.pause(0.4)
-    planned = ev('activeSession.exercises[0].plan.map(set => set.reps)')
-    for reps in planned[:-1]:
-        t.log_set(reps)
-        cdp.pause(0.3)
-    cdp.pause(2.0)
     t.log_set(8)
     cdp.pause(0.3)
-    check('a + set past its plan is said and celebrated as it is logged', '+ set: 8 reps, 3 more than the 5 planned!' in text('formFeedback') and fireworks() == 'goal',
-          [text('formFeedback'), fireworks()])
-    cdp.pause(2.8)
     t.finish_all()
     cdp.wait("!document.getElementById('workoutSummary').hidden", timeout=10)
     cdp.pause(0.3)
     lines = ev("[...document.querySelectorAll('#summaryProgramList li')].map(li => li.textContent)")
-    check('the summary says the week of the program is done, the + set, and every planned rep of the main lift made',
-          ev("!document.getElementById('summaryProgram').hidden") is True and lines and lines[0] == 'Week 1 of Reddit PPL complete.'
-          and any(line.startswith('+ set: 8 reps at 185 lbs, 3 more than the 5 planned.') for line in lines)
-          and any(line.startswith('Every planned rep of ') for line in lines), lines)
-    check('with the biggest fireworks', fireworks() == 'achievement', fireworks())
-    check('and the program moved on to its next week', ev('currentProgram.cycle') == 2)
+    check('the summary says the program is finished', ev("!document.getElementById('summaryProgram').hidden") is True and lines == ['You finished Sad to Savage: all thirty days done.'], lines)
+    check('with the biggest fireworks, and a line to cheer it (the first workout earns an achievement too, which leads)', fireworks() == 'achievement'
+          and text('summarySplash') in ev("splashLines.achievement.concat(splashLines.cycle)"), [fireworks(), text('summarySplash')])
+    check('and finishing it with nothing else earned is cheered as finishing a cycle', ev("rewardSplashKind({ earned: [], weekReached: false }, [], { finished: 'Sad to Savage' })") == 'cycle')
+    check('and the program is finished', ev('!!currentProgram.finishedAt') is True)
 
     # ------------------------------------------------------------------ K the card to share
     print('K   an achievement drawn as a picture to share, and saved where it cannot be')

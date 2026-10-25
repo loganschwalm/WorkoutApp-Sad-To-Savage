@@ -39,11 +39,11 @@ def run(t):
     source = worker[start:worker.index(LF + '}', start) + 2]
     cdp.ev(f"window.__pushTarget = (0, eval)({json.dumps('(' + source + ')')})")
     asked = ['/progress.html?exercise=squat#top', '/history.html', 'https://evil.example/', '//evil.example/x', '/' + BACKSLASH + 'evil.example/x',
-             '/' + BACKSLASH + '/evil.example', 'javascript:alert(1)', '', None, 5, f"{cdp.ev('location.origin')}/cardio.html"]
+             '/' + BACKSLASH + '/evil.example', 'javascript:alert(1)', '', None, 5, f"{cdp.ev('location.origin')}/progress.html"]
     opened = cdp.ev(f"{json.dumps(asked)}.map(url => window.__pushTarget(url))")
     check('a path on this site is kept, and anything that leads elsewhere (a backslash is a slash) opens the Tracker',
           opened == ['/progress.html?exercise=squat#top', '/history.html', '/index.html', '/index.html', '/index.html', '/index.html',
-                     '/index.html', '/index.html', '/index.html', '/index.html', '/cardio.html'], opened)
+                     '/index.html', '/index.html', '/index.html', '/index.html', '/progress.html'], opened)
 
     # ------------------------------------------------------------------ S1 served correctly
     print('S1  the manifest, worker and icons are served')
@@ -63,10 +63,10 @@ def run(t):
     purposes = {icon.get('purpose') for icon in manifest.get('icons', [])}
     check('manifest offers a maskable icon', 'maskable' in purposes, str(purposes))
     shortcuts = manifest.get('shortcuts', [])
-    check('the installed icon offers shortcuts to Today’s workout, Cardio, Log weight and History',
-          [item.get('name') for item in shortcuts] == ["Today's workout", 'Cardio', 'Log weight', 'History'], str(shortcuts))
+    check('the installed icon offers shortcuts to Today’s workout, Log weight and History',
+          [item.get('name') for item in shortcuts] == ["Today's workout", 'Log weight', 'History'], str(shortcuts))
     pages_served = [t.request('GET', item['url'].split('#')[0], None, None, token=t.token)[0] for item in shortcuts]
-    check('each is a page of this site, inside the scope, and is served', pages_served == [200] * 4 and all(item['url'].startswith('/') for item in shortcuts)
+    check('each is a page of this site, inside the scope, and is served', pages_served == [200] * 3 and all(item['url'].startswith('/') for item in shortcuts)
           and all(icon['src'].startswith('/icons/') and icon['sizes'] == '192x192' for item in shortcuts for icon in item.get('icons', [])), str(pages_served))
     cdp.goto('/progress.html#bodyweight')
     cdp.wait("typeof drawBodyweight === 'function'")
@@ -89,7 +89,7 @@ def run(t):
 
     # ------------------------------------------------------------------ S3 what is cached
     print('S3  the app shell is cached')
-    for path in ('/styles.css', '/script.js', '/rest-timer.js', '/records.js', '/templates.js', '/training-tools.js',
+    for path in ('/styles.css', '/script.js', '/rest-timer.js', '/records.js', '/sad-to-savage-data.js', '/training-tools.js',
                  '/program-definitions.js', '/program.js', '/settings-dialog.js', '/settings.js', '/offline.js', '/pwa.js', '/theme.js',
                  '/login.html', '/manifest.webmanifest', '/icons/icon-192.png', '/fonts/schibsted-grotesk-latin.woff2',
                  '/fonts/figtree-latin.woff2'):
@@ -131,9 +131,9 @@ def run(t):
 
     t.set_cookie(t.token)
     cdp.goto('/index.html')
-    cdp.wait("document.querySelectorAll('#templateList [data-template-action=start]').length >= 3")
+    cdp.wait("document.querySelectorAll('#programNext button').length >= 1")
     check('signing back in loads the tracker again',
-          cdp.ev("document.querySelectorAll('#templateList [data-template-action=start]').length") >= 3)
+          cdp.ev("document.querySelectorAll('#programNext button').length") >= 1)
 
     # ------------------------------------------------------------------ S7 deploys
     print('S7  a deploy reaches the very next load')
@@ -150,7 +150,7 @@ def run(t):
     check('and the cache is refreshed with it',
           cdp.wait("caches.match('/pwa.js').then(r => r.text()).then(text => text.includes('serviceWorker'))"))
     cdp.goto('/')
-    cdp.wait("document.querySelectorAll('#templateList [data-template-action=start]').length >= 3")
+    cdp.wait("document.querySelectorAll('#programNext button').length >= 1")
     cdp.pause(0.4)
     keys = cdp.ev(f"caches.open({json.dumps(cache_name)}).then(c => c.keys()).then(r => r.map(q => new URL(q.url).pathname))") or []
     check('/ shares the cached /index.html instead of adding a second copy', '/' not in keys and '/index.html' in keys, str(keys))
@@ -295,8 +295,8 @@ def run(t):
           cdp.ev("document.querySelector('.site-nav') !== null") is True)
     check('it is the tracker, not an error page',
           cdp.ev('document.title') == 'Workout Tracker', str(cdp.ev('document.title')))
-    check('the templates are usable offline',
-          cdp.ev("document.querySelectorAll('#templateList [data-template-action=start]').length") >= 3)
+    check('the program is usable offline',
+          cdp.ev("document.querySelectorAll('#programNext button').length") >= 1)
 
     # ------------------------------------------------------------------ S10 a stalled connection
     print('S10 a reload on a connection that stalls still opens the app')
@@ -319,7 +319,7 @@ def run(t):
     try:
         started = time.time()
         cdp.goto('/index.html?stall-proof=1')
-        opened = cdp.wait("document.querySelectorAll('#templateList [data-template-action=start]').length >= 3", timeout=20)
+        opened = cdp.wait("document.querySelectorAll('#programNext button').length >= 1", timeout=20)
         took = round(time.time() - started, 1)
         check('the cached app opens instead of waiting on the server', opened, f'{took}s')
         check('within seconds', opened and took < 15, f'{took}s')

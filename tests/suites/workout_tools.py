@@ -57,7 +57,8 @@ def run(t):
         cdp.pause(0.6)
 
     def start_saved(workout_id):
-        cdp.goto(f'/index.html?start={workout_id}')
+        open_tracker()
+        t.start_saved(workout_id)
         cdp.wait(ACTIVE)
         cdp.pause(0.5)
 
@@ -91,23 +92,16 @@ def run(t):
 
     # ------------------------------------------------------------------ D suggestions
     print('D   exercise name suggestions')
+    api('PUT', '/api/state', {'program': {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'options': {'level': 'nts'}, 'done': {}, 'walks': {}}}, token)
     open_tracker()
-    # The templates' names are there at once; the logged ones once the saved workouts have loaded.
     cdp.wait('initialLoadDone', 30)
     options = suggestions()
     check('every exercise logged is suggested', {'Bench Press', 'Overhead Press', 'Barbell Row', 'Pull-up', 'Dumbbell Bench Press'} <= set(options), options)
-    check('and the templates’ exercises', {'Tricep Pushdown', 'Goblet Squat', 'Plank', 'Lat Pulldown'} <= set(options), options)
+    check('and the program’s exercises', {'DB Bench Chest Press', 'Banded Lateral Walk', 'Plank Hold', 'Seated Cable Lat Pulldown'} <= set(options), options)
     check('each once, spelled as it was most recently logged', options.count('hip thrust') == 1 and 'Hip Thrust' not in options, [o for o in options if 'thrust' in o.lower()])
-    check('in alphabetical order', options.index('Back Squat') < options.index('Bench Press') < options.index('hip thrust') < options.index('Plank'), options)
+    check('in alphabetical order', options.index('Banded Lateral Walk') < options.index('Bench Press') < options.index('hip thrust') < options.index('Pull-up'), options)
     lists = cdp.ev("['exercise', 'activeAddName', 'swapName'].map(id => document.getElementById(id).getAttribute('list'))")
     check('the workout form, Add an exercise and Swap all offer them', lists == ['exerciseNames'] * 3, lists)
-    click('createTemplateBtn')
-    check('so does the template editor', cdp.ev("document.getElementById('templateExercise0').getAttribute('list')") == 'exerciseNames')
-    click('cancelTemplate')
-    click('createWorkoutBtn')
-    cdp.ev("document.getElementById('exercise').value = 'Curl'; document.getElementById('reps').value = '10'; document.getElementById('addBtn').click()")
-    check('and a written-down workout’s rows', cdp.ev("document.querySelector('#exerciseList .exercise-edit[data-field=name]').getAttribute('list')") == 'exerciseNames')
-    click('clearBtn')
 
     # ------------------------------------------------------------------ P summary and records
     print('P   the summary and personal records')
@@ -149,11 +143,6 @@ def run(t):
     check('the workout is saved with how long it took', wait_for(lambda: newest(known) is not None))
     saved = newest(known)
     check('in seconds', isinstance(saved.get('duration'), int) and 0 < saved['duration'] < 600, saved.get('duration'))
-    # The list is drawn again once the upload has gone through.
-    # Its own row, which is not always the first: the workout that is due leads the list.
-    row_text = f"document.querySelector('#savedWorkoutList .saved-workout[data-id=\"{saved['id']}\"] .saved-workout-toggle span')?.textContent"
-    listed = cdp.wait(f"{row_text}?.endsWith(' · 1 min')")
-    check('and the Tracker’s list says so', listed, cdp.ev(row_text))
     # The summary leads with what changed: the comparison, then goals and records, and the totals are one quiet line under them.
     layout = cdp.ev("""(() => {
         const at = id => document.getElementById(id);
@@ -191,7 +180,7 @@ def run(t):
     cdp.pause(0.5)
     cdp.wait("document.readyState === 'complete'")
     cdp.pause(1.5)
-    cdp.ev('startWorkout(getAllTemplates()[0])')
+    start(0)
     cdp.pause(0.3)
     log(115, 3)
     finish()
@@ -278,105 +267,28 @@ def run(t):
     choose_unit('lbs')
     t.end_workout()
 
-    # ------------------------------------------------------------------ S2 swapping in a program, and a program's rests
-    print('S2  swapping in a training program, and its rests')
+    # ------------------------------------------------------------------ S2 swapping in the program, and its rests
+    print('S2  swapping in the program, and its rests')
     open_tracker()
-    cdp.ev("if (document.getElementById('templateArea').hidden) document.getElementById('templatesToggle').click()")
-    cdp.ev("document.querySelector('#templateList .program-template[data-program-id=\"apartment-gym\"] [data-program-action=setup]').click()")
-    cdp.pause(0.3)
-    for lift, value in (('chestPress', 100), ('splitSquat', 30), ('pulldown', 100), ('rdl', 40)):
-        set_field(f'programMax-{lift}', value)
-    cdp.ev("document.getElementById('programForm').requestSubmit()")
-    cdp.pause(0.4)
-    check('Apartment Gym’s exercises are suggested', 'Single-Arm Cable Pulldown' in suggestions())
     cdp.ev("document.querySelector('#programNext [data-program-action=start]').click()")
     cdp.pause(0.4)
-    rests = cdp.ev('activeSession.exercises.map(e => [e.name, e.rest])')
-    check('each exercise has its own rest: two minutes for the main lift, 90 s for compound work, 60 for small muscles', rests == [
-        ['Machine Chest Press', 120], ['Incline Dumbbell Press', 90], ['Single-Arm Cable Pulldown', 90], ['Single-Arm Cable Row', 90],
-        ['Dumbbell Lateral Raise', 60], ['Single-Arm Cable Pushdown', 60]], rests)
+    rests = cdp.ev('activeSession.exercises.map(e => e.rest)')
+    check('every exercise has its own rest: a minute and a half after a round, as the plan says', len(rests) == 12 and set(rests) == {90}, rests)
+    jump(3)
     click('swapToggle')
-    check('swapping the main lift warns that the program leaves it alone',
-          text('swapHelp') == "The new exercise keeps the 4 planned sets and their reps, with weights of your own. Machine Chest Press is this day's main lift, so while it is swapped out the program leaves its weight alone.",
-          text('swapHelp'))
+    check('swapping a planned exercise says what the new one keeps',
+          text('swapHelp') == 'The new exercise keeps the 3 planned sets and their reps, with weights of your own.', text('swapHelp'))
     swap('Dumbbell Bench Press')
     plan = cdp.ev("[...document.querySelectorAll('#activePlan li')].map(li => li.textContent)")
-    check('the swap keeps the planned sets and rep range, not the machine’s weight', plan == ['6–10 reps'] * 4 and text('activeExerciseTarget').startswith('Set 1 of 4: 6–10 reps.'),
+    check('the swap keeps the planned sets, not the plan’s weight range', plan == ['12 reps'] * 3 and text('activeExerciseTarget').startswith('Set 1 of 3: 12 reps.'),
           f"{plan} {text('activeExerciseTarget')}")
-    check('and the rest', cdp.ev('restDuration()') == 120)
-    for _ in range(4):
-        log(50, 10)
-    check('the rest timer counts the exercise’s own two minutes', timer() in ('2:00', '1:59'), timer())
-    jump(5)
-    finish()
-    fb = text('formFeedback')
-    check('the day counts as done', "Apartment Gym Upper A" in fb and 'Next in Apartment Gym: Lower A.' in fb, fb)
-    check('but a swapped main lift does not move the program', 'Machine Chest Press was swapped out, so this workout does not count toward its progress.' in fb
-          and cdp.ev('currentProgram.trainingMaxes.chestPress') == 100 and cdp.ev("currentProgram.done['0-0'].hit") is None, fb)
-    cdp.ev("document.querySelector('#programNext [data-program-action=start]').click()")
-    cdp.pause(0.4)
+    check('and the rest', cdp.ev('restDuration()') == 90)
     for _ in range(3):
-        log(30, 12)
-    jump(2)
-    swap('Seated Leg Curl')
-    log(70, 12)
-    jump(5)
+        log(50, 12)
+    check('the rest timer counts the exercise’s own rest after a round', timer() in ('1:30', '1:29'), timer())
     finish()
     fb = text('formFeedback')
-    check('swapping any other exercise leaves the main lift’s progress alone', 'Dumbbell Bulgarian Split Squat goes up to 35 lbs next time' in fb
-          and cdp.ev('currentProgram.trainingMaxes.splitSquat') == 35 and 'swapped out' not in fb, fb)
-    ppl = cdp.ev("redditPpl.workout(normalizeProgram({ definition:'reddit-ppl', unit:'lbs', trainingMaxes:{ deadlift:200, row:100, bench:100, press:60, squat:150 }, options:{} }), 0, 0).map(e => [e.name, e.rest])")
-    check('Reddit PPL rests three minutes after its main lift', ppl == [['Deadlift', 180], ['Lat Pulldown', 90], ['Seated Cable Row', 90], ['Face Pull', 60], ['Hammer Curl', 60], ['Dumbbell Curl', 60]], ppl)
-    wendler = cdp.ev("wendler531.workout(normalizeProgram({ definition:'wendler-531', unit:'lbs', trainingMaxes:{ press:100, deadlift:300, bench:200, squat:250 }, options:{ assistance:'bbb' } }), 0, 1).map(e => [e.name, e.rest])")
-    check('and so does 5/3/1, less after Boring But Big', wendler == [['Deadlift', 180], ['Deadlift (BBB)', 90], ['Hanging Leg Raise', 60]], wendler)
-    cdp.ev("document.getElementById('endProgramBtn').click()")
-    cdp.pause(0.3)
-
-    # ------------------------------------------------------------------ R rest per exercise in a template
-    print('R   rest per exercise in a template')
-    click('createTemplateBtn')
-    labels = cdp.ev("['templateReps0', 'templateRest0'].map(id => document.querySelector(`label[for=${id}]`).textContent)")
-    check('each exercise of a template has a rest, the default until set', labels == ['Reps', 'Rest (s)'] and cdp.ev("document.getElementById('templateRest0').placeholder") == '90', labels)
-    set_field('templateName', 'Rest Test')
-    set_field('templateExercise0', 'Squat Rest')
-    set_field('templateReps0', 5)
-    set_field('templateRest0', 150)
-    click('addTemplateExercise')
-    set_field('templateExercise1', 'Curl Rest')
-    set_field('templateReps1', 12)
-    cdp.ev("document.getElementById('templateForm').requestSubmit()")
-    cdp.pause(0.3)
-    stored = cdp.ev("customTemplates.find(item => item.name === 'Rest Test').exercises")
-    check('a rest given is kept, and one left blank is not', stored == [{'name': 'Squat Rest', 'reps': '5', 'rest': 150}, {'name': 'Curl Rest', 'reps': '12'}], stored)
-    check('the template reaches the server with it', wait_for(lambda: any(e.get('rest') == 150 for tp in api('GET', '/api/state', token=token)[0].get('templates', []) for e in tp['exercises'])))
-    known = t.ids()
-    cdp.ev("[...document.querySelectorAll('#templateList .template-card')].find(c => c.querySelector('h3').textContent === 'Rest Test').querySelector('[data-template-action=start]').click()")
-    cdp.pause(0.4)
-    log(200, 5)
-    check('after a set, the rest timer counts the exercise’s rest', timer() in ('2:30', '2:29'), timer())
-    click('restResetBtn')
-    check('Reset goes back to it', timer() == '2:30', timer())
-    cdp.ev("document.querySelector('#restAdjust [data-rest-adjust=\"-30\"]').click()")
-    check('and taking 30 seconds off works from it', timer() == '2:00', timer())
-    click('nextExerciseBtn')
-    cdp.pause(0.2)
-    log(30, 12)
-    check('an exercise with no rest of its own uses the default', timer() in ('1:30', '1:29'), timer())
-    finish()
-    check('the saved workout keeps each rest, so starting it again does too', wait_for(lambda: newest(known) is not None)
-          and [e.get('rest') for e in newest(known)['exercises']] == [150, None], newest(known) and newest(known)['exercises'])
-    cdp.ev("[...document.querySelectorAll('#templateList .template-card')].find(c => c.querySelector('h3').textContent === 'Rest Test').querySelector('[data-template-action=edit]').click()")
-    cdp.pause(0.2)
-    check('editing shows the rest', field('templateRest0') == '150' and field('templateRest1') == '')
-    set_field('templateRest1', 700)
-    cdp.ev("document.getElementById('templateForm').requestSubmit()")
-    cdp.pause(0.3)
-    check('a rest past ten minutes is refused, as in Settings', visible('templateModal') and cdp.ev("document.getElementById('templateRest1').validity.rangeOverflow")
-          and 'rest' not in cdp.ev("customTemplates.find(item => item.name === 'Rest Test').exercises[1]"))
-    set_field('templateRest1', 100)
-    cdp.ev("document.getElementById('templateForm').requestSubmit()")
-    cdp.pause(0.3)
-    check('any whole number of seconds up to it is kept', not visible('templateModal') and cdp.ev("customTemplates.find(item => item.name === 'Rest Test').exercises[1].rest") == 100)
+    check('the day counts as done, with a swapped exercise', 'Next in Sad to Savage: Full Body Focus, week 1.' in fb and list(cdp.ev('currentProgram.done')) == ['0-0'], fb)
 
     # ------------------------------------------------------------------ B a tap beside a form
     print('B   a tap beside a form that has been filled in')
@@ -384,15 +296,13 @@ def run(t):
     # closed by its own button. The tap is on the backdrop itself, as a finger beside the dialog would be.
     tap_beside = lambda idn: cdp.ev(f"document.getElementById('{idn}').dispatchEvent(new MouseEvent('click', {{ bubbles: true }}))")
     for label, modal, opener, field_id, close in (
-        ('template editor', 'templateModal', 'openTemplateEditor()', 'templateName', 'closeTemplate'),
-        ('program setup', 'programModal', 'openProgramForm(programDefinitions[0])', 'programMax-' + cdp.ev('programDefinitions[0].lifts[0].key'), 'closeProgram'),
-        ('program builder', 'builderModal', 'openProgramBuilder()', 'builderName', 'closeBuilder'),
+        ('program setup', 'programModal', 'openProgramForm(programDefinitions[0])', 'programLevel', 'closeProgram'),
     ):
         cdp.ev(opener)
         tap_beside(modal)
         check(f'a tap beside the {label}, nothing changed, closes it', not visible(modal))
         cdp.ev(opener)
-        set_field(field_id, '42')
+        set_field(field_id, 'sw')
         tap_beside(modal)
         check(f'a tap beside the {label} once something was typed in it does not', visible(modal))
         click(close)
@@ -400,8 +310,6 @@ def run(t):
 
     # ------------------------------------------------------------------ T timed exercises
     print('T   timed exercises')
-    card = cdp.ev("[...document.querySelectorAll('#templateList .template-card')].find(c => c.querySelector('h3').textContent === 'Full Body').textContent")
-    check('the Full Body template’s plank is held for 30 seconds', 'Plank (30 s)' in card, card)
     cdp.ev('window.__alerts = 0; playRestAlert = () => { window.__alerts += 1; }')
     start(4)
     cdp.pause(0.3)
@@ -466,18 +374,6 @@ def run(t):
     cdp.pause(0.2)
     check('the added exercise is timed', text('activeExerciseName') == 'Wall Sit' and text('activeExerciseTarget') == 'Target: 45 seconds' and visible('holdTimer'))
     t.end_workout()
-
-    click('createTemplateBtn')
-    cdp.ev("document.querySelector('#templateExerciseEditor [data-template-field=timed]').click()")
-    check('a template exercise can be timed', text('templateReps0Label') == 'Seconds')
-    set_field('templateName', 'Hangs')
-    set_field('templateExercise0', 'Dead Hang')
-    set_field('templateReps0', 20)
-    cdp.ev("document.getElementById('templateForm').requestSubmit()")
-    cdp.pause(0.3)
-    stored = cdp.ev("customTemplates.find(item => item.name === 'Hangs').exercises")
-    card = cdp.ev("[...document.querySelectorAll('#templateList .template-card')].find(c => c.querySelector('h3').textContent === 'Hangs').textContent")
-    check('and is saved that way', stored == [{'name': 'Dead Hang', 'reps': '20', 'timed': True}] and 'Dead Hang (20 s)' in card, f'{stored} {card}')
 
     cdp.goto('/history.html')
     cdp.wait("document.querySelectorAll('.history-workout').length > 0")

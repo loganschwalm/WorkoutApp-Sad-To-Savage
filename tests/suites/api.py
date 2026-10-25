@@ -191,7 +191,7 @@ def run(t):
         check(f'{path} -> {expected}', status == 301 and location == expected, f'{status} {location}')
     status, _ = t.raw('GET', '/script.js')
     check('the real path is served directly', status == 200, status)
-    for page in ('/index.html', '/cardio.html', '/progress.html', '/history.html'):
+    for page in ('/index.html', '/progress.html', '/history.html'):
         status, location = t.raw('GET', page)
         check(f'signed out, {page} leads to signing in, and back', status == 303 and location == f'/login.html?next={page.replace("/", "%2F")}',
               f'{status} {location}')

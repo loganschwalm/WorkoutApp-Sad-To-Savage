@@ -123,7 +123,7 @@ function showWorkoutSummary(workout, records, before = {}, programOutcome = null
   $('summaryCompare').textContent = compared;
   $('summaryCompare').hidden = !compared;
   // Something to lead with (a comparison, a goal reached, a record) makes the totals a quiet line; without, they are the summary.
-  $('workoutSummary').classList.toggle('has-lead', Boolean(compared || goals.length || records.length || rewards.earned.length || (programOutcome && (programOutcome.completed || programOutcome.beat || programOutcome.hit))));
+  $('workoutSummary').classList.toggle('has-lead', Boolean(compared || goals.length || records.length || rewards.earned.length || (programOutcome && programOutcome.finished)));
   $('summarySplash').textContent = splashLine(rewardSplashKind(rewards, records, programOutcome));
   $('summarySplash').hidden = false;
   $('summaryAchievements').hidden = !rewards.earned.length;
@@ -147,7 +147,7 @@ function showWorkoutSummary(workout, records, before = {}, programOutcome = null
   $('workoutSummary').hidden = false;
   scrollToCard($('workoutSummary'), 'start');
   focusHeading($('summaryTitle'));
-  if (rewards.earned.length || (programOutcome && programOutcome.completed)) celebrate($('summaryTitle'), 'achievement');
+  if (rewards.earned.length || (programOutcome && programOutcome.finished)) celebrate($('summaryTitle'), 'achievement');
   else if (rewards.weekReached) celebrate($('summaryTitle'), 'goal');
 }
 

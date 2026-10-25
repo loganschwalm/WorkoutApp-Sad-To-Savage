@@ -329,7 +329,7 @@ function splashLine(kind, random = Math.random) {
 
 // What a finished workout's line is about: the biggest thing it did. `program` is a program day's outcome (program.js), if any.
 function rewardSplashKind(rewards, records, program = null) {
-  return rewards.earned.length ? 'achievement' : program && program.completed ? 'cycle' : records.length || (program && program.beat) ? 'record'
+  return rewards.earned.length ? 'achievement' : program && program.finished ? 'cycle' : records.length ? 'record'
     : rewards.weekReached ? 'streak' : 'finish';
 }
 
