@@ -210,7 +210,10 @@ def run(t):
     got = cdp.ev("(names => names.map(name => { const guide = guideFor(name); return guide ? guide.title : null; }))(%s)" % json.dumps([name for name, _ in GUIDES]))
     wrong = [(name, want, have) for (name, want), have in zip(GUIDES, got) if want != have]
     check('each exercise’s name gets the right guide, a specific lift before the general one', not wrong, wrong)
-    check('the exercises in the programs and templates all have one', cdp.ev("""['Back Squat', 'Bench Press', 'Overhead Press', 'Deadlift', 'Barbell Row', 'Lat Pulldown', 'Dumbbell Romanian Deadlift',
+    t.open_tracker()
+    plan = cdp.ev("""[...new Set(sadToSavagePlan.days.flatMap(day => day.kind === 'strength' ? [...day.warmup.moves, ...day.blocks.flatMap(block => block.moves)] : []).map(move => move.name))]""")
+    check('every move of the program has a guide', cdp.ev(f"{json.dumps(plan)}.filter(name => !guideFor(name))") == [], cdp.ev(f"{json.dumps(plan)}.filter(name => !guideFor(name))"))
+    check('the exercises people commonly log all have one', cdp.ev("""['Back Squat', 'Bench Press', 'Overhead Press', 'Deadlift', 'Barbell Row', 'Lat Pulldown', 'Dumbbell Romanian Deadlift',
         'Dumbbell Bulgarian Split Squat', 'Machine Chest Press', 'Chest-Supported Dumbbell Row', 'Seated Cable Row', 'Dumbbell Lateral Raise', 'Hanging Leg Raise', 'Pallof Press', 'Leg Press', 'Leg Curl',
         'Leg Extension', 'Calf Raise', 'Tricep Pushdown', 'Hammer Curl', 'Goblet Squat', 'Plank', 'Push-up', 'Pull-up'].filter(name => !guideFor(name))""") == [])
     check('every guide has its own title, steps and a mistake', cdp.ev("""exerciseGuides.every(g => g.title && g.steps.length >= 3 && g.steps.every(s => s.length > 20) && g.mistake.length > 10)

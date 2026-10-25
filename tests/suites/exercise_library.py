@@ -7,7 +7,7 @@ DAY_MS = 86400000
 
 INTERCEPT = False
 
-# Every exercise in the built-in templates and the training programs, which should all count for some muscle.
+# Exercises people log that are not in the program, which should all count for some muscle too (the program's own are read from its plan).
 BUILT_IN = ['Bench Press', 'Overhead Press', 'Tricep Pushdown', 'Deadlift', 'Barbell Row', 'Lat Pulldown', 'Bicep Curl', 'Back Squat',
             'Romanian Deadlift', 'Leg Press', 'Calf Raise', 'Pull-up', 'Dumbbell Row', 'Lateral Raise', 'Goblet Squat', 'Push-up', 'Plank',
             'Cable Woodchop', 'Chest-Supported Dumbbell Row', 'Chin-up', 'Dip', 'Dumbbell Bench Press', 'Dumbbell Bulgarian Split Squat',
@@ -33,9 +33,16 @@ def run(t):
     field = t.text
     # ------------------------------------------------------------------ L1 guesses from the name
     print('L1  an exercise\'s muscle and equipment are guessed from its name')
-    settle('/progress.html', "typeof guessMuscle === 'function'")
+    settle('/index.html', "typeof guessMuscle === 'function' && typeof sadToSavagePlan !== 'undefined'")
+    plan = cdp.ev("""[...new Set(sadToSavagePlan.days.flatMap(day => day.kind === 'strength' ? [...day.warmup.moves, ...day.blocks.flatMap(block => block.moves)] : []).map(move => move.name))]""")
+    check('the plan has its eighty-odd different moves', len(plan) >= 80, len(plan))
+    guessed = cdp.ev(f"{json.dumps(plan)}.filter(name => !guessMuscle(name))")
+    check('every exercise in the program counts for a muscle', guessed == [], guessed)
     guessed = cdp.ev(f"{json.dumps(BUILT_IN)}.filter(name => !guessMuscle(name))")
-    check('every exercise in the templates and programs counts for a muscle', guessed == [], guessed)
+    check('and so does every other common one', guessed == [], guessed)
+    check('a kickback is the glutes’ unless it is the triceps’', cdp.ev("['Cable Kickbacks', 'Plank Kickback', 'DB Tricep Kickback'].map(guessMuscle)") == ['glutes', 'glutes', 'triceps'])
+    check('banded and bodyweight moves are told from the name', cdp.ev("['Banded Lateral Walk', 'Elevated Shoulder Taps', 'Plate Race Car Drivers'].map(guessEquipment)") == ['band', 'bodyweight', 'other'])
+    settle('/progress.html', "typeof guessMuscle === 'function'")
     cases = {'Leg Curl': 'hamstrings', 'Romanian Deadlift': 'hamstrings', 'Bicep Curl': 'biceps', 'Incline Dumbbell Curl': 'biceps',
              'Incline Dumbbell Press': 'chest', 'Chest-Supported Dumbbell Row': 'back', 'Upright Row': 'shoulders', 'Barbell Row': 'back',
              'Close-Grip Bench Press': 'triceps', 'Bench Press': 'chest', 'Single-Arm Cable Rear Delt Fly': 'shoulders', 'Cable Fly': 'chest',

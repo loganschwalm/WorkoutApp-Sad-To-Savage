@@ -26,16 +26,18 @@ const wordsIn = words => new RegExp(`\\b(${words.join('|')})\\b`, 'i');
 // Romanian Deadlift before deadlifts, an Upright Row before rows, a Chest-Supported Row before the chest, and an Incline
 // Curl before the incline bench.
 const muscleWords = [
+  // A kickback is the glutes' unless it is the triceps' (the triceps rule comes later, and a name with both goes to the glutes first).
+  ['glutes', wordsIn(['cable kickbacks?', 'plank kickbacks?', 'donkey kicks?'])],
   ['core', wordsIn(['planks?', 'crunch(es)?', 'sit[- ]?ups?', '(leg|knee) raises?', 'ab wheel', 'abs?', 'core', 'rollouts?', 'russian twists?', 'dead ?bugs?',
-    'hollow', 'v[- ]?ups?', 'mountain climbers?', 'pallof', 'woodchops?', 'l[- ]sits?', 'side bends?'])],
+    'hollow', 'v[- ]?ups?', 'mountain climbers?', 'pallof', 'woodchops?', 'l[- ]sits?', 'side bends?', 'scissor kicks?', '(cross[- ]body )?chops?'])],
   ['calves', wordsIn(['calf', 'calves'])],
   ['forearms', wordsIn(['wrist', 'forearms?', "farmer'?s", 'dead hangs?'])],
   ['triceps', wordsIn(['triceps?', 'pushdowns?', 'skull ?crushers?', 'close[- ]grip bench', 'jm press', 'french press'])],
   ['shoulders', wordsIn(['shoulders?', 'delts?', 'deltoids?', 'overhead press', 'ohp', 'military press', 'push press', 'arnold', '(lateral|side|front) raises?',
-    'face ?pulls?', 'upright rows?', 'reverse fl(y|ies|yes)'])],
-  ['hamstrings', wordsIn(['hamstrings?', '(leg|hamstring|lying|seated|nordic) curls?', 'romanian', 'rdls?', 'stiff[- ]leg(ged)?', 'good ?mornings?', 'glute[- ]ham'])],
-  ['glutes', wordsIn(['glutes?', 'hip thrusts?', 'bridges?','abduct(ion|ions|or|ors)'])],
-  ['quads', wordsIn(['quads?', 'squats?', 'leg press', 'leg extensions?', 'lunges?', 'step[- ]?ups?', 'hack', 'sissy', 'pistols?', 'wall sits?'])],
+    'face ?pulls?', 'upright rows?', 'reverse fl(y|ies|yes)', 'pull[- ]?aparts?', 'snatch(es)?', 'around the worlds?', 'race car drivers?'])],
+  ['hamstrings', wordsIn(['hamstrings?', '(leg|hamstring|lying|seated|nordic) curls?', 'romanian', 'rdls?', 'stiff[- ]leg(ged)?', 'good ?mornings?', 'glute[- ]ham', 'hinges?'])],
+  ['glutes', wordsIn(['glutes?', 'hip thrusts?', 'bridges?', 'abduct(ion|ions|or|ors)', 'lateral walks?', 'swings?'])],
+  ['quads', wordsIn(['quads?', 'squats?', 'leg press', 'leg extensions?', 'lunges?', 'step[- ]?ups?', 'hack', 'sissy', 'pistols?', 'wall sits?', 'skaters?'])],
   ['back', wordsIn(['back', 'lats?', 'rows?', 'rowing', 'pull[- ]?downs?', 'pull[- ]?ups?', 'chin[- ]?ups?', 'pullovers?', 'shrugs?', 'deadlifts?', 'rack pulls?',
     'hyperextensions?', 'traps?'])],
   ['biceps', wordsIn(['biceps?', 'curls?'])],
@@ -51,11 +53,12 @@ const notBarbellWords = wordsIn(['dumbbells?', 'db', 'kettlebells?', 'machine', 
 const equipmentWords = [
   ['dumbbell', wordsIn(['dumbbells?', 'db', 'goblet'])],
   ['kettlebell', wordsIn(['kettlebells?', 'kb'])],
-  ['band', wordsIn(['bands?'])],
+  ['band', wordsIn(['bands?', 'banded'])],
   ['cable', wordsIn(['cables?', 'pushdowns?', 'face ?pulls?', 'crossovers?', 'pallof', 'woodchops?'])],
+  ['other', wordsIn(['plates?'])],
   ['machine', wordsIn(['machine', 'smith', 'leg press', 'leg extensions?', '(leg|lying|seated) curls?', 'pec deck', 'hack', 'lat pull[- ]?downs?'])]
 ];
-const bodyweightWords = wordsIn(['bodyweight', 'push[- ]?ups?', 'pull[- ]?ups?', 'chin[- ]?ups?', 'dips?', 'planks?', 'crunch(es)?', 'sit[- ]?ups?',
+const bodyweightWords = wordsIn(['bodyweight', 'shoulder taps?', 'skaters?', 'glute bridges?', 'scissor kicks?', 'dead ?bugs?', 'russian twists?', 'push[- ]?ups?', 'pull[- ]?ups?', 'chin[- ]?ups?', 'dips?', 'planks?', 'crunch(es)?', 'sit[- ]?ups?',
   '(leg|knee) raises?', 'pistols?', 'burpees?', 'dead hangs?', 'hangs?', 'l[- ]sits?']);
 
 // '' when the name gives nothing away.
