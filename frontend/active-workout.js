@@ -148,6 +148,8 @@ function renderActiveWorkout() {
   $('repeatSetBtn').hidden = !lastSet;
   if (lastSet) $('repeatSetBtn').textContent = `Same as last set: ${describeLoggedSets([lastSet], timed)}`;
   $('holdTimer').hidden = !timed;
+  // A planned hold or session (a plank, the cool-down, a Pilates workout) has no weight to enter.
+  $('activeWeight').closest('.weight-entry').hidden = timed && Boolean(plan);
   $('activeNotes').value = activeSession.notes || '';
   const defaults = nextSetDefaults(exercise, previous, timed);
   $('activeWeight').value = defaults.weight;

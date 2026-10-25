@@ -397,7 +397,7 @@ def run(t):
     click('testReminderButton')
     check('the test reaches the push service', wait_for(lambda: len(service.to('browser')) == 1), len(service.received))
     message = json.loads(decrypt_message(server, service.to('browser')[0]['body'], private, public, auth))
-    check('as a notification this device can read', message['title'] == 'Workout Tracker' and message['url'] == '/index.html', message)
+    check('as a notification this device can read', message['title'] == 'Sad to Savage' and message['url'] == '/index.html', message)
     check('and the page says it was sent', wait_for(lambda: 'Sent to your device' in text('remindStatus')), text('remindStatus'))
     time.sleep(3.1)
     service.answers['/push/browser'] = [500]
@@ -572,7 +572,7 @@ def run(t):
     cdp.ev("window.__push({ json: () => { throw new Error('not json'); }, text: () => 'plain words' })")
     cdp.pause(0.2)
     last = cdp.ev('window.__shown')[3:]
-    check('a push with nothing in it, or not JSON, still shows one', last[0]['title'] == 'Workout Tracker' and last[1]['options']['body'] == 'plain words', last)
+    check('a push with nothing in it, or not JSON, still shows one', last[0]['title'] == 'Sad to Savage' and last[1]['options']['body'] == 'plain words', last)
 
     def tap(clients):
         cdp.ev("window.__opened = []; window.__focused = []; window.__navigated = []")

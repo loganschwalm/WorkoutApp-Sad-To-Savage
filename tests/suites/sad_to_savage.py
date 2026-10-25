@@ -69,7 +69,7 @@ def run(t):
     # ------------------------------------------------------------------ S1 the start panel
     print('S1  before there is a program')
     t.open_tracker()
-    check('the card says what the program is, with nothing started yet', cdp.ev("document.getElementById('programTitle').textContent") == 'Sad to Savage')
+    check('the card says what the program is, with nothing started yet', cdp.ev("document.getElementById('programTitle').textContent") == 'Your program')
     check('it offers to start the program', cdp.ev("!!document.querySelector('#programNext [data-program-action=setup]')") is True)
     check('and shows the six weeks, a day to a line, with no Start button before there is a program',
           cdp.ev("document.querySelectorAll('#programWeeks .program-week').length") == 6
@@ -96,8 +96,8 @@ def run(t):
     check('the summary counts the thirty days', '0 of 30 days done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programSummary').textContent"))
     plan = lines()
     check('the day is listed as the plan gives it: a warm-up, four supersets, the cool-down and what to have to hand', len(plan) == 7
-          and plan[0].startswith('Upper Body Warm-up · 3 rounds: Elevated Shoulder Taps (15 reps each side)')
-          and plan[1].startswith('Superset 1 · 3 rounds: DB Bench Chest Press (12 reps)')
+          and plan[0].startswith('Upper Body Warm-up · 3 rounds Elevated Shoulder Taps (15 reps each side)')
+          and plan[1].startswith('Superset 1 · 3 rounds DB Bench Chest Press (12 reps)') and cdp.ev("document.querySelector('#programNext li b').textContent") == 'Upper Body Warm-up · 3 rounds'
           and plan[4].startswith('Superset 4')
           and plan[5].startswith('Then 3-5 minutes of stretching')
           and plan[6] == 'You need: 2 DBs, Long Resistance Band, Bench, Cable Machine, Mat', plan)

@@ -2279,7 +2279,7 @@ def run_compression(t, check, request):
     busy = register('compressed')
     status, headers, body = request('GET', '/', None, gz, token=busy)
     check('the Tracker page at / is gzipped too', status == 200 and headers.get('content-encoding') == 'gzip'
-          and b'<title>Workout Tracker</title>' in gzip.decompress(body), f"{status} {headers.get('content-encoding')}")
+          and b'<title>Sad to Savage</title>' in gzip.decompress(body), f"{status} {headers.get('content-encoding')}")
     status, headers, _ = request('GET', '/progress.html', None, gz)
     check('and signed out, the redirect to sign in is unchanged', status == 303, status)
 

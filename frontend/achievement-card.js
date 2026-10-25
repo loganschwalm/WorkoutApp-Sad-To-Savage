@@ -265,7 +265,7 @@ function drawAchievementCard(item, result) {
   context.fill();
   context.fillStyle = colours.ink;
   context.font = achievementCardFonts.mark(40);
-  context.fillText('Workout Tracker', card.x + 58, base);
+  context.fillText('Sad to Savage', card.x + 58, base);
   return canvas;
 }
 

@@ -58,7 +58,7 @@
   banner.className = 'install-banner';
   banner.setAttribute('aria-label', 'Install the app');
   banner.innerHTML = '<img class="install-banner-icon" src="/icons/icon-192.png" alt="" />'
-    + '<div class="install-banner-text"><strong class="install-banner-title">Install Workout Tracker</strong><span class="install-banner-hint"></span></div>'
+    + '<div class="install-banner-text"><strong class="install-banner-title">Install Sad to Savage</strong><span class="install-banner-hint"></span></div>'
     + '<button class="primary" type="button" hidden>Install</button>'
     + '<button class="modal-close" type="button" aria-label="Dismiss">&times;</button>';
   const hint = banner.querySelector('.install-banner-hint');

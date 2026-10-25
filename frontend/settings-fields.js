@@ -105,7 +105,7 @@ const textSizeSetting = {
 
 // ---- Units and the weekly goal ---------------------------------------------------------
 
-// Miles or kilometres, for cardio: the one chosen in Settings, or until one is, the one that goes with the weight unit.
+// Miles or kilometres, for the daily walk: the one chosen in Settings, or until one is, the one that goes with the weight unit.
 function distanceUnitOf(settings = getWorkoutSettings()) {
   if (settings.distanceUnit === 'mi' || settings.distanceUnit === 'km') return settings.distanceUnit;
   return settings.unit === 'kg' ? 'km' : 'mi';
@@ -114,7 +114,7 @@ function distanceUnitOf(settings = getWorkoutSettings()) {
 // The distance unit is only kept once it has been chosen (settings.js marks it so); until then it follows the weight unit.
 const distanceSetting = {
   defaults:{},
-  html:() => '<label for="distanceUnitSetting">Distance unit, for cardio</label>'
+  html:() => '<label for="distanceUnitSetting">Distance unit, for your walk</label>'
     + '<select id="distanceUnitSetting"><option value="mi">Miles (mi)</option><option value="km">Kilometres (km)</option></select>',
   show(settings) {
     getSettingElement('distanceUnitSetting').value = distanceUnitOf(settings);

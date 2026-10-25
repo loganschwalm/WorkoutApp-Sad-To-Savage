@@ -54,7 +54,7 @@ def run(t):
         check(f'{path} is served without signing in', status == 200, f'HTTP {status}')
 
     manifest, _ = t.api('GET', '/manifest.webmanifest')
-    check('manifest names the app', manifest.get('name') == 'Workout Tracker', str(manifest.get('name')))
+    check('manifest names the app', manifest.get('name') == 'Sad to Savage', str(manifest.get('name')))
     check('manifest is installable (standalone + start_url + scope)',
           manifest.get('display') == 'standalone' and manifest.get('start_url') == '/index.html'
           and manifest.get('scope') == '/', str(manifest))
@@ -294,7 +294,7 @@ def run(t):
     check('the page still renders offline',
           cdp.ev("document.querySelector('.site-nav') !== null") is True)
     check('it is the tracker, not an error page',
-          cdp.ev('document.title') == 'Workout Tracker', str(cdp.ev('document.title')))
+          cdp.ev('document.title') == 'Sad to Savage', str(cdp.ev('document.title')))
     check('the program is usable offline',
           cdp.ev("document.querySelectorAll('#programNext button').length") >= 1)
 

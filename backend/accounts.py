@@ -327,11 +327,11 @@ def check_mail_settings():
 def email_reset_code(email, username, code):
     """Send a password reset code. Runs on its own thread, so a slow mail server never holds up the reply."""
     message = EmailMessage()
-    message['Subject'] = 'Your Workout Tracker password reset code'
+    message['Subject'] = 'Your Sad to Savage password reset code'
     message['From'] = SMTP_FROM
     message['To'] = email
     message.set_content(
-        f'Someone asked to reset the password of the Workout Tracker account "{username}".\n\n'
+        f'Someone asked to reset the password of the Sad to Savage account "{username}".\n\n'
         f'Your code is {code}\n\n'
         f'Enter it on the sign-in page within {RESET_CODE_TTL // 60} minutes. It works once.\n\n'
         'If you did not ask for this, ignore this email. Your password has not changed.\n')

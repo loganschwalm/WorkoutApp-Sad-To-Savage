@@ -210,7 +210,7 @@ def due_reminders(database, now):
     return due
 
 
-REMINDER_MESSAGE = {'title': 'Time to train', 'body': 'Today is a training day. Tap to open Workout Tracker.', 'url': '/index.html', 'tag': 'training-day'}
+REMINDER_MESSAGE = {'title': 'Time to train', 'body': 'Today is a training day. Tap to open Sad to Savage.', 'url': '/index.html', 'tag': 'training-day'}
 
 
 def send_due_reminders():

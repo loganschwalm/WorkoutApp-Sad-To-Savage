@@ -18,6 +18,27 @@ own workouts, program, and settings.
 
 **[Install it on Proxmox with one command.](#one-line-install-on-proxmox)**
 
+## Screenshots
+
+![Today: the next day of the program, the daily walk, and the six weeks](docs/screenshots/today.png)
+
+<table>
+  <tr>
+    <td width="33%" align="center"><img src="docs/screenshots/weeks.png" width="260" alt="The six weeks on a phone, each day with what it is and the walk logged on it"></td>
+    <td width="33%" align="center"><img src="docs/screenshots/active-workout.png" width="260" alt="A strength day in progress on a phone: the warm-up circuit done as rounds, with the rest timer"></td>
+    <td width="33%" align="center"><img src="docs/screenshots/pilates.png" width="260" alt="A Pilates day on a phone: Shelby's note and a 25:00 timer"></td>
+  </tr>
+  <tr>
+    <td align="center">The six weeks, with the walk logged on each day.</td>
+    <td align="center">A strength day: the circuit done as rounds.</td>
+    <td align="center">A mat Pilates day, timed.</td>
+  </tr>
+</table>
+
+![The Progress page charting the heaviest weight of each workout](docs/screenshots/progress.png)
+
+![The History page in dark mode: the training calendar, then the latest workouts opened](docs/screenshots/history-dark.png)
+
 ## Features
 
 ### Workout tracking

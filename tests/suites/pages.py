@@ -953,7 +953,7 @@ def run(t):
     year_total = lambda year: plural_workouts(in_year(year)) + (' · 1 h 30 min' if year == today.year else '')
     plural_workouts = lambda count: f"{count} workout{'' if count == 1 else 's'}"
     check('each workout is one line, its sets folded away', state['open'] == [] and state['rows'][:2] == ['Leg Day', 'Push Day'], state)
-    check('the list is called Recent workouts', 'Recent workouts' in cdp.ev("[...document.querySelectorAll('h2')].map(h => h.textContent)")
+    check('the list is called Workouts', 'Workouts' in cdp.ev("[...document.querySelectorAll('h2')].map(h => h.textContent)")
           and 'Saved workouts' not in cdp.ev("[...document.querySelectorAll('h2')].map(h => h.textContent)"))
     # The line under the page's name says how much there is and since when (this week is the calendar's line).
     status = cdp.ev("document.getElementById('pageStatus').textContent")

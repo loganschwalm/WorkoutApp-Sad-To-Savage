@@ -279,10 +279,16 @@ function renderProgramWeeks(program, next, withStart) {
     + `<ul>${days.map((entry, day) => programDayRow(program, index, day, next, withStart)).join('')}</ul></details>`).join('');
 }
 
+// A plan line as the card shows it: the name of a block set in bold ("Superset 1 · 3 rounds") ahead of what it holds.
+function planLineHTML(line) {
+  const split = line.match(/^(.+? rounds): (.*)$/);
+  return split ? `<li><b>${escapeHTML(split[1])}</b> ${escapeHTML(split[2])}</li>` : `<li>${escapeHTML(line)}</li>`;
+}
+
 // The panel that starts the program, before there is one.
 function renderProgramStart() {
   const definition = programDefinitions[0];
-  $('programTitle').textContent = definition.name;
+  $('programTitle').textContent = 'Your program';
   $('programSummary').textContent = definition.schedule;
   $('programNext').innerHTML = `<div><span class="program-kicker">Six weeks</span><strong>Ready when you are</strong><ul><li>${escapeHTML(definition.summary)}</li></ul></div>`
     + `<div class="program-next-actions"><button class="primary" type="button" data-program-action="setup" data-program-id="${escapeHTML(definition.id)}">Start the program</button></div>`;
@@ -313,10 +319,10 @@ function renderProgram() {
   const weeks = programWeeks(program), days = programDays(program);
   const next = nextProgramDay(program);
   const finished = weeks.reduce((count, week, index) => count + doneInWeek(program, index), 0);
-  $('programTitle').textContent = definition.name;
+  $('programTitle').textContent = 'Your program';
   $('programSummary').textContent = `${finished} of ${weeks.length * days.length} days done${next ? ` · week ${next.week + 1} of ${weeks.length}: ${weeks[next.week].name}` : ''}`;
   if (next) {
-    const plan = definition.planLines(program, next.week, next.day).map(line => `<li>${escapeHTML(line)}</li>`).join('');
+    const plan = definition.planLines(program, next.week, next.day).map(planLineHTML).join('');
     $('programNext').innerHTML = `<div><span class="program-kicker">Next up · week ${next.week + 1}, day ${next.day + 1}</span><strong>${escapeHTML(dayTitle(program, next.week, next.day))}</strong><ul>${plan}</ul></div>`
       + `<div class="program-next-actions"><button class="primary" type="button" data-program-action="start" data-week="${next.week}" data-day="${next.day}">Start workout</button>`
       + `<button class="secondary" type="button" data-program-action="skip" data-week="${next.week}" data-day="${next.day}">Skip</button></div>`;

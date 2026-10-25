@@ -6,7 +6,7 @@
 //
 // Every request goes to the network first, so a deploy reaches the next load without
 // bumping anything (unless that load's network is too slow; see NETWORK_WAIT). Bump VERSION only to drop old caches, e.g. when PRECACHE changes.
-const VERSION = 'v37';
+const VERSION = 'v38';
 const CACHE = `workout-tracker-${VERSION}`;
 
 // Files that are the same for everyone, so they are safe to fetch at install time.
@@ -144,7 +144,7 @@ self.addEventListener('push', (event) => {
     message = { body: event.data ? event.data.text() : '' };
   }
   const url = pushTarget(message.url);
-  event.waitUntil(self.registration.showNotification(message.title || 'Workout Tracker', {
+  event.waitUntil(self.registration.showNotification(message.title || 'Sad to Savage', {
     body: message.body || '',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',

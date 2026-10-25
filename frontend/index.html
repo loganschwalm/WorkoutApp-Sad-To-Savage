@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Workout Tracker</title>
+  <title>Sad to Savage</title>
   <link rel="preload" href="fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="styles.css" />
@@ -15,12 +15,12 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Workouts" />
+  <meta name="apple-mobile-web-app-title" content="Sad to Savage" />
 </head>
 <body>
   <main class="shell">
     <header>
-      <div><h1>Workout Tracker</h1><p class="subtitle page-status" id="pageStatus"></p><p class="splash" id="splashLine" hidden></p></div>
+      <div><h1>Sad to Savage</h1><p class="subtitle page-status" id="pageStatus"></p><p class="splash" id="splashLine" hidden></p></div>
       <nav class="site-nav" aria-label="Primary navigation"><a class="active" href="index.html" aria-current="page">Today</a><a href="progress.html">Progress</a><a href="history.html">History</a></nav>
       <div class="header-actions"><div class="date" id="today"></div><button class="secondary settings-button" id="settingsButton" type="button" aria-label="Settings" title="Settings">&#9881;</button></div>
     </header>
@@ -100,7 +100,7 @@
     </section>
 
     <section class="card between-workouts flat" id="programCard" hidden>
-      <div class="section-heading program-heading"><div><h2 id="programTitle">Sad to Savage</h2><p id="programSummary" class="subtitle"></p></div><details class="row-menu program-menu"><summary class="secondary" aria-label="Program options">&middot;&middot;&middot;</summary><div class="row-menu-items"><button id="editProgramBtn" type="button">Change level</button><button id="calendarProgramBtn" type="button">Add to calendar</button><button class="danger" id="endProgramBtn" type="button">Start over</button></div></details></div>
+      <div class="section-heading program-heading"><div><h2 id="programTitle">Your program</h2><p id="programSummary" class="subtitle"></p></div><details class="row-menu program-menu"><summary class="secondary" aria-label="Program options">&middot;&middot;&middot;</summary><div class="row-menu-items"><button id="editProgramBtn" type="button">Change level</button><button id="calendarProgramBtn" type="button">Add to calendar</button><button class="danger" id="endProgramBtn" type="button">Start over</button></div></details></div>
       <div class="program-next" id="programNext"></div>
       <div class="program-walk" id="programWalk" hidden></div>
       <details class="program-section"><summary id="programBlockHeading">The six weeks</summary><div id="programWeeks"></div></details>

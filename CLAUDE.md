@@ -1,6 +1,7 @@
-# Workout Tracker
+# Sad to Savage Tracker
 
-A self-hosted workout tracker: plain HTML/CSS/JS pages and a Python server that uses only the standard library, with SQLite.
+A self-hosted tracker built around one program, Shelby Sacco's six-week Sad to Savage (the plan is `frontend/sad-to-savage-data.js`;
+the repository is private because of it): plain HTML/CSS/JS pages and a Python server that uses only the standard library, with SQLite.
 There is no build step and no package manager for the app. `readme-for-llm.md` is the full reference (features, settings, deploying,
 how each part works); `README.md` is the short version for people; `tests/README.md` describes every test suite. Read the
 reference section for whatever you are about to change rather than guessing.
@@ -9,7 +10,7 @@ reference section for whatever you are about to change rather than guessing.
 
 ```bash
 python backend/server.py                 # http://localhost:6769/, database in data/ (gitignored)
-python scripts/demo-server.py            # the same, on a fresh database with three weeks of 5/3/1 and cardio logged
+python scripts/demo-server.py            # the same, on a fresh database with twelve days of the program done and walked
 
 python -m pyflakes backend tests scripts docker-entrypoint.py
 python tests/lint.py                     # the lists kept by hand agree with the files; no browser needed

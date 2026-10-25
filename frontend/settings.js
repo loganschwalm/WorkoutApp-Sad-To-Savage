@@ -249,10 +249,10 @@ async function exportAccount(asCsv) {
   }
 }
 
-// "Imported 12 workouts (3 were already here), 2 templates and the training program."
+// "Imported 12 workouts (3 were already here), and the program."
 function describeImport(result) {
   const workouts = plural(result.workouts, 'workout') + (result.alreadyHere ? ` (${result.alreadyHere} ${result.alreadyHere === 1 ? 'was' : 'were'} already here)` : '');
-  const parts = [workouts, result.templates ? plural(result.templates, 'template') : '', result.program ? 'the training program' : '', result.settings ? 'the settings' : '',
+  const parts = [workouts, result.templates ? plural(result.templates, 'template') : '', result.program ? 'the program' : '', result.settings ? 'the settings' : '',
     result.bodyweights ? plural(result.bodyweights, 'bodyweight') : '', result.exercises ? `the muscle and equipment of ${plural(result.exercises, 'exercise')}` : ''].filter(Boolean);
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
   const changed = result.workouts || result.templates || result.program || result.settings || result.bodyweights || result.exercises;

@@ -100,7 +100,7 @@ class PushApi:
             push_test_times[user['id']] = now
         with connection() as database:
             subscriptions = [dict(row) for row in database.execute('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?', (user['id'],))]
-        statuses = send_all(subscriptions, {'title': 'Workout Tracker', 'body': 'Reminders work on this device.', 'url': '/index.html', 'tag': 'test'})
+        statuses = send_all(subscriptions, {'title': 'Sad to Savage', 'body': 'Reminders work on this device.', 'url': '/index.html', 'tag': 'test'})
         with connection() as database:
             sent, forgotten, failed = settle_pushes(database, subscriptions, statuses)
         self.send_json(HTTPStatus.OK, {'devices': len(subscriptions), 'sent': sent, 'forgotten': forgotten, 'failed': len(failed)})

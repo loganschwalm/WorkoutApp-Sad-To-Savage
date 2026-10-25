@@ -264,7 +264,7 @@ def run(t):
     headers = got[0]['headers']
     check('encrypted for it, with a lifetime', headers.get('content-encoding') == 'aes128gcm' and headers.get('content-type') == 'application/octet-stream'
           and int(headers.get('ttl', 0)) > 0, headers)
-    check('which can read it', phone.messages() == [{'title': 'Workout Tracker', 'body': 'Reminders work on this device.', 'url': '/index.html', 'tag': 'test'}], phone.messages())
+    check('which can read it', phone.messages() == [{'title': 'Sad to Savage', 'body': 'Reminders work on this device.', 'url': '/index.html', 'tag': 'test'}], phone.messages())
     scheme, _, rest = headers['authorization'].partition(' ')
     fields = dict(part.strip().split('=', 1) for part in rest.split(','))
     token_text = fields['t']
@@ -410,7 +410,7 @@ def run(t):
 
     check('on a training day, from the time chosen, the phone is reminded', wait_until(lambda: len(ready.messages()) >= 1), len(service.received))
     reminder = ready.messages()[0]
-    check('with a message that opens the app', reminder == {'title': 'Time to train', 'body': 'Today is a training day. Tap to open Workout Tracker.', 'url': '/index.html', 'tag': 'training-day'}, reminder)
+    check('with a message that opens the app', reminder == {'title': 'Time to train', 'body': 'Today is a training day. Tap to open Sad to Savage.', 'url': '/index.html', 'tag': 'training-day'}, reminder)
     check('and signed for this server, like any other', service.to('ready')[0]['headers']['authorization'].endswith(f'k={key}'))
     wait_until(lambda: len(retrying.messages()) >= 3)
     check('(the server has gone on looking)', a_look_since_now())

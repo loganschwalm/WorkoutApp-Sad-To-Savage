@@ -15,11 +15,10 @@ const whatsNewItems = [
   { title:'Within reach', text:'During a workout, the app says what the next set would be a record of, and what finishing the workout earns.' },
   { title:'Big view', text:'A button in a workout shows the set and the rest clock in large type, to read from the bench. Settings can open it for every rest.' },
   { title:'Last week', text:'Each new week starts with a look back at the last: your goal, your streak, your records and achievements.' },
-  { title:'Program moments', text:'A + set past its plan, every planned rep made, and a finished cycle are celebrated, with fireworks across the screen.' },
+  { title:'Finishing the program', text:'The last of the thirty days is celebrated with fireworks, and the card offers to start again with your level and your walks kept.' },
   { title:'One exercise at a time', text:'Choose an exercise on Progress for its records, the heaviest weight it has done for 1 to 10 reps, its goal, and whether it has stalled.' },
-  { title:'Strava export', text:'Download a finished workout or cardio session as a .tcx file for Strava, from its summary or from History.' },
+  { title:'Strava export', text:'Download a finished workout as a .tcx file for Strava, from its summary or from History.' },
   { title:'Set types', text:'Tag a set as a warm-up, a drop set, to failure or AMRAP. Warm-ups and drop sets stay out of your records, and warm-ups out of your volume.' },
-  { title:'Interval timer', text:'On Cardio, time a session in rounds of work and rest, with a sound and a buzz at each change: Tabata, 30 / 30, or your own.' },
   { title:'Take a break', text:'Away, ill or hurt? Add a break in Settings, under Training schedule: a week with one in it cannot end your streak, and its days bring no reminders.' },
   { title:'Today’s workout', text:'On Android, press and hold the app icon for a shortcut that opens the Tracker and starts your program’s next workout.' }
 ];
@@ -52,7 +51,7 @@ function renderWhatsNew() {
 
 wireBanner('whatsNewToggle', 'whatsNewBody', 'whatsNewLine');
 
-// Dismiss marks this release seen, for the account, and the keyboard carries on from the templates under it.
+// Dismiss marks this release seen, for the account, and the keyboard carries on from the program card.
 $('whatsNewDone').onclick = () => {
   saveLocalState('settings', { ...getWorkoutSettings(), seenWhatsNew:whatsNewRelease.id });
   window.dispatchEvent(new Event('settingschange'));

@@ -35,7 +35,7 @@ document.body.insertAdjacentHTML('beforeend', `
       ${settingsFieldsHtml}
       ${settingsFold('data', 'Your data', `<div class="data-section">
         <div class="account-details">
-          <span class="subtitle">Save every workout to a file, with your templates, program and settings, or bring in one saved from any Workout Tracker.</span>
+          <span class="subtitle">Save every workout to a file, with your program, walks and settings, or bring in one saved from this app.</span>
         </div>
         <div class="data-actions">
           <button class="secondary" id="exportButton" type="button">Export</button>
@@ -92,8 +92,8 @@ document.body.insertAdjacentHTML('beforeend', `
         + '<p class="auth-feedback" id="deleteFeedback" role="alert" hidden></p>',
         '<button class="secondary" id="cancelDelete" type="button">Cancel</button>'
         + '<button class="danger" id="confirmDelete" type="submit" form="deleteForm">Delete account</button>',
-        '<p class="subtitle delete-warning">This deletes your account from this server for good: every workout, template and setting in it, and your '
-        + 'training program. Export first to keep a copy.</p>')}
+        '<p class="subtitle delete-warning">This deletes your account from this server for good: every workout and setting in it, and your '
+        + 'program and walks. Export first to keep a copy.</p>')}
         </div>
       </details>
       <div class="settings-actions">

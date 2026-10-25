@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Regenerate the screenshots in docs/screenshots/, which README.md and readme-for-llm.md show.
 
-Starts the real server on a throwaway database, fills it with six weeks of demo
-training, and captures the pages with the same headless Chrome the tests use:
+Starts the real server on a throwaway database, fills it with twelve days of Sad to Savage (the same data
+scripts/demo-server.py logs), and captures the pages with the same headless Chrome the tests use:
 
     pip install -r tests/requirements.txt
     python scripts/make-screenshots.py
 
 It needs Chrome, Chromium or Edge (see tests/README.md) and never touches data/.
-The demo data is fixed, so running it again only changes the pictures when the
-app itself looks different.
+The demo data is made from the plan, so running it again only changes the pictures when the app itself looks
+different (the dates move with the day it is run).
 """
 
 import base64
+import importlib.util
 import os
 import shutil
 import sys
@@ -25,57 +26,16 @@ sys.path.insert(0, ROOT)
 from tests.harness import LIGHT_DEVICE, AppServer, Chrome  # noqa: E402
 
 OUT_DIR = os.path.join(ROOT, 'docs', 'screenshots')
-DAY_MS = 86400000
 DESKTOP = (1280, 800)
 PHONE = (390, 844)
 
-# Each workout type rotates every two days; every exercise gains a little each time it comes round.
-# (exercise, first weight, increase per session, target reps)
-PROGRAM = [
-    ('Push Day', [('Bench Press', 155, 5, 8), ('Overhead Press', 95, 2.5, 8), ('Tricep Pushdown', 50, 5, 12)]),
-    ('Pull Day', [('Deadlift', 225, 10, 5), ('Barbell Row', 135, 5, 8), ('Lat Pulldown', 110, 5, 10)]),
-    ('Leg Day', [('Back Squat', 185, 10, 8), ('Romanian Deadlift', 155, 5, 10), ('Leg Press', 270, 10, 10)]),
-]
-SESSIONS = 18
-NOTES = {13: 'Bench moved fast today. Try 5 more next time.', 16: 'Grip gave out on the last set.'}
-TEMPLATE = {'id': 'custom-demo', 'name': 'Upper Power',
-            'exercises': [{'name': 'Bench Press', 'reps': '5'}, {'name': 'Pull-up', 'reps': '8'},
-                          {'name': 'Overhead Press', 'reps': '6'}]}
 
-
-def demo_workouts():
-    """SESSIONS finished workouts, oldest first, ending the day before today."""
-    today_noon = time.mktime(time.localtime()[:3] + (12, 0, 0, 0, 0, -1)) * 1000
-    workouts = []
-    for session in range(SESSIONS):
-        name, lifts = PROGRAM[session % len(PROGRAM)]
-        round_number = session // len(PROGRAM)
-        exercises = []
-        for lift, start, step, reps in lifts:
-            weight = start + step * round_number
-            # The last set of every third round falls one rep short, as real sets do.
-            last = reps - 1 if round_number % 3 == 2 else reps
-            sets = [{'weight': weight, 'reps': reps}, {'weight': weight, 'reps': reps}, {'weight': weight, 'reps': last}]
-            exercises.append({'name': lift, 'weight': weight, 'reps': last, 'sets': sets})
-        workouts.append({'name': name, 'notes': NOTES.get(session, ''), 'exercises': exercises,
-                         'createdAt': int(today_noon - (SESSIONS - session) * 2 * DAY_MS),
-                         'clientId': f'demo-{session}'})
-    return workouts
-
-
-# Cardio on the days between: runs that get a little longer and quicker, and a row now and then, as the Cardio page saves
-# them. (days ago, activity, name, distance, unit, seconds)
-CARDIO = [(31, 'run', 'Run', 3.0, 'mi', 1680), (27, 'run', 'Run', 3.1, 'mi', 1700), (23, 'rower', 'Rowing machine', 4800, 'm', 1200),
-          (19, 'run', 'Run', 3.2, 'mi', 1730), (15, 'run', 'Run', 3.4, 'mi', 1800), (11, 'rower', 'Rowing machine', 5000, 'm', 1200),
-          (7, 'run', 'Run', 3.5, 'mi', 1830), (3, 'walk', 'Walk', 2.0, 'mi', 2280), (1, 'run', 'Run', 3.8, 'mi', 1940)]
-
-
-def demo_cardio():
-    """The sessions above, oldest first, at seven in the morning."""
-    today = time.mktime(time.localtime()[:3] + (7, 0, 0, 0, 0, -1)) * 1000
-    return [{'kind': 'cardio', 'name': name, 'notes': '', 'exercises': [], 'createdAt': int(today - days * DAY_MS), 'duration': seconds,
-             'clientId': f'demo-cardio-{index}', 'cardio': {'activity': activity, 'distance': distance, 'distanceUnit': unit}}
-            for index, (days, activity, name, distance, unit, seconds) in enumerate(CARDIO)]
+def load_demo():
+    """scripts/demo-server.py as a module (its name has a hyphen), for the twelve days of training it logs."""
+    spec = importlib.util.spec_from_file_location('demo_server', os.path.join(ROOT, 'scripts', 'demo-server.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def shrink(path):
@@ -142,36 +102,41 @@ def main():
     workdir = tempfile.mkdtemp(prefix='workout-screenshots-')
     server = browser = None
     try:
+        demo = load_demo()
         server = AppServer(os.path.join(workdir, 'demo.db'))
         _, cookie = server.api('POST', '/api/auth/register', {'username': 'alex', 'email': 'alex@example.test', 'password': 'demo-password'})
         token = cookie.split('session=')[1].split(';')[0]
-        for workout in demo_workouts() + demo_cardio():
+        workouts, program = demo.demo_training()
+        for workout in workouts:
             server.api('POST', '/api/workouts', workout, token)
-        server.api('PUT', '/api/state', {'templates': [TEMPLATE]}, token)
+        server.api('PUT', '/api/state', {'program': program}, token)
 
         browser = Browser(server, workdir)
         cdp = browser.cdp
         cdp.send('Network.setCookie', name='session', value=token, domain='127.0.0.1', path='/')
-        tracker_ready = "document.querySelectorAll('#savedWorkoutList .saved-workout').length >= 5"
+        today_ready = "document.querySelectorAll('#programNext button').length >= 1 && initialLoadDone === true"
         print(f'Writing {os.path.relpath(OUT_DIR, ROOT)}/')
 
-        # The tracker: templates and the most recent saved workouts.
+        # Today on a wide screen: the next day, the walk, and the six weeks folded under them.
         browser.viewport(DESKTOP)
-        browser.open('/index.html', tracker_ready)
-        browser.save('tracker.png', bottom=browser.edge('#savedWorkoutList .saved-workout', index=2, margin=1))
+        browser.open('/index.html', today_ready)
+        browser.save('today.png', bottom=browser.edge('#programCard', margin=24))
 
-        # A workout in progress on a phone: two sets logged, rest timer running, last time's numbers shown.
+        # The six weeks opened, on a phone: each day with its walk.
         browser.viewport(PHONE, phone=True)
-        browser.open('/index.html', tracker_ready)
-        cdp.ev("document.querySelector('#templateList [data-template-action=start]').click()")
+        browser.open('/index.html', today_ready)
+        cdp.ev("document.querySelector('#programCard .program-section').open = true")
+        cdp.pause(0.4)
+        browser.save('weeks.png', top=browser.edge('#programWalk', margin=12), bottom=browser.edge('#programWeeks', margin=12))
+
+        # A strength day in progress on a phone: the warm-up circuit done as rounds, the rest timer running.
+        cdp.ev("document.querySelector('#programNext [data-program-action=start]').click()")
         cdp.pause(0.5)
-        for _ in range(2):
-            cdp.ev("document.getElementById('completeSetBtn').click()")
+        for _ in range(4):
+            cdp.ev("document.getElementById('completedReps').value = '10'; document.getElementById('completeSetBtn').click()")
             cdp.pause(0.4)
-        cdp.pause(1.6)  # let the rest timer count down a little
-        # The whole workout card, from its name down to adding an exercise.
-        browser.save('active-workout.png', top=browser.edge('#activeWorkout', 'top', margin=-16),
-                     bottom=browser.edge('#activeWorkout', margin=16))
+        cdp.pause(1.2)
+        browser.save('active-workout.png', top=browser.edge('#activeWorkout', 'top', margin=-16), bottom=browser.edge('#activeWorkout', margin=16))
 
         # Settings on a phone.
         cdp.ev("window.scrollTo(0, 0); document.getElementById('settingsButton').click()")
@@ -181,19 +146,16 @@ def main():
         cdp.ev("confirm = () => true; document.getElementById('endWorkoutBtn').click()")
         cdp.pause(0.5)
 
-        # Cardio on a phone: the page with its activities and this week, then a run being timed, with last time under it.
-        browser.viewport(PHONE, phone=True)
-        browser.open('/cardio.html', 'cardioLoaded === true')
-        browser.save('cardio.png')
-        cdp.ev("document.querySelector('#cardioActivityGrid [data-activity=run]').click()")
-        cdp.pause(0.3)
-        cdp.ev("cardioActive.startedAt -= 27 * 60000 + 14000; saveCardioActive(); tickCardio(); window.scrollTo(0, 0)")
-        cdp.pause(0.4)
-        browser.save('cardio-session.png', top=browser.edge('#cardioActive', 'top', margin=-16), bottom=browser.edge('#cardioActive', margin=16))
-        cdp.ev("confirm = () => true; document.getElementById('cardioCancelBtn').click()")
+        # A Pilates day: the program with only its first day done, so the next is the mat session, with its timer at 25:00.
+        server.api('PUT', '/api/state', {'program': {**program, 'done': {'0-0': program['done']['0-0']}}}, token)
+        browser.open('/index.html', today_ready)
+        cdp.ev("document.querySelector('#programNext [data-program-action=start]').click()")
+        cdp.pause(0.6)
+        browser.save('pilates.png', top=browser.edge('#activeWorkout', 'top', margin=-16), bottom=browser.edge('#activeWorkout', margin=16))
+        cdp.ev("confirm = () => true; document.getElementById('endWorkoutBtn').click()")
         cdp.pause(0.3)
 
-        # Progress, every workout type on one chart (it opens on the most logged exercise, so all of them are asked for).
+        # Progress, every workout on one chart (it opens on the most logged exercise, so all of them are asked for).
         browser.viewport(DESKTOP)
         browser.open('/progress.html?exercise=all', "document.querySelectorAll('#legend .legend-item').length >= 3")
         browser.save('progress.png', bottom=browser.edge('main .card', margin=40))
