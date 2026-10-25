@@ -146,7 +146,7 @@ The [full reference](readme-for-llm.md#features) describes each of these in deta
 Open a shell on the **Proxmox VE host** (Datacenter → your node → Shell) and run:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp/stable/ct/workout-tracker.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-Sad-To-Savage/stable/ct/workout-tracker.sh)"
 ```
 
 Choose default or advanced settings. The script creates an unprivileged Debian container, installs the app
@@ -190,7 +190,7 @@ The full reference covers [every install option](readme-for-llm.md#choosing-sett
 **Docker Compose** (needs Compose v2):
 
 ```bash
-git clone https://github.com/loganschwalm/WorkoutApp.git workout-tracker
+git clone https://github.com/loganschwalm/WorkoutApp-Sad-To-Savage.git workout-tracker
 cd workout-tracker
 docker compose pull          # the published image, for amd64 and arm64 (a Raspberry Pi too)
 docker compose up -d

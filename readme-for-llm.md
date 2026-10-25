@@ -1347,7 +1347,7 @@ through the mail server you configure.
 Open a **shell on the Proxmox VE host** (Datacenter → your node → Shell, or SSH as `root`) and run:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp/stable/ct/workout-tracker.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-Sad-To-Savage/stable/ct/workout-tracker.sh)"
 ```
 
 A menu offers default settings, advanced settings, updating an existing install, or serving an existing
@@ -1408,7 +1408,7 @@ IP_CONFIG=192.168.1.50/24 \
 GATEWAY=192.168.1.1 \
 DNS_SERVER=192.168.1.1 \
 MEMORY=1024 \
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp/stable/ct/workout-tracker.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-Sad-To-Savage/stable/ct/workout-tracker.sh)"
 ```
 
 | Variable | Default | Meaning |
@@ -1492,7 +1492,7 @@ can also update from inside the container:
 
 ```bash
 pct enter <CTID>
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp/stable/ct/workout-tracker.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-Sad-To-Savage/stable/ct/workout-tracker.sh)"
 ```
 
 #### Managing the container
@@ -1926,13 +1926,13 @@ misreads this compose file, so install Docker from Docker's own repository:
 
 ```bash
 curl -fsSL https://get.docker.com | sh
-git clone https://github.com/loganschwalm/WorkoutApp.git workout-tracker
+git clone https://github.com/loganschwalm/WorkoutApp-Sad-To-Savage.git workout-tracker
 cd workout-tracker
 docker compose pull
 docker compose up -d
 ```
 
-`docker compose pull` fetches the image published for the `stable` branch, `ghcr.io/loganschwalm/workoutapp:stable`, built for amd64 and
+`docker compose pull` fetches the image published for the `stable` branch, `ghcr.io/loganschwalm/workoutapp-sad-to-savage:stable`, built for amd64 and
 arm64 (so a Raspberry Pi pulls instead of building), by the last job of the *Tests* workflow once stable has moved. It is tagged
 `:stable` and by commit (`:sha-<the commit>`, to pin one). `docker compose up -d --build` builds from the checkout instead, and
 keeps the result under the same name. If a pull is refused (a fork's package is private until its owner makes it public, under the
@@ -2008,7 +2008,7 @@ No container, no Docker. You need Python 3.9 or newer, with SQLite 3.24 or newer
 functions (any current distro), and nothing else.
 
 ```bash
-sudo git clone https://github.com/loganschwalm/WorkoutApp.git /opt/workout-tracker
+sudo git clone https://github.com/loganschwalm/WorkoutApp-Sad-To-Savage.git /opt/workout-tracker
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin workout
 sudo mkdir -p /var/lib/workout-tracker
 sudo chown workout:workout /var/lib/workout-tracker

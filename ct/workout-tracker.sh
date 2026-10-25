@@ -4,7 +4,7 @@
 # Creates an unprivileged Debian LXC, installs the Workout Tracker as a systemd
 # service, and prints the URL. Re-run it later to update.
 #
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp/stable/ct/workout-tracker.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-Sad-To-Savage/stable/ct/workout-tracker.sh)"
 #
 # Run as root on the Proxmox VE host. The same script also runs inside an
 # already-installed container, where it performs an in-place update.
@@ -27,7 +27,7 @@ _ENV_DATA_DIR="${DATA_DIR-}"
 _ENV_SERVICE_USER="${SERVICE_USER-}"
 _ENV_APP_PORT="${APP_PORT-}"
 
-REPO_URL="${REPO_URL:-https://github.com/loganschwalm/WorkoutApp.git}"
+REPO_URL="${REPO_URL:-https://github.com/loganschwalm/WorkoutApp-Sad-To-Savage.git}"
 # stable only takes a commit once every test has passed on it (.github/workflows/tests.yml); main takes every push.
 BRANCH="${BRANCH:-stable}"
 APP_DIR="${APP_DIR:-/opt/workout-tracker}"
@@ -327,7 +327,7 @@ unit_before=""
 cat >"$unit_file" <<UNIT
 [Unit]
 Description=Workout Tracker
-Documentation=https://github.com/loganschwalm/WorkoutApp
+Documentation=https://github.com/loganschwalm/WorkoutApp-Sad-To-Savage
 After=network-online.target
 Wants=network-online.target
 
