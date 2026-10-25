@@ -2,6 +2,13 @@
 // rest after it, the guard against a thumb that bounces, and correcting or taking away a set already logged (also used by the form
 // for a saved workout). Loaded before script.js, which declares activeSession; nothing here reads it until a set is logged.
 
+// The weight a planned set suggests starting at: its own `start`, or for a workout planned before sets carried one (it was started, and
+// is still going) the bottom of the range in the exercise's note ("New to strength: 7.5-10lb DBs"), where the program can read it.
+function plannedStart(exercise, planned) {
+  if (planned.start) return planned.start;
+  return exercise.note && typeof sadToSavageStartWeight === 'function' ? sadToSavageStartWeight(exercise.note.replace(/^[^:]*:\s*/, '')) : '';
+}
+
 // The weight and reps the entry fields start the next set with. A workout from a training program plans every set, so the next
 // set is whichever planned one has not been logged yet.
 function nextSetDefaults(exercise, previous, timed) {
@@ -17,7 +24,7 @@ function nextSetDefaults(exercise, previous, timed) {
     // suggests to start at (a program that gives a range for the lifter's level).
     const plannedWeight = planned.weight === '' || planned.weight === undefined || planned.weight === null ? null : planned.weight;
     return {
-      weight:plannedWeight ?? (lastSet ? lastSet.weight || '' : (previousFirst && previousFirst.weight) || planned.start || ''),
+      weight:plannedWeight ?? (lastSet ? lastSet.weight || '' : (previousFirst && previousFirst.weight) || plannedStart(exercise, planned)),
       // A rep range (8–12) takes the reps just done, or last time's, and starts at the bottom of the range.
       reps:planned.repsMax ? (lastSet || previousFirst || planned).reps || '' : planned.reps || ''
     };

@@ -127,6 +127,8 @@ def run(t):
     check('a number is read from a range, a single weight, a barbell’s total and a pound or kilogram unit, and not from a band or body weight',
           cdp.ev("""(() => { const real = weightUnit; const lbs = ['7.5-10lb DBs', '10lbs', '35-45lbs (total)', 'light band', 'body weight', 'from bench'].map(sadToSavageStartWeight);
             weightUnit = () => 'kg'; const kg = sadToSavageStartWeight('7.5-10lb DBs'); weightUnit = real; return [lbs, kg]; })()""") == [[7.5, 10, 35, '', '', ''], 3.5])
+    check('a workout planned before sets carried a start (still going) is read from its note',
+          cdp.ev("nextSetDefaults({ sets: [], note: 'New to strength: 7.5-10lb DBs', plan: [{ weight: '', reps: 12 }] }, null, false).weight") == 7.5)
     check('last time’s weight is used instead once there is one',
           cdp.ev("nextSetDefaults({ sets: [], plan: [{ weight: '', reps: 12, start: 7.5 }] }, { sets: [{ weight: 10, reps: 12 }], converted: false }, false).weight") == 10)
     check('the first set is a warm-up, 15 reps each side', target() == 'Set 1 of 3, warm-up: 15 reps each side.', target())
