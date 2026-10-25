@@ -4,6 +4,8 @@
 // on this device first and uploads it). Loaded before script.js, whose startWorkout begins the program's workouts.
 let currentProgram = loadProgram();
 let programForm = null;
+// More than a year of daily walks is kept; a program with more than that has long been over.
+const maxWalks = 400;
 
 function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -83,7 +85,17 @@ function normalizeProgram(value) {
   // The unit its numbers are in; programs from before kilograms existed are in pounds.
   const unit = recordUnit(value);
   const options = normalizeOptions(definition, value.options && typeof value.options === 'object' ? value.options : {}, unit);
-  return { definition:definition.id, unit, startedAt:storedNumber(value.startedAt), cycle:Math.max(1, Math.floor(storedNumber(value.cycle))), trainingMaxes, stalls, options, done, lastRollover:rollover, ...own };
+  // The walks, by the day they were walked (year-month-day, where the lifter is): { at, steps, distance, unit } with either number
+  // or neither, since a walk with no numbers is showing up, which the plan counts. A day is not a program day because a walk is
+  // done after the workout as often as before it, and on days the program has nothing to start.
+  const walks = {};
+  Object.entries(value.walks && typeof value.walks === 'object' ? value.walks : {}).sort(([a], [b]) => (a < b ? -1 : 1)).slice(-maxWalks).forEach(([key, entry]) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !entry || typeof entry !== 'object') return;
+    walks[key] = { at:storedNumber(entry.at), steps:Math.floor(storedNumber(entry.steps)), distance:storedNumber(entry.distance), unit:entry.unit === 'km' ? 'km' : 'mi' };
+  });
+  const finishedAt = storedNumber(value.finishedAt);
+  return { definition:definition.id, unit, startedAt:storedNumber(value.startedAt), cycle:Math.max(1, Math.floor(storedNumber(value.cycle))), trainingMaxes, stalls, options, done, walks,
+    ...(finishedAt ? { finishedAt } : {}), lastRollover:rollover, ...own };
 }
 
 // The same program in the other unit, for when Settings change it. Its numbers are converted and rounded to steps the
@@ -141,6 +153,8 @@ function reloadProgram() {
 
 // Where a workout sits in the program, as History shows it: "Cycle 1, week 2 · 3s week", or "Week 3".
 function blockLabel(program, week) {
+  const definition = programDefinition(program);
+  if (definition.blockLabel) return definition.blockLabel(program, week);
   const weeks = programWeeks(program);
   const block = `${capitalize(programDefinition(program).block)} ${program.cycle}`;
   return weeks.length > 1 ? `${block}, week ${week + 1} · ${weeks[week].name}` : block;
@@ -160,7 +174,7 @@ function programWorkout(program, week, day) {
   // A built program's days go by their own names, so History says which program: "Upper/Lower · Week 3".
   const label = definition.custom ? `${definition.name} · ${blockLabel(program, week)}` : blockLabel(program, week);
   return {
-    name:definition.workoutName ? definition.workoutName(program, day) : `${definition.shortName} ${programDays(program)[day].name}`,
+    name:definition.workoutName ? definition.workoutName(program, day, week) : `${definition.shortName} ${programDays(program)[day].name}`,
     notes:'',
     unit:program.unit,
     exercises,
@@ -219,8 +233,12 @@ function rollOver(program) {
   return { ...program, cycle:program.cycle + 1, done:{}, lastRollover:null, ...(definition.nextBlock ? definition.nextBlock(program) : {}) };
 }
 
+// A program that is a fixed length (Sad to Savage's six weeks) is finished, not started again, once every day is done; the
+// card then offers to start it over. One that goes on rolls into its next block.
 function settleProgram(program) {
-  return program && !nextProgramDay(program) ? { program:rollOver(program), rolledOver:true } : { program, rolledOver:false };
+  if (!program || nextProgramDay(program)) return { program, rolledOver:false };
+  if (programDefinition(program).finite) return { program:program.finishedAt ? program : { ...program, finishedAt:Date.now() }, rolledOver:false };
+  return { program:rollOver(program), rolledOver:true };
 }
 
 function describeChanges(program, changes) {
@@ -233,6 +251,7 @@ function describeChanges(program, changes) {
 function nextUpMessage(program, rolledOver) {
   const definition = programDefinition(program);
   const next = nextProgramDay(program);
+  if (!next) return `That was the last day: you finished ${definition.name}.`;
   const nextUp = `Next in ${definition.name}: ${dayLabel(program, next.week, next.day)}.`;
   if (!rolledOver) return nextUp;
   const complete = `${capitalize(definition.block)} ${program.cycle - 1} of ${definition.name} is complete.`;
@@ -255,10 +274,12 @@ function completeProgramDay(session) {
   const { programDay } = session;
   const program = currentProgram;
   if (!programDay || !program || program.startedAt !== programDay.startedAt || program.cycle !== programDay.cycle || !programWeeks(program)[programDay.week] || !programDays(program)[programDay.day]) return { note:'', outcome:null };
-  const entry = { at:Date.now(), skipped:false, amrap:amrapResult(session.exercises), hit:mainLiftHit(session.exercises) };
   const definition = programDefinition(program);
+  // A program with no lifts of its own to move (Sad to Savage) has no main lift to hit and no + set to beat.
+  const tracksLifts = definition.lifts.length > 0;
+  const entry = { at:Date.now(), skipped:false, amrap:tracksLifts ? amrapResult(session.exercises) : null, hit:tracksLifts ? mainLiftHit(session.exercises) : null };
   const progress = definition.afterWorkout ? definition.afterWorkout(program, programDay.day, entry, session.exercises) : { program, note:'' };
-  const main = session.exercises[0];
+  const main = tracksLifts ? session.exercises[0] : null;
   const swapped = main && (isSwappedIn(main) || main.swappedOut) ? `${isSwappedIn(main) ? main.swappedFrom.name : main.name} was swapped out, so this workout does not count toward its progress.` : '';
   const note = [swapped, progress.note, recordProgramDay(progress.program, programDay.week, programDay.day, entry)].filter(Boolean).join(' ');
   // The block moved on with this day if the program is now the next run of the same one; only then is lastRollover this day's.
@@ -267,13 +288,15 @@ function completeProgramDay(session) {
     ? describeChanges(currentProgram, currentProgram.lastRollover.changes) : '';
   return { note, outcome:{ main:main && !swapped ? String(main.name).trim() : '', hit:entry.hit === true && !swapped,
     beat:entry.amrap && entry.amrap.reps > entry.amrap.target ? entry.amrap : null,
-    completed:rolledOver ? { block:capitalize(definition.block), number:programDay.cycle, name:definition.name, changes, numbersLabel:definition.numbersLabel || '' } : null } };
+    completed:rolledOver ? { block:capitalize(definition.block), number:programDay.cycle, name:definition.name, changes, numbersLabel:definition.numbersLabel || '' } : null,
+    finished:Boolean(currentProgram) && currentProgram.startedAt === programDay.startedAt && currentProgram.cycle === programDay.cycle && Boolean(currentProgram.finishedAt) ? definition.name : '' } };
 }
 
 // The summary's lines for a program day's outcome (completeProgramDay), the biggest first.
 function programOutcomeLines(outcome) {
   if (!outcome) return [];
   const lines = [];
+  if (outcome.finished) lines.push(`You finished ${outcome.finished}: all thirty days done.`);
   if (outcome.completed) {
     const { block, number, name, changes, numbersLabel } = outcome.completed;
     lines.push(`${block} ${number} of ${name} complete.${changes ? ` New ${numbersLabel.toLowerCase()}: ${changes}.` : ''}`);
@@ -374,7 +397,11 @@ function formatReps(set) {
 
 // "85 lbs × 5+", or "8–12 reps" when the plan leaves the weight to the lifter. Weights are in the unit shown.
 function formatPlannedSet(set) {
-  return set.weight === '' || set.weight === undefined || set.weight === null ? `${formatReps(set)} reps` : `${formatWeight(set.weight)} ${weightUnit()} × ${formatReps(set)}`;
+  // A set can count steps or seconds instead of reps, and say that it is each side's: "12 reps each side", "30 seconds". A long
+  // hold or a session is said in minutes ("25 minutes"), which is what it is to the person doing it.
+  if (set.unit === 'seconds' && set.reps >= 120 && set.reps % 60 === 0) return `${set.reps / 60} minutes`;
+  const what = `${set.unit || 'reps'}${set.per ? ` ${set.per}` : ''}`;
+  return set.weight === '' || set.weight === undefined || set.weight === null ? `${formatReps(set)} ${what}` : `${formatWeight(set.weight)} ${weightUnit()} × ${formatReps(set)}`;
 }
 
 // Accessories with a rep range go up in weight once every set reaches the top of it; says so before the first set.
@@ -392,7 +419,8 @@ function plannedTarget(exercise, previous) {
   const plan = exercise.plan;
   const filled = plannedDone(exercise);
   const next = plan[filled];
-  const note = exercise.note ? ` ${exercise.note}.` : '';
+  // A note that already ends a sentence is not given a second full stop.
+  const note = exercise.note ? ` ${exercise.note}${/[.!?]$/.test(exercise.note) ? '' : '.'}` : '';
   if (next) {
     const share = next.percent ? ` (${next.percent}% of your training max)` : '';
     return `Set ${filled + 1} of ${plan.length}${next.warmup ? ', warm-up' : ''}: ${formatPlannedSet(next)}${share}.${next.amrap ? ' As many reps as you can.' : ''}${rangeAdvice(exercise, previous)}${note}`;
@@ -422,6 +450,63 @@ function describeExercisePlan(exercise) {
   return `${exercise.name} ${describeSets(exercise.plan.filter(set => !set.warmup))}`;
 }
 
+// ---- The daily walk -------------------------------------------------------
+// The plan asks for a walk every day, "10k steps, 2 miles, or showing up and doing what you can do": steps and distance are both
+// optional, and logging a walk with neither is showing up. It is kept on the program by the day it was walked, not by the
+// program day, so it can be logged after the workout (which has moved the program on) and on a day with nothing to start.
+
+function walkOn(program, at = Date.now()) {
+  return program.walks[calendarDayKey(new Date(at))] || null;
+}
+
+function formatWalkDistance(distance, unit) {
+  return `${Math.round(distance * 100) / 100} ${unit}`;
+}
+
+// "8,200 steps · 1.9 mi", or "Showed up" for a walk with no numbers.
+function describeWalk(walk) {
+  const parts = [walk.steps ? `${walk.steps.toLocaleString()} steps` : '', walk.distance ? formatWalkDistance(walk.distance, walk.unit) : ''].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Showed up';
+}
+
+// The walk panel under today's workout: the day's walk goal, and either the walk logged today or the fields to log it.
+function renderProgramWalk(program, goal, editing = false) {
+  const walk = walkOn(program);
+  const unit = distanceUnitOf();
+  if (walk && !editing) {
+    $('programWalk').innerHTML = `<div><span class="program-kicker">Today's walk</span><strong>${escapeHTML(describeWalk(walk))}</strong></div>`
+      + '<div class="program-walk-actions"><button class="link-button" type="button" data-walk-action="edit">Change</button></div>';
+    return;
+  }
+  $('programWalk').innerHTML = `<div><span class="program-kicker">Today's walk</span><p class="program-walk-goal">${escapeHTML(goal)}</p></div>`
+    + '<div class="program-walk-fields">'
+    + `<div><label for="walkSteps">Steps</label><input id="walkSteps" type="number" inputmode="numeric" min="0" max="200000" step="1" placeholder="0" value="${walk && walk.steps ? walk.steps : ''}" /></div>`
+    + `<div><label for="walkDistance">Distance (${unit})</label><input id="walkDistance" type="number" inputmode="decimal" min="0" max="500" step="0.01" placeholder="0" value="${walk && walk.distance ? walk.distance : ''}" /></div>`
+    + `<button class="secondary" type="button" data-walk-action="save">${walk ? 'Save' : 'Log walk'}</button></div>`
+    + '<p class="subtitle">Leave both empty to log that you showed up.</p>';
+}
+
+function saveWalk() {
+  const steps = Math.floor(Number($('walkSteps').value)) || 0;
+  const distance = Math.round(Number($('walkDistance').value) * 100) / 100 || 0;
+  const badSteps = steps < 0 || steps > 200000, badDistance = distance < 0 || distance > 500;
+  markInvalid($('walkSteps'), badSteps);
+  markInvalid($('walkDistance'), badDistance);
+  if (badSteps || badDistance) {
+    showFeedback('A walk is up to 200,000 steps and 500 in distance.');
+    return;
+  }
+  saveProgram({ ...currentProgram, walks:{ ...currentProgram.walks, [calendarDayKey(new Date())]:{ at:Date.now(), steps, distance, unit:distanceUnitOf() } } });
+  showFeedback(steps || distance ? 'Walk logged.' : 'Walk logged: you showed up.', 'success');
+}
+
+$('programWalk').addEventListener('click', event => {
+  const button = event.target.closest('[data-walk-action]');
+  if (!button || !currentProgram) return;
+  if (button.dataset.walkAction === 'edit') renderProgramWalk(currentProgram, programGoal(currentProgram), true);
+  if (button.dataset.walkAction === 'save') saveWalk();
+});
+
 // ---- The program card -----------------------------------------------------
 
 function programTemplateCards() {
@@ -439,66 +524,98 @@ function programTemplateCards() {
   }).join('');
 }
 
-function dayStatus(entry) {
+// What a day says about itself in the lists: done (with the walk of the day it was done), or skipped.
+function dayStatus(program, entry) {
+  const walk = entry.at ? walkOn(program, entry.at) : null;
+  const walked = walk && (walk.steps || walk.distance) ? ` · ${walk.distance ? formatWalkDistance(walk.distance, walk.unit) : `${walk.steps.toLocaleString()} steps`}` : '';
   if (entry.skipped) return '<span class="program-status skipped">Skipped</span>';
   // A day with no + set (a rep-range program, or a deload week) still says when its main lift fell short.
-  if (!entry.amrap) return entry.hit === false ? '<span class="program-status missed">Done (missed reps)</span>' : '<span class="program-status">Done</span>';
+  if (!entry.amrap) return entry.hit === false ? '<span class="program-status missed">Done (missed reps)</span>' : `<span class="program-status">Done${escapeHTML(walked)}</span>`;
   const short = missedAmrap(entry.amrap) ? ` (short of ${escapeHTML(entry.amrap.target)})` : entry.hit === false ? ' (missed a set)' : '';
   return `<span class="program-status${short ? ' missed' : ''}">Done · + set ${escapeHTML(entry.amrap.weight)} × ${escapeHTML(entry.amrap.reps)}${short}</span>`;
 }
 
-function programDayRow(program, week, day, next) {
+function programDayRow(program, week, day, next, withStart = true) {
   const entry = program.done[dayKey(week, day)];
   const isNext = Boolean(next) && next.week === week && next.day === day;
   const definition = programDefinition(program);
   const main = definition.workout(program, week, day)[0];
   const description = definition.dayDescription ? definition.dayDescription(program, week, day) : main ? describeExercisePlan(main) : '';
   const label = `${entry ? 'Redo' : 'Start'} ${dayLabel(program, week, day)}`;
-  const button = `<button class="${isNext ? 'primary' : 'secondary'}" type="button" data-program-action="start" data-week="${week}" data-day="${day}" aria-label="${escapeHTML(label)}">${entry ? 'Redo' : 'Start'}</button>`;
-  return `<li class="program-day${entry ? ' done' : ''}${isNext ? ' next' : ''}"><div><strong>${escapeHTML(programDays(program)[day].name)}</strong>`
-    + `<span>${escapeHTML(description)}</span></div><div class="program-day-actions">${entry ? dayStatus(entry) : ''}${button}</div></li>`;
+  const button = withStart ? `<button class="${isNext ? 'primary' : 'secondary'}" type="button" data-program-action="start" data-week="${week}" data-day="${day}" aria-label="${escapeHTML(label)}">${entry ? 'Redo' : 'Start'}</button>` : '';
+  return `<li class="program-day${entry ? ' done' : ''}${isNext ? ' next' : ''}"><div><strong>Day ${day + 1} · ${escapeHTML(dayTitle(program, week, day))}</strong>`
+    + `<span>${escapeHTML(description)}</span></div><div class="program-day-actions">${entry ? dayStatus(program, entry) : ''}${button}</div></li>`;
+}
+
+// What the walk panel says the goal is: the next day's, which the plan words a little differently on some days.
+function programGoal(program) {
+  const definition = programDefinition(program);
+  return definition.walkGoal ? definition.walkGoal(program, nextProgramDay(program)) : '';
+}
+
+// The panel that starts the program, before there is one.
+function renderProgramStart() {
+  const definition = programDefinitions[0];
+  $('programTitle').textContent = definition.name;
+  $('programSummary').textContent = definition.schedule;
+  $('programNotice').hidden = true;
+  $('programNext').hidden = false;
+  $('programNext').innerHTML = `<div><span class="program-kicker">Six weeks</span><strong>Ready when you are</strong><ul><li>${escapeHTML(definition.summary)}</li></ul></div>`
+    + `<div class="program-next-actions"><button class="primary" type="button" data-program-action="setup" data-program-id="${escapeHTML(definition.id)}">Start the program</button></div>`;
+  $('programNumbersSection').hidden = true;
+  $('programProgressSection').hidden = true;
+  $('programBlockHeading').textContent = 'The six weeks';
+  const preview = { definition:definition.id, options:normalizeOptions(definition, {}, weightUnit()), done:{}, walks:{}, unit:weightUnit() };
+  $('programWeeks').innerHTML = programWeeks(preview).map((week, index) => `<details class="program-week"><summary><strong>Week ${index + 1} · ${escapeHTML(week.name)}</strong>`
+    + `<span>${escapeHTML(week.summary)}</span></summary><ul>${programDays(preview).map((entry, day) => programDayRow(preview, index, day, null, false)).join('')}</ul></details>`).join('');
+}
+
+// The panel when every day is done: what was done, and a way to go round again.
+function renderProgramFinished(program) {
+  const definition = programDefinition(program);
+  const days = Object.values(program.done);
+  const skipped = days.filter(entry => entry.skipped).length;
+  const walks = Object.values(program.walks).filter(walk => walk.at >= program.startedAt);
+  const distances = ['mi', 'km'].map(unit => ({ unit, total:walks.filter(walk => walk.unit === unit).reduce((sum, walk) => sum + walk.distance, 0) })).filter(item => item.total > 0);
+  const lines = [`${plural(days.length - skipped, 'day')} done${skipped ? `, ${skipped} skipped` : ''}`,
+    `${plural(walks.length, 'walk')} logged${distances.length ? `, ${distances.map(item => formatWalkDistance(item.total, item.unit)).join(' and ')} in all` : ''}`];
+  $('programNext').innerHTML = `<div><span class="program-kicker">All six weeks</span><strong>You finished ${escapeHTML(definition.name)}</strong><ul>${lines.map(line => `<li>${escapeHTML(line)}</li>`).join('')}</ul></div>`
+    + '<div class="program-next-actions"><button class="primary" type="button" data-program-action="restart">Start again</button></div>';
 }
 
 function renderProgram() {
-  $('programCard').hidden = !currentProgram;
-  if (!currentProgram) return;
+  $('programCard').hidden = false;
+  $('programWalk').hidden = !currentProgram;
+  if (!currentProgram) {
+    renderProgramStart();
+    return;
+  }
   const program = currentProgram;
   const definition = programDefinition(program);
   const weeks = programWeeks(program), days = programDays(program);
-  const block = capitalize(definition.block);
   const next = nextProgramDay(program);
   const finished = weeks.reduce((count, week, index) => count + doneInWeek(program, index), 0);
   $('programTitle').textContent = definition.name;
-  $('programSummary').textContent = `${block} ${program.cycle} · ${finished} of ${weeks.length * days.length} workouts done${next && weeks.length > 1 ? ` · now in week ${next.week + 1} of ${weeks.length}, ${weeks[next.week].name}` : ''}`;
-  // Says how the numbers moved at the end of the last block, until the first workout of the new one is done.
-  const rollover = program.lastRollover && program.lastRollover.changes.length && !finished ? program.lastRollover : null;
-  $('programNotice').hidden = !rollover;
-  $('programNotice').textContent = rollover ? `${block} ${rollover.cycle} complete. ${definition.numbersLabel} for ${definition.block} ${program.cycle}: ${describeChanges(program, rollover.changes)}.` : '';
-  $('programNext').hidden = !next;
+  $('programSummary').textContent = `${finished} of ${weeks.length * days.length} days done${next ? ` · week ${next.week + 1} of ${weeks.length}: ${weeks[next.week].name}` : ''}`;
+  $('programNotice').hidden = true;
+  $('programNext').hidden = false;
   if (next) {
     const workout = programWorkout(program, next.week, next.day);
-    const where = weeks.length > 1 ? ` · week ${next.week + 1}, ${weeks[next.week].name}` : '';
-    // A built program's day whose template has been deleted has nothing to start until it is given another.
-    const plan = workout.exercises.length ? workout.exercises.map(exercise => `<li>${escapeHTML(describeExercisePlan(exercise))}</li>`).join('')
-      : `<li>${escapeHTML(definition.dayDescription ? definition.dayDescription(program, next.week, next.day) : '')}</li>`;
-    const start = workout.exercises.length ? `<button class="primary" type="button" data-program-action="start" data-week="${next.week}" data-day="${next.day}">Start workout</button>` : '';
-    $('programNext').innerHTML = `<div><span class="program-kicker">Next workout${escapeHTML(where)}</span><strong>${escapeHTML(days[next.day].name)}</strong><ul>${plan}</ul></div>`
-      + `<div class="program-next-actions">${start}<button class="secondary" type="button" data-program-action="skip" data-week="${next.week}" data-day="${next.day}">Skip</button>`
-      + `</div>`;
+    const plan = (definition.planLines ? definition.planLines(program, next.week, next.day) : workout.exercises.map(exercise => describeExercisePlan(exercise)))
+      .map(line => `<li>${escapeHTML(line)}</li>`).join('');
+    $('programNext').innerHTML = `<div><span class="program-kicker">Next up · week ${next.week + 1}, day ${next.day + 1}</span><strong>${escapeHTML(dayTitle(program, next.week, next.day))}</strong><ul>${plan}</ul></div>`
+      + `<div class="program-next-actions"><button class="primary" type="button" data-program-action="start" data-week="${next.week}" data-day="${next.day}">Start workout</button>`
+      + `<button class="secondary" type="button" data-program-action="skip" data-week="${next.week}" data-day="${next.day}">Skip</button></div>`;
+  } else {
+    renderProgramFinished(program);
   }
-  // A built program keeps no number per lift: its templates progress on their own.
+  renderProgramWalk(program, programGoal(program));
+  // This program has no numbers per lift to show or chart.
   $('programNumbersSection').hidden = !definition.lifts.length;
-  $('programNumbersHeading').textContent = definition.numbersLabel;
-  $('programMaxes').innerHTML = definition.lifts.map(lift => {
-    const note = definition.numberNote(program, lift);
-    return `<li><span>${escapeHTML(lift.name)}</span><strong>${escapeHTML(formatWeight(program.trainingMaxes[lift.key]))} ${weightUnit()}</strong>`
-      + `<small${note.warn ? ' class="warn"' : ''}>${escapeHTML(note.text)}</small></li>`;
-  }).join('');
-  renderProgramProgress(program);
-  $('programBlockHeading').textContent = `This ${definition.block}`;
+  $('programProgressSection').hidden = true;
+  $('programBlockHeading').textContent = 'The six weeks';
   const rows = week => days.map((entry, day) => programDayRow(program, week, day, next)).join('');
-  // A block of one week is just its days; longer blocks list each week, the current one open.
-  $('programWeeks').innerHTML = weeks.length === 1 ? `<ul class="program-days">${rows(0)}</ul>` : weeks.map((week, index) => `<details class="program-week"${next && next.week === index ? ' open' : ''}><summary><strong>Week ${index + 1} · ${escapeHTML(week.name)}</strong>`
+  $('programWeeks').innerHTML = weeks.map((week, index) => `<details class="program-week"${next && next.week === index ? ' open' : ''}><summary><strong>Week ${index + 1} · ${escapeHTML(week.name)}</strong>`
     + `<span>${escapeHTML(week.summary)}</span><span class="program-week-count">${doneInWeek(program, index)} of ${days.length} done</span></summary>`
     + `<ul>${rows(index)}</ul></details>`).join('');
 }
@@ -589,7 +706,7 @@ function openProgramForm(definition) {
   syncProgramForm();
   $('programModal').hidden = false;
   rememberForm($('programForm'));
-  $(`programMax-${definition.lifts[0].key}`).focus();
+  (definition.lifts.length ? $(`programMax-${definition.lifts[0].key}`) : $(optionElementId(definition.options[0]))).focus();
 }
 
 function closeProgramForm() {
@@ -648,7 +765,19 @@ $('templateList').addEventListener('click', event => {
 });
 $('programCard').addEventListener('click', event => {
   const button = event.target.closest('[data-program-action]');
-  if (!button || !currentProgram) return;
+  if (!button) return;
+  if (button.dataset.programAction === 'setup') {
+    const definition = findProgramDefinition(button.dataset.programId);
+    if (definition) openProgramForm(definition);
+    return;
+  }
+  if (!currentProgram) return;
+  // A finished program goes round again as a new run: everything undone, the level and the walks kept.
+  if (button.dataset.programAction === 'restart') {
+    saveProgram(normalizeProgram({ ...currentProgram, startedAt:Date.now(), cycle:currentProgram.cycle + 1, done:{}, finishedAt:0 }));
+    showFeedback(`${programDefinition(currentProgram).name} starts again from week 1.`, 'success');
+    return;
+  }
   const week = Number(button.dataset.week), day = Number(button.dataset.day);
   if (!programWeeks(currentProgram)[week] || !programDays(currentProgram)[day]) return;
   if (button.dataset.programAction === 'start') startWorkout(programWorkout(currentProgram, week, day));
@@ -682,9 +811,9 @@ $('editProgramBtn').onclick = () => {
 $('endProgramBtn').onclick = () => {
   if (!currentProgram) return;
   const name = programDefinition(currentProgram).name;
-  if (!confirm(`End ${name}? The workouts you have finished stay in your history.`)) return;
+  if (!confirm(`Start ${name} over? Your days and walks here are cleared; the workouts you have finished stay in your history.`)) return;
   saveProgram(null);
-  showFeedback(`${name} ended.`, 'success');
+  showFeedback(`${name} was reset. Start it again when you are ready.`, 'success');
 };
 // A change of unit in Settings converts the program being followed, which saves it (and shows it) in the new unit.
 window.addEventListener('settingschange', () => {

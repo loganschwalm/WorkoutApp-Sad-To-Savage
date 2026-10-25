@@ -26,9 +26,16 @@ function dayKey(week, day) {
   return `${week}-${day}`;
 }
 
+// A day's name. Most programs have the same days every week; one whose days differ week to week (Sad to Savage's second day is
+// full body in one week and arms and abs in the next) gives `dayName` to say what a day is in a week.
+function dayTitle(program, week, day) {
+  const definition = programDefinition(program);
+  return definition.dayName ? definition.dayName(program, week, day) : programDays(program)[day].name;
+}
+
 // "Deadlift Day, week 1" in a program of several weeks a block; just the day's name when a block is one week.
 function dayLabel(program, week, day) {
-  const name = programDays(program)[day].name;
+  const name = dayTitle(program, week, day);
   return programWeeks(program).length > 1 ? `${name}, week ${week + 1}` : name;
 }
 

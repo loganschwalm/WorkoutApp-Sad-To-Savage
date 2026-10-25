@@ -30,6 +30,7 @@ const PRECACHE = [
   '/devices.js',
   '/refused-workouts.js',
   '/offline.js',
+  '/sad-to-savage-data.js',
   '/program-definitions.js',
   '/program.js',
   '/rest-timer.js',
