@@ -57,7 +57,7 @@ def run(t):
     v1 = seconds(cdp.ev(DISPLAY))
     cdp.ev('window.__offset += 30000')
     cdp.pause(0.7)
-    check('pausing freezes the countdown', cdp.ev(TOGGLE) == 'Start rest' and seconds(cdp.ev(DISPLAY)) == v1, f'{cdp.ev(DISPLAY)} vs {v1}')
+    check('pausing freezes the countdown, and its button says Resume', cdp.ev(TOGGLE) == 'Resume' and seconds(cdp.ev(DISPLAY)) == v1, f'{cdp.ev(DISPLAY)} vs {v1} / {cdp.ev(TOGGLE)}')
     cdp.ev("document.getElementById('restToggleBtn').click(); window.__offset += 10000")
     cdp.pause(0.7)
     d = seconds(cdp.ev(DISPLAY))
@@ -529,7 +529,7 @@ def run(t):
     adjust(30)
     cdp.ev('window.__offset += 20000')
     cdp.pause(0.6)
-    check('paused, +30s adds to the paused time, which stays put', seconds(cdp.ev(DISPLAY)) == paused + 30 and cdp.ev(TOGGLE) == 'Start rest', f'{cdp.ev(DISPLAY)} vs {paused}')
+    check('paused, +30s adds to the paused time, which stays put', seconds(cdp.ev(DISPLAY)) == paused + 30 and cdp.ev(TOGGLE) == 'Resume', f'{cdp.ev(DISPLAY)} vs {paused}')
     cdp.ev("document.getElementById('restToggleBtn').click(); window.__offset += 5000")
     cdp.pause(0.6)
     d = seconds(cdp.ev(DISPLAY))
@@ -635,7 +635,7 @@ def run(t):
     cdp.ev("document.getElementById('restToggleBtn').click()")
     paused = seconds(cdp.ev(DISPLAY))
     reload()
-    check('a paused one is back paused, at the time it was paused at', rest_shown() and cdp.ev(TOGGLE) == 'Start rest' and seconds(cdp.ev(DISPLAY)) == paused,
+    check('a paused one is back paused, at the time it was paused at, and says Resume', rest_shown() and cdp.ev(TOGGLE) == 'Resume' and seconds(cdp.ev(DISPLAY)) == paused,
           f'{rest_shown()} {cdp.ev(TOGGLE)} {cdp.ev(DISPLAY)} vs {paused}')
     cdp.ev("document.getElementById('restToggleBtn').click()")
     cdp.pause(0.3)
@@ -651,4 +651,77 @@ def run(t):
     reload()
     check('moving on to the next exercise leaves no rest to bring back', not rest_shown() and cdp.ev("document.getElementById('activeExerciseName').textContent") != 'Bench Press',
           cdp.ev("document.getElementById('activeExerciseName').textContent"))
+    end_workout()
+
+    # ------------------------------------------------------------------ R4 a rest waiting to start is not a paused one
+    print('R4  a rest that is waiting to start (Settings: no automatic rest) says Start rest, even after a reload')
+    open_tracker()
+    cdp.ev("saveLocalState('settings', { ...getWorkoutSettings(), autoRest:false })")
+    start(0)
+    cdp.pause(0.5)
+    log_set(8)
+    cdp.pause(0.6)
+    check('waiting, its button says Start rest', rest_shown() and cdp.ev(TOGGLE) == 'Start rest', f'{rest_shown()} {cdp.ev(TOGGLE)}')
+    reload()
+    check('and after a reload it still does', rest_shown() and cdp.ev(TOGGLE) == 'Start rest', f'{rest_shown()} {cdp.ev(TOGGLE)}')
+    cdp.ev("saveLocalState('settings', { ...getWorkoutSettings(), autoRest:true })")
+    end_workout()
+
+    # ------------------------------------------------------------------ H2 a timed hold can be paused, stopped and comes back
+    print('H2  a timed hold: Pause and Resume, Stop, and a hold that comes back with the page')
+
+    def hold_shown():
+        return cdp.ev("({ field: document.getElementById('completedReps').value, display: document.getElementById('holdDisplay').textContent,"
+                      " button: document.getElementById('holdBtn').textContent, pause: document.getElementById('holdPauseBtn').textContent,"
+                      " pauseShown: !document.getElementById('holdPauseBtn').hidden, running: holdInterval !== null })")
+
+    def set_seconds(value):
+        cdp.ev(f"(() => {{ const e = document.getElementById('completedReps'); e.value = '{value}'; e.dispatchEvent(new Event('input', {{ bubbles: true }})); }})()")
+
+    open_tracker()
+    start(4)
+    cdp.ev("if (document.getElementById('exerciseJump').hidden) document.getElementById('activeWorkoutProgress').click(); "
+           "document.querySelector('#exerciseJump [data-jump=\"3\"]').click()")
+    cdp.pause(0.3)
+    set_seconds(600)
+    cdp.ev("document.getElementById('holdBtn').click()")
+    cdp.pause(1.3)
+    s = hold_shown()
+    check('a hold counts down from the seconds planned, with Stop, and Pause beside it', s['running'] and s['button'] == 'Stop' and s['pause'] == 'Pause'
+          and s['pauseShown'] and s['display'] in ('9:58', '9:59'), s)
+    cdp.ev("document.getElementById('holdPauseBtn').click()")
+    frozen = cdp.ev("document.getElementById('holdDisplay').textContent")
+    cdp.pause(1.2)
+    s = hold_shown()
+    check('Pause stops the count, and the button says Resume', s['pause'] == 'Resume' and s['button'] == 'Stop' and cdp.ev('holdEndsAt === null')
+          and s['display'] == frozen, s)
+    cdp.ev("document.getElementById('holdPauseBtn').click()")
+    cdp.pause(0.3)
+    check('Resume counts on from the time left', cdp.ev("holdInterval !== null && holdEndsAt !== null")
+          and cdp.ev("document.getElementById('holdPauseBtn').textContent") == 'Pause')
+    cdp.ev("document.getElementById('holdBtn').click()")
+    cdp.pause(0.3)
+    s = hold_shown()
+    check('Stop fills in the seconds held as the logged value, and offers Start again', not s['running'] and s['button'] == 'Start timer' and not s['pauseShown']
+          and s['field'] in ('1', '2', '3'), s)
+    cdp.ev("document.getElementById('holdBtn').click()")
+    cdp.pause(0.3)
+    check('Start after a Stop counts the whole hold again, not the seconds held', cdp.ev("document.getElementById('holdDisplay').textContent") in ('10:00', '9:59'), hold_shown())
+    reload()
+    s = hold_shown()
+    check('a running hold is back running after a reload, with the time it has left', s['running'] and s['button'] == 'Stop' and s['pause'] == 'Pause'
+          and 585 <= seconds(s['display']) <= 600, s)
+    cdp.ev("document.getElementById('holdBtn').click()")
+    cdp.pause(0.2)
+
+    # A hold that runs out while the page is away is logged, as it would have been with the page open.
+    set_seconds(4)
+    cdp.ev("document.getElementById('holdBtn').click()")
+    cdp.pause(0.4)
+    logged_before = cdp.ev("document.querySelectorAll('#completedSets li').length")
+    t.pin_clock(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5))
+    reload()
+    check('a hold that ran out while the page was gone logs its set', cdp.ev("document.querySelectorAll('#completedSets li').length") == logged_before + 1
+          and not cdp.ev('holdInterval !== null'), (logged_before, cdp.ev("document.querySelectorAll('#completedSets li').length")))
+    cdp.unpin_clock()
     end_workout()

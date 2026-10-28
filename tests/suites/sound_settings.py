@@ -138,6 +138,24 @@ def run(t):
     c = rest_end()
     check('both off: the timer still ends, with no alert', c['osc'] == 0 and c['vib'] == 0, str(c))
 
+    def hold_end():
+        open_tracker()
+        cdp.ev(STUBS)
+        start(4)
+        cdp.ev("if (document.getElementById('exerciseJump').hidden) document.getElementById('activeWorkoutProgress').click(); "
+               "document.querySelector('#exerciseJump [data-jump=\"3\"]').click()")
+        cdp.pause(0.3)
+        cdp.ev("(() => { const e = document.getElementById('completedReps'); e.value = '2'; e.dispatchEvent(new Event('input', { bubbles: true })); })()")
+        cdp.ev("document.getElementById('holdBtn').click()")
+        cdp.wait('window.__alerts >= 1', 10)
+        cdp.pause(0.2)
+        result = counts()
+        end_workout()
+        return result
+    # A hold can last minutes in silence, so its end vibrates whatever the rest sound is; the rest's own alert still follows the settings.
+    c = hold_end()
+    check('a hold ends with a vibration when the sound and the vibration setting are both off', c['osc'] == 0 and c['vib'] == 1, str(c))
+
     print('S5  settings saved before this feature existed')
     api('PUT', '/api/state', {'settings': {'theme': 'dark', 'restDuration': 120, 'autoRest': True, 'confirmEnd': True}}, token)
     open_settings()

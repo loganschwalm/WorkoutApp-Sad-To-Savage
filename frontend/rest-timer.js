@@ -3,15 +3,24 @@
 
 let restInterval = null;
 let restEndsAt = null;
+// Paused (Pause rest) with time left, when its button says Resume. Set by stopRestTimer(true), and cleared by whatever
+// starts or ends the rest.
+let restPaused = false;
 let wakeLock = null;
 let wakeLockRequesting = false;
 let restRemaining = getWorkoutSettings().restDuration;
 // The length this rest started at (or was stretched to), for the bar that drains along the panel.
 let restTotal = restRemaining;
-// The countdown for a set of a timed exercise, from an end time like the rest timer's.
+// The countdown for a set of a timed exercise. holdInterval is set while a hold is on the page, running or paused, since
+// big-view.js and logSet read it that way. A running hold has its end time in holdEndsAt, as the rest timer does; a paused
+// one keeps the time left in holdLeftMs. holdLength is the planned length in seconds, which Start counts, kept apart from the
+// Seconds field. holdPartial says the field holds the seconds of a hold stopped early rather than a length, so the planned
+// one is still holdLength.
 let holdInterval = null;
 let holdEndsAt = null;
+let holdLeftMs = 0;
 let holdLength = 0;
+let holdPartial = false;
 
 function updateRestTimer() {
   $('timerDisplay').textContent = clockTime(restRemaining);
@@ -111,17 +120,20 @@ function runRestTimer() {
   clearInterval(restInterval);
   $('restAnnouncement').textContent = $('bigViewAnnouncement').textContent = '';
   restEndsAt = Date.now() + restRemaining * 1000;
+  restPaused = false;
   pinRestPanel(true);
   $('restToggleBtn').textContent = 'Pause rest';
   restInterval = setInterval(tickRest, 250);
 }
 
-function stopRestTimer() {
+// Paused, a rest with time left says Resume on its button: Start rest is for a rest that has not begun, or is over.
+function stopRestTimer(paused = false) {
   clearInterval(restInterval);
   restInterval = null;
   restEndsAt = null;
+  restPaused = paused && restRemaining > 0;
   pinRestPanel(false);
-  $('restToggleBtn').textContent = 'Start rest';
+  $('restToggleBtn').textContent = restPaused ? 'Resume' : 'Start rest';
 }
 
 // −30s and +30s: more rest after a heavy set, less after an easy one, running or paused. Running, it moves the end time
@@ -135,6 +147,8 @@ function adjustRest(seconds) {
     if (restRemaining <= 0) stopRestTimer();
   } else {
     restRemaining = Math.min(REST_ADJUST_LIMIT, Math.max(0, restRemaining + seconds));
+    // Taken down to nothing while paused, the rest is over, so its button says Start rest again.
+    if (restPaused && restRemaining <= 0) stopRestTimer();
   }
   updateRestTimer();
 }
@@ -233,61 +247,162 @@ function showScreenAwakeNotice(show, video = false) {
 window.addEventListener('settingschange', () => syncWakeLock());
 
 // ---- Timed exercises --------------------------------------------------------
-// A set of a timed exercise is a hold. Start timer counts down the seconds in the Seconds field; when they are up it
-// sounds the rest alert and logs the set by itself, since hands are busy holding the plank. Stop (or Complete set)
-// ends it early, filling in the seconds actually held.
+// A set of a timed exercise is a hold. Start timer counts down the planned seconds, and Pause and Resume stop and start it from
+// the time left. When the time is up it sounds the rest alert and logs the set by itself, since hands are busy holding the plank.
+// Stop (or Complete set) ends it early, filling in the seconds actually held.
 function holdRemaining() {
-  return Math.max(0, Math.ceil((holdEndsAt - Date.now()) / 1000));
+  const ms = holdEndsAt !== null ? holdEndsAt - Date.now() : holdLeftMs;
+  return Math.max(0, Math.ceil(ms / 1000));
 }
 
+// With no hold on the page, the panel shows the planned length, which is the Seconds field's: what was typed, or what the set was
+// planned to be. A Stop has put the seconds held into the field, which is not a new length, so it is not read here (holdPartial).
 function syncHoldDisplay() {
-  if (!holdInterval) $('holdDisplay').textContent = clockTime(Math.max(0, Math.floor(Number($('completedReps').value)) || 0));
+  if (holdInterval) return;
+  holdPartial = false;
+  holdLength = Math.max(0, Math.floor(Number($('completedReps').value)) || 0);
+  $('holdDisplay').textContent = clockTime(holdLength);
+}
+
+// What the hold's buttons say: Start timer with no hold on the page, and Stop while one is (the big view's button presses this one,
+// so a hold can be stopped there too). Beside Stop, Pause while a hold runs and Resume while it is paused.
+function showHoldState() {
+  const running = holdEndsAt !== null;
+  $('holdBtn').textContent = holdInterval ? 'Stop' : 'Start timer';
+  $('holdPauseBtn').textContent = running ? 'Pause' : 'Resume';
+  $('holdPauseBtn').hidden = !holdInterval;
+  $('holdTimer').classList.toggle('running', running);
+}
+
+// Puts a hold on the page with holdLeftMs to go: counting down from now when running, else paused where it is. Its interval is kept
+// for as long as it is on the page, paused or not, so the display is still drawn and the big view still shows a hold.
+function placeHold(running) {
+  clearInterval(holdInterval);
+  holdInterval = setInterval(tickHold, 250);
+  holdEndsAt = running ? Date.now() + holdLeftMs : null;
+  if (running) holdLeftMs = 0;
+  showHoldState();
+  rememberHold();
+  tickHold();
 }
 
 function tickHold() {
   const left = holdRemaining();
   $('holdDisplay').textContent = clockTime(left);
-  if (left > 0) return;
+  // Paused, nothing runs out: the display is all there is to do.
+  if (holdEndsAt !== null && left <= 0) finishHold(true);
+}
+
+// The time is up: the set logs itself with the planned seconds. The alert asks for the vibration whatever the rest sound is,
+// since a hold ends in silence for anyone with the sound off, and it is the one thing a person holding a plank cannot look
+// for. playRestAlert vibrates only when Settings asks for it, so this passes it on.
+function finishHold(sound) {
   stopHold();
-  playRestAlert(getWorkoutSettings());
+  if (sound) playRestAlert({ ...getWorkoutSettings(), vibrate:true });
   $('completedReps').value = String(holdLength);
   logSet();
 }
 
 function startHold() {
-  const length = Math.floor(Number($('completedReps').value));
-  if (!(length >= 1)) { showFeedback('Enter the seconds to hold, then start the timer.'); $('completedReps').focus(); return; }
+  // The field is the length unless a Stop has put the seconds held into it: then the planned length stands, and a Start
+  // gives the whole hold.
+  if (!holdPartial) holdLength = Math.max(0, Math.floor(Number($('completedReps').value)) || 0);
+  if (!(holdLength >= 1)) { showFeedback('Enter the seconds to hold, then start the timer.'); $('completedReps').focus(); return; }
   clearFeedback();
-  unlockAudio();
   // The rest is over once the next set starts.
   stopRestTimer();
   $('restPanel').hidden = true;
-  holdLength = length;
-  holdEndsAt = Date.now() + length * 1000;
-  $('holdBtn').textContent = 'Stop';
-  $('holdTimer').classList.add('running');
-  clearInterval(holdInterval);
-  holdInterval = setInterval(tickHold, 250);
-  tickHold();
+  holdLeftMs = holdLength * 1000;
+  placeHold(true);
 }
 
-// Stopped by hand (early), the seconds held so far are filled in; stopped because the workout moved on, nothing is.
+// Stopped by hand (early), the seconds held so far go into the Seconds field as the logged value, and the planned length
+// is kept for the next Start. Stopped because the workout moved on, or the hold ran out, nothing goes in.
 function stopHold(early = false) {
   if (!holdInterval) return;
+  const held = Math.max(1, holdLength - holdRemaining());
   clearInterval(holdInterval);
   holdInterval = null;
-  if (early) $('completedReps').value = String(Math.max(1, holdLength - holdRemaining()));
   holdEndsAt = null;
-  $('holdBtn').textContent = 'Start timer';
-  $('holdTimer').classList.remove('running');
-  syncHoldDisplay();
+  holdLeftMs = 0;
+  if (early) {
+    $('completedReps').value = String(held);
+    holdPartial = true;
+  }
+  $('holdDisplay').textContent = clockTime(early ? held : holdLength);
+  showHoldState();
+  rememberHold();
 }
 
-$('holdBtn').onclick = () => { if (holdInterval) stopHold(true); else startHold(); };
+// A hold on the page is kept on this device the way the rest is (rememberRest): a phone that closes the page during a hold would
+// otherwise lose it, time and all. It goes with the workout and set it follows, and restoreHold puts it back.
+function rememberHold() {
+  if (typeof activeSession === 'undefined') return;
+  writeLocal(localKey('hold'), holdInterval && activeSession ? {
+    startedAt:activeSession.startedAt, index:activeSession.currentIndex, sets:restSetCount(activeSession), length:holdLength,
+    endsAt:holdEndsAt, leftMs:holdLeftMs,
+  } : null);
+}
+
+// Puts back the hold kept by rememberHold, if it follows the last set of the workout now on show (restoreRest calls this
+// first). Running, it runs on to its end time; paused, it keeps the time it had. Over while the page was away, its set is
+// logged with its seconds, once the workout is drawn (a set logged while it is being drawn would be drawn over), and
+// without an alert, which would come late.
+function restoreHold() {
+  const saved = readLocal(localKey('hold'));
+  if (!saved || !activeSession || saved.startedAt !== activeSession.startedAt || saved.index !== activeSession.currentIndex
+    || saved.sets !== restSetCount(activeSession)) return;
+  const length = Math.floor(Number(saved.length)) || 0;
+  if (!(length >= 1)) return;
+  holdLength = length;
+  holdPartial = false;
+  stopRestTimer();
+  $('restPanel').hidden = true;
+  if (saved.endsAt) {
+    const left = Number(saved.endsAt) - Date.now();
+    if (left > 0) {
+      holdLeftMs = left;
+      placeHold(true);
+      return;
+    }
+    writeLocal(localKey('hold'), null);
+    const { startedAt, index } = saved;
+    setTimeout(() => {
+      if (!activeSession || activeSession.startedAt !== startedAt || activeSession.currentIndex !== index) return;
+      finishHold(false);
+    }, 0);
+    return;
+  }
+  holdLeftMs = Math.max(0, Number(saved.leftMs) || 0);
+  placeHold(false);
+}
+
+// Start timer, then Stop: the one button the big view presses too, so a hold can be stopped (and its seconds logged) from there.
+$('holdBtn').onclick = () => {
+  unlockAudio();
+  if (holdInterval) stopHold(true);
+  else startHold();
+};
+// Pause beside Stop while a hold is on the page, and Resume once it is paused. It is made here, not in the page's markup, since it
+// belongs to the hold control alone, and shows only while a hold is there.
+{
+  const pauseButton = document.createElement('button');
+  pauseButton.id = 'holdPauseBtn';
+  pauseButton.className = 'secondary';
+  pauseButton.type = 'button';
+  pauseButton.hidden = true;
+  pauseButton.textContent = 'Pause';
+  pauseButton.onclick = () => {
+    unlockAudio();
+    if (holdEndsAt !== null) { holdLeftMs = Math.max(0, holdEndsAt - Date.now()); placeHold(false); }
+    else placeHold(true);
+  };
+  $('holdBtn').after(pauseButton);
+}
 
 $('restToggleBtn').onclick = () => {
   unlockAudio();
-  if (restInterval) { syncRestRemaining(); updateRestTimer(); stopRestTimer(); }
+  if (restInterval) { syncRestRemaining(); updateRestTimer(); stopRestTimer(true); }
   else {
     if (restRemaining <= 0) restRemaining = restTotal = restAfterLastSet();
     updateRestTimer();
@@ -325,7 +440,7 @@ function rememberRest() {
   const shown = activeSession && !$('restPanel').hidden;
   writeLocal(localKey('rest'), shown ? {
     startedAt:activeSession.startedAt, index:activeSession.currentIndex, sets:restSetCount(activeSession),
-    endsAt:restInterval ? restEndsAt : null, remaining:restRemaining, total:restTotal,
+    endsAt:restInterval ? restEndsAt : null, remaining:restRemaining, total:restTotal, paused:restPaused,
   } : null);
 }
 
@@ -333,6 +448,10 @@ function rememberRest() {
 // end time; paused, it keeps the time it had; over while the page was gone, it shows 0:00, as a page left open would have,
 // without an alert that would come late.
 function restoreRest() {
+  // A hold kept on this device goes back first. A hold on the page means the rest was put away when it started, so there
+  // is no rest to put back after it.
+  restoreHold();
+  if (holdInterval) return;
   const saved = readLocal(localKey('rest'));
   if (!saved || !activeSession || saved.startedAt !== activeSession.startedAt || saved.index !== activeSession.currentIndex
     || saved.sets !== restSetCount(activeSession)) return;
@@ -346,6 +465,8 @@ function restoreRest() {
     }
   } else {
     restRemaining = Math.max(0, Number(saved.remaining) || 0);
+    // Its button says what the page it came from said: Resume for a paused rest, Start rest for one that was waiting to start.
+    stopRestTimer(saved.paused === true);
   }
   updateRestTimer();
 }
@@ -385,10 +506,10 @@ function pageBackWithRest() {
   }
 }
 
-window.addEventListener('pagehide', () => { rememberRest(); pageHiddenWithRest(); });
+window.addEventListener('pagehide', () => { rememberRest(); rememberHold(); pageHiddenWithRest(); });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { rememberRest(); pageHiddenWithRest(); } else pageBackWithRest();
+  if (document.hidden) { rememberRest(); rememberHold(); pageHiddenWithRest(); } else pageBackWithRest();
   // Back from a locked screen or another app, an iPhone's sound is interrupted; it is woken before the rest catches up.
   if (!document.hidden) wakeAudio();
   if (!document.hidden && restInterval) tickRest();

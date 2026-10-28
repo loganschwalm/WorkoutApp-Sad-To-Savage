@@ -73,6 +73,9 @@ function showWarmups() {
 }
 
 function showPlates() {
+  // The weight buttons' step depends on the exercise on the page, so their words are drawn again with each one (renderActiveWorkout
+  // comes through here).
+  applyWeightStepper();
   showWarmups();
   const exercise = activeSession ? activeSession.exercises[activeSession.currentIndex] : null;
   const weight = Number($('activeWeight').value);
@@ -335,8 +338,7 @@ function toggleSuperset() {
 
 // ---- Go heavier ---------------------------------------------------------------
 // For an exercise with no plan (a template or a workout done before), once every set at last time's weight reached its
-// target, it says to go up a step: the weight step from Settings (5 lbs or 2.5 kg unless changed), as the weight buttons
-// do. The target is the exercise's reps, or the
+// target, it says to go up a step: the step the weight buttons take for it (weightStepFor). The target is the exercise's reps, or the
 // first set's if that was more, so a set that fell away (8, 8, 6) does not count as reaching it. A set logged with no
 // reps left means the weight is still enough. A program says this in its own way.
 function progressionFor(exercise, previous) {
@@ -348,7 +350,7 @@ function progressionFor(exercise, previous) {
   const atTop = sets.filter(set => (Number(set.weight) || 0) === top);
   const needed = Math.max(target, Number(atTop[0].reps) || 0);
   if (!atTop.every(set => Number(set.reps) >= needed) || atTop.some(set => set.rir === 0)) return null;
-  const step = gymEquipment().step;
+  const step = weightStepFor(exercise);
   return { from:top, to:Math.round((Math.round(top / step) * step + step) * 100) / 100, reps:needed };
 }
 
@@ -507,10 +509,20 @@ $('swapBtn').onclick = swapExercise;
 $('swapName').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); swapExercise(); } };
 $('swapName').oninput = () => markInvalid($('swapName'), false);
 
-// −5 and +5 beside the weight: a change of 2.5 lbs a side, the smallest most plate sets make. In kilograms, −2.5 and
-// +2.5: 1.25 kg a side. Settings can choose another weight step.
+// The step the weight buttons and Go heavier take for an exercise. A dumbbell or cable move in pounds takes 2.5 at most, since its
+// weights run 7.5, 10, 12.5 and a 5 lb step can only reach them by typing; Settings can choose a smaller step, which it keeps. Every
+// other move takes the step from Settings, and kilograms keep theirs (2.5 kg by default, which already suits these moves).
+function weightStepFor(exercise) {
+  const equipment = gymEquipment();
+  const kind = exercise ? exerciseDetails(exercise.name).equipment : '';
+  return equipment.unit === 'lbs' && (kind === 'dumbbell' || kind === 'cable') ? Math.min(2.5, equipment.step) : equipment.step;
+}
+
+// −5 and +5 beside the weight in pounds, −2.5 and +2.5 in kilograms (1.25 kg a side, the smallest most plate sets make), or as
+// weightStepFor says for the exercise on the page.
 function applyWeightStepper() {
-  const step = gymEquipment().step;
+  const exercise = typeof activeSession !== 'undefined' && activeSession ? activeSession.exercises[activeSession.currentIndex] : null;
+  const step = weightStepFor(exercise);
   $('weightStepper').querySelectorAll('[data-weight-step]').forEach(button => {
     const heavier = Number(button.dataset.weightStep) > 0;
     button.dataset.weightStep = String(heavier ? step : -step);

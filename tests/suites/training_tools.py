@@ -60,6 +60,9 @@ def run(t):
                                     'exercises': [{'name': 'Pendlay Row', 'weight': 150, 'reps': 8,
                                                    'sets': [{'weight': 150, 'reps': 8, 'rir': 1}, {'weight': 150, 'reps': 8, 'rir': 0}]}]}, token)
     grind_day = [w for w in t.workouts() if w['name'] == 'Grind Day'][0]['id']
+    # Dumbbell and cable moves only, and a machine: Bench Press and the others above keep their history, which the checks above read.
+    step_day = seed('Step Day', 9, [ex('Dumbbell Row', 10, 8, [(8, 10), (8, 10)]), ex('Cable Row', 40, 8, [(8, 40), (8, 40)]),
+                                    ex('Leg Extension', 60, 10, [(10, 60), (10, 60)])])
 
     # ------------------------------------------------------------------ N notes kept with an exercise
     print('N   a note kept with an exercise shows whenever it comes up')
@@ -255,4 +258,22 @@ def run(t):
     log(125, 5)
     check('going past it is a record again, not the goal', cdp.ev(fireworks) == 1 and cdp.ev("document.querySelector('.firework').dataset.size") == 'record'
           and 'Goal reached' not in text('formFeedback'), text('formFeedback'))
+    end()
+
+    # ------------------------------------------------------------------ D the weight buttons' step
+    print('D   the weight buttons step 2.5 lbs for a dumbbell or cable move, and 5 for the rest')
+    steps = "[...document.querySelectorAll('#weightStepper [data-weight-step]')].map(b => b.textContent)"
+    start_saved(step_day)
+    check('a dumbbell move: the buttons say 2.5, and Go heavier goes up 2.5', cdp.ev(steps) == ['−2.5', '+2.5'] and text('progressionUse') == 'Use 12.5 lbs',
+          (current(), cdp.ev(steps), text('progressionUse')))
+    cdp.ev("document.querySelector('#weightStepper [data-weight-step=\"2.5\"]').click()")
+    check('one tap goes from 10 to 12.5', cdp.ev("document.getElementById('activeWeight').value") == '12.5', cdp.ev("document.getElementById('activeWeight').value"))
+    click('nextExerciseBtn')
+    check('a cable move steps by 2.5 too', current() == 'Cable Row' and cdp.ev(steps) == ['−2.5', '+2.5'] and text('progressionUse') == 'Use 42.5 lbs',
+          (current(), cdp.ev(steps), text('progressionUse')))
+    click('nextExerciseBtn')
+    check('any other move keeps the 5 lbs of Settings', current() == 'Leg Extension' and cdp.ev(steps) == ['−5', '+5'] and text('progressionUse') == 'Use 65 lbs',
+          (current(), cdp.ev(steps), text('progressionUse')))
+    cdp.ev("document.querySelector('#weightStepper [data-weight-step=\"5\"]').click()")
+    check('and one tap goes up 5', cdp.ev("document.getElementById('activeWeight').value") == '65', cdp.ev("document.getElementById('activeWeight').value"))
     end()
