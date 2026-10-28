@@ -91,6 +91,9 @@ html[data-theme="dark"] .form-feedback.success { color:#a5e5c2; background:#193b
 .form-feedback.info { color:var(--ink); background:var(--accent-soft); border-color:var(--accent-line); }
 .feedback-action { margin-left:6px; padding:4px 12px; color:inherit; background:transparent; border:1px solid currentColor; border-radius:8px; font-weight:800; }
 #formFeedback { cursor:pointer; }
+/* During a workout the banner is laid over the top of the page, not put in its flow: a superset's next move, a set logged or a record each
+   showed for a few seconds and pushed the workout down by its height and margin while it did. Tapping it still dismisses it. */
+body.training .form-feedback { position:fixed; top:12px; left:50%; z-index:20; width:min(960px, calc(100% - 32px)); margin:0; transform:translateX(-50%); }
 #formFeedback::after { content:"\00d7"; float:right; margin-left:12px; font-size:1.25rem; line-height:1; opacity:.6; }
 .settings-button { width:44px; height:44px; padding:0; font-size:1.2rem; line-height:1; }
 .site-nav { display:flex; gap:2px; align-self:center; padding:4px; background:var(--card); border:1px solid var(--line); border-radius:999px; }
@@ -228,10 +231,19 @@ html[data-theme="dark"] .danger, html[data-theme="dark"] .remove { color:#ff9eaa
 .exercise-context { margin:6px 0 0; color:var(--ink); font-size:1rem; line-height:1.45; }
 .exercise-context.target { font-weight:650; }
 .exercise-context + .exercise-context { margin-top:4px; }
+/* Read more under the target, when it is clamped to three lines on a phone (active-workout.js). */
+.read-more { display:block; margin:0; padding:6px 0; font-size:.9rem; text-align:left; }
 .context-label { color:var(--muted); }
 /* A run of sets goes to the next line whole when it fits there, and breaks inside itself only when it is longer than a line. */
 .set-run { display:inline-block; max-width:100%; font-weight:600; }
-.footer-buttons { display:flex; gap:10px; }
+/* A set's kind in a label ("(warm-up)") is one piece, so a line breaks before it, never inside its hyphen (active-workout.js). */
+.set-kind-word { white-space:nowrap; }
+/* The footer's two buttons keep their places: Previous (when there is one) is always to the left of Next, which is at the right edge on every
+   exercise, so Next does not move when the first exercise gives way to the others. Each has a width and a line of its own. */
+.footer-buttons { display:flex; justify-content:flex-end; gap:10px; }
+.footer-buttons button { flex:none; white-space:nowrap; }
+#prevExerciseBtn { min-width:7.5rem; }
+#nextExerciseBtn { min-width:10.5rem; }
 .add-exercise { margin-top:18px; }
 .add-exercise summary { color:var(--accent); font-size:.9rem; font-weight:700; cursor:pointer; }
 .add-exercise-fields { display:grid; grid-template-columns:2fr 1fr auto; gap:12px; align-items:end; margin-top:12px; }
@@ -554,7 +566,6 @@ input[type="range"] { padding:0; border:0; background:transparent; accent-color:
   .set-number{grid-column:1; grid-row:1}
   .set-list .remove{grid-column:2; grid-row:1; justify-self:end}
   .footer-actions{flex-direction:column}
-  .footer-buttons button{flex:1}
   .add-exercise-fields{grid-template-columns:1fr 1fr}
   .add-exercise-fields button{grid-column:1/-1}
 }
@@ -785,6 +796,8 @@ body.training .splash { display:none; }
 .set-type-choices button[aria-pressed="true"] { color:var(--on-accent); background:var(--accent); }
 .set-kind { grid-column:1 / -1; display:flex; align-items:center; gap:8px; margin:0; color:var(--muted); font-size:.8rem; font-weight:700; }
 .set-kind select { flex:1; max-width:200px; }
+/* A hold has no weight and no kind: its set is the number, its seconds and the ×, on one line. */
+.set-list li.hold { grid-template-columns:3.4rem minmax(0,1fr) auto; }
 .template-exercise-row .template-superset { grid-column:1 / -1; margin:0; }
 /* Every session of one exercise, on Progress. */
 .session-list { display:grid; gap:8px; margin:14px 0 0; padding:0; list-style:none; }
@@ -812,6 +825,14 @@ body.training .splash { display:none; }
   .site-nav a::before { display:block; }
   .install-banner { bottom:var(--tab-bar); }
   body.has-install-banner { padding-bottom:calc(96px + var(--tab-bar)); }
+  /* Whatever is scrolled or focused into view stops short of the tab bar, which floats over the bottom of the page: a field or a button
+     that the page brings up is not left under it. */
+  html { scroll-padding-bottom:calc(var(--tab-bar) + 24px); }
+}
+/* On a short screen the tab bar goes while a number is typed (body.typing, active-workout.js), since the keyboard takes most of the screen
+   and the bar would sit over the field and Complete set. */
+@media (max-width:620px) and (max-height:700px) {
+  body.typing .site-nav { display:none; }
 }
 body.has-install-banner .rest-panel { bottom:calc(84px + var(--tab-bar)); }
 /* A card's heading on a phone: its button stays on one line, and the heading and its note take the room left. */
@@ -904,7 +925,9 @@ h2 { margin-bottom:14px; }
 .set-tags .effort-choices, .set-tags .set-type-choices { margin-top:4px; margin-bottom:8px; }
 .set-tags .effort-choices[hidden], .set-tags .set-type-choices[hidden] { display:none; }
 .progress-toggle { margin-top:4px; }
-.active-exercise { padding:12px 0 4px; }
+.active-exercise { padding:12px 0 4px; scroll-margin-top:4.5rem; }
+/* Next, once the planned sets of a move are done: a solid button of its own above the set entry, where the thumb is. */
+.done-next { width:100%; min-height:3.25rem; margin:12px 0 0; border-radius:var(--radius-panel); }
 .plan-sets { margin-top:8px; }
 .plan-sets li { padding:4px 9px; font-size:.78rem; }
 .set-entry label { margin-bottom:5px; }
@@ -925,6 +948,8 @@ h2 { margin-bottom:14px; }
   .card:not([hidden]) ~ .card { margin-top:12px; }
   /* Last time's sets are the longest line on the screen; three lines of them at most, and the set entry stays where the thumb is. */
   #activeExerciseLast { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; }
+  /* The target is the same: a program's note for a Pilates day runs to a page, so it is three lines, and Read more shows the rest. */
+  #activeExerciseTarget:not(.open) { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; }
   /* A dialog is a sheet that rises from the bottom, where the thumb is. */
   .modal-backdrop { padding:0; place-items:end center; }
   .settings-modal { width:100%; max-height:92%; padding:20px 18px calc(20px + env(safe-area-inset-bottom)); border-bottom:0; border-radius:24px 24px 0 0; }
@@ -946,8 +971,11 @@ h2 { margin-bottom:14px; }
   .set-field { gap:3px; font-size:.75rem; }
   .set-edit { padding:8px 7px; }
   .set-list .remove { width:28px; height:28px; font-size:1.05rem; }
-  .footer-actions { flex-direction:row; }
-  .footer-buttons { flex:1; }
+  /* On a phone the buttons take a row of their own, at the right, and Finish early (beside them on a wide screen) is a link under them, so
+     it is not squeezed out of the card by the two buttons' widths. */
+  .footer-actions { flex-direction:column; align-items:stretch; }
+  .footer-buttons { align-self:flex-end; }
+  #finishEarlyBtn { align-self:flex-start; order:1; }
 }
 /* Headings never leave one word alone on their last line ("Apartment Gym / Upper A", not "Apartment Gym Upper / A"). */
 h1, h2, h3 { text-wrap:pretty; }

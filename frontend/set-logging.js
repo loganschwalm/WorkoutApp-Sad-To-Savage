@@ -43,9 +43,10 @@ function completedSetsHtml(exercise, timed) {
   // What was typed or sent can be any text (an imported file, an older version): only a number is shown, never the text itself.
   const effort = set => Number.isFinite(Number(set.rir)) && set.rir !== null && set.rir !== '' && set.rir !== undefined
     ? `<small class="set-effort">${Number(set.rir) >= 4 ? '4+' : Number(set.rir)} left</small>` : '';
-  return exercise.sets.map((set, index) => `<li><span class="set-number">Set ${index + 1}${effort(set)}</span>`
-    + `<div class="set-field"><input class="set-edit" type="number" inputmode="decimal" min="0" step="0.5" value="${escapeHTML(set.weight || '')}"`
-    + ` data-set="${index}" data-field="weight" aria-label="Set ${index + 1} weight in ${weightUnit()}"><span>${weightUnit()}</span></div>`
+  // A hold has no weight to lift, so its set has no weight field: "Set 1 weight in lbs" would mean nothing for a plank.
+  return exercise.sets.map((set, index) => `<li${timed ? ' class="hold"' : ''}><span class="set-number">Set ${index + 1}${effort(set)}</span>`
+    + (timed ? '' : `<div class="set-field"><input class="set-edit" type="number" inputmode="decimal" min="0" step="0.5" value="${escapeHTML(set.weight || '')}"`
+      + ` data-set="${index}" data-field="weight" aria-label="Set ${index + 1} weight in ${weightUnit()}"><span>${weightUnit()}</span></div>`)
     + `<div class="set-field"><input class="set-edit" type="number" inputmode="numeric" min="1" step="1" value="${escapeHTML(set.reps)}" data-set="${index}"`
     + ` data-field="reps" aria-label="Set ${index + 1} ${count.label}"><span>${count.unit}</span></div>`
     + `<button class="remove" type="button" data-remove-set="${index}" aria-label="Remove set ${index + 1}" title="Remove">&times;</button>`
@@ -107,8 +108,12 @@ function setEntryProblem({ weightValue, reps }, timed) {
 function refusedSet(exercise, { weightValue, reps }, timed) {
   // No weight logs the set as bodyweight. For an exercise that is always loaded, that is more likely a weight left out
   // (a new exercise has none to start from) than meant, so it is asked first. A 0 typed in is taken as meant.
-  if (weightValue === '' && !timed && loadedEquipment.includes(exerciseDetails(exercise.name).equipment)
-    && !confirm(`No weight entered for ${exercise.name}. Log ${reps} reps with no weight?`)) return $('activeWeight');
+  // It is asked once for each exercise in a workout: a yes is kept on the exercise (it goes with the workout, here and on the server), so the
+  // rounds after it, a warm-up's for one, are not asked again. A no is not kept, since the weight is typed in then, and a blank is asked afresh.
+  if (weightValue === '' && !timed && !exercise.loggedWithoutWeight && loadedEquipment.includes(exerciseDetails(exercise.name).equipment)) {
+    if (!confirm(`No weight entered for ${exercise.name}. Log ${reps} reps with no weight?`)) return $('activeWeight');
+    exercise.loggedWithoutWeight = true;
+  }
   // A set far past anything done before is asked about too (see implausibleSet in records.js).
   const doubt = implausibleSet(exercise, { weight:Number(weightValue) || 0, reps }, exercise.sets);
   if (doubt && !confirm(doubt.message)) return doubt.field === 'weight' ? $('activeWeight') : $('completedReps');
@@ -161,6 +166,15 @@ function restAfterSet(said = '') {
     $('restPanel').hidden = true;
     moveWithinSuperset(next);
     showFeedback(`${said ? `${said} ` : ''}Next in the superset: ${activeSession.exercises[next].name}.`, 'success');
+    return;
+  }
+  // Nothing is left to do after this set (no set of this round nor of the exercises after it, as with the last planned set of the last
+  // exercise), so there is no rest to take: a rest with nothing to rest for would only count down to nothing on screen.
+  const members = supersetMembers(activeSession, index);
+  const nothingFollows = firstWithSetsLeft(activeSession, index) === null && members[members.length - 1] + 1 >= activeSession.exercises.length;
+  if (nothingFollows) {
+    stopRestTimer();
+    $('restPanel').hidden = true;
     return;
   }
   if (getWorkoutSettings().autoRest) startRestTimer();
@@ -301,18 +315,9 @@ $('completedSets').onclick = e => {
   if (!removed) return;
   persistActiveSession();
   renderActiveWorkout();
-  showFeedback(`Removed set ${index + 1} of ${exercise.name} (${describeLoggedSets([removed], isTimed(exercise))}).`, 'info', { label:'Undo', run:() => {
-    if (activeSession !== session) {
-      showFeedback('That set cannot come back: its workout has ended.');
-      return;
-    }
-    if (!session.exercises.includes(exercise)) {
-      showFeedback(`That set cannot come back: ${exercise.name} was swapped out.`);
-      return;
-    }
-    exercise.sets.splice(Math.min(index, exercise.sets.length), 0, removed);
-    persistActiveSession();
-    renderActiveWorkout();
-    showFeedback(`Set ${index + 1} of ${exercise.name} is back.`, 'success');
-  } });
+  // The record of it is what Undo puts back, and what is kept on this device for its ten seconds (undoRecord, active-workout.js).
+  const record = { kind:'set', clientId:session.clientId, startedAt:session.startedAt, exerciseIndex:session.currentIndex,
+    exerciseName:exercise.name, index, set:removed };
+  showFeedback(`Removed set ${index + 1} of ${exercise.name} (${describeLoggedSets([removed], isTimed(exercise))}).`, 'info',
+    { label:'Undo', run:() => undoRecord(record), keep:record });
 };
