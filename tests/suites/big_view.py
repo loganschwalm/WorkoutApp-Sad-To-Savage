@@ -82,7 +82,7 @@ def run(t):
     check('+30s moves the page\'s timer', cdp.ev('restRemaining') >= left + 28, [left, cdp.ev('restRemaining')])
     cdp.ev("document.getElementById('bigViewToggle').click()")
     cdp.pause(0.4)
-    check('Pause stops it, and the view says so and offers Start', cdp.ev('restInterval') is None and state()['label'] == 'Rest · paused' and state()['toggle'] == 'Start rest', state())
+    check('Pause stops it, and the view says so and offers Start', cdp.ev('restInterval') is None and state()['label'] == 'Rest · paused' and state()['toggle'] == 'Resume', state())
     cdp.ev("document.getElementById('bigViewToggle').focus()")
     cdp.pause(0.8)
     check('the focus stays where it was put while the view updates', cdp.ev('document.activeElement.id') == 'bigViewToggle', cdp.ev('document.activeElement.id'))
