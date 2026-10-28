@@ -2,12 +2,16 @@
 // the card, starting a day as a workout, recording it once it is finished); the definition here supplies the rest:
 //
 //   id, name, shortName, summary, schedule  how the program is named and described; workouts are named by workoutName
-//   options                  settings asked for at setup: { id, type:'select', label, choices:[{ value, label, help }], default }
+//   options                  settings asked for at setup: { id, type:'select', label, choices:[{ value, label, help }], default, changed(choice) }
+//                            where changed says, in a sentence, what changing the option to a choice does (the edit's banner)
 //   dayActive(program, week, day)  whether a day is part of this run (optional: without it every day is); a day left out is never
 //                            next, counted, listed or scheduled
 //   weeks(program)           the weeks, [{ name, summary }]
 //   days(program)            the days of each week, [{ name }]: the same slots every week
 //   dayName(program, week, day)  what a day is, when it differs from week to week
+//   dayPlace(program, week, day) where a day sits in its week, lower case ("day 3", "workout 2 of 3"); the card says it (optional:
+//                            without it, "day" and the number)
+//   dayNoun(program)         "day" or "workout", for counting the days of this run (optional: "day")
 //   workout(program, week, day)  the day's exercises; each has a plan, one entry per set: { weight, reps } plus repsMax for a range,
 //                            unit ('seconds', 'steps'), per ('each side'), warmup. A weight of '' is the lifter's call. An
 //                            exercise's group puts it in a superset with its neighbours, and its rest is the seconds the rest
@@ -100,10 +104,12 @@ const sadToSavage = {
   summary:'Shelby Sacco\'s six-week plan: three strength days and two mat Pilates days every week, and a walk every day. Each day opens with what to do, and the program moves on as you finish it.',
   schedule:'6 weeks \u00b7 5 days a week \u00b7 strength, Pilates and a daily walk',
   options:[
-    { id:'level', type:'select', label:'Your level', default:'nts', choices:sadToSavageLevels.map(({ value, label, help }) => ({ value, label, help })) },
+    { id:'level', type:'select', label:'Your level', default:'nts', choices:sadToSavageLevels.map(({ value, label, help }) => ({ value, label, help })),
+      changed:choice => `The level is now ${choice.label}, and the days still to do use it.` },
     { id:'pilates', type:'select', label:'Pilates days', default:'yes', choices:[
       { value:'yes', label:'Include the mat Pilates days', help:'Two Pilates days a week, with the three strength days, as the plan has them.' },
-      { value:'no', label:'Strength only', help:'The Pilates days are left out: the program is the three strength days a week, and the daily walk.' }] }
+      { value:'no', label:'Strength only', help:'The Pilates days are left out: the program is the three strength days a week, and the daily walk.' }],
+      changed:choice => (choice.value === 'no' ? 'The Pilates days still to do are left out.' : 'The Pilates days are back in the program.') }
   ],
   weeks:program => sadToSavagePlan.quotes.map((quote, index) => ({ name:quote, summary:`${sadToSavagePlan.days.filter(day => day.week === index + 1 && day.kind === 'strength').length} strength`
     + ((program.options || {}).pilates === 'no' ? '' : ` \u00b7 ${sadToSavagePlan.days.filter(day => day.week === index + 1 && day.kind === 'pilates').length} Pilates`) })),
@@ -112,6 +118,15 @@ const sadToSavage = {
   // The days of a week are the same five slots every week; what each is (its name, strength or Pilates) is dayName's.
   days:() => Array.from({ length:sadToSavageDaysPerWeek }, (entry, day) => ({ name:`Day ${day + 1}` })),
   dayName:(program, week, day) => sadToSavageDay(week, day).focus,
+  // With the Pilates days, a day is the plan's day number, the same in every week. With Strength only those numbers skip (1, 3, 5),
+  // which reads as if days are missing, so the day is the workout of its week instead: "workout 2 of 3".
+  dayPlace(program, week, day) {
+    if ((program.options || {}).pilates !== 'no') return `day ${day + 1}`;
+    const strength = Array.from({ length:sadToSavageDaysPerWeek }, (entry, index) => index).filter(index => sadToSavageDay(week, index).kind !== 'pilates');
+    return `workout ${strength.indexOf(day) + 1} of ${strength.length}`;
+  },
+  // What the run's days are counted as: "3 of 18 workouts done" with Strength only, "3 of 30 days done" with the Pilates days.
+  dayNoun:program => ((program.options || {}).pilates === 'no' ? 'workout' : 'day'),
   workout(program, week, day) {
     const plan = sadToSavageDay(week, day);
     return plan.kind === 'pilates' ? sadToSavagePilates(plan) : sadToSavageStrength(plan, sadToSavageLevel(program));

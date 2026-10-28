@@ -140,12 +140,13 @@ function completeProgramDay(session) {
   if (!programDay || !program || program.startedAt !== programDay.startedAt || program.cycle !== programDay.cycle || !programWeeks(program)[programDay.week] || !programDays(program)[programDay.day]) return { note:'', outcome:null };
   const wasFinished = Boolean(program.finishedAt);
   const note = recordProgramDay(program, programDay.week, programDay.day, { at:Date.now(), skipped:false });
-  return { note, outcome:{ finished:!wasFinished && Boolean(currentProgram.finishedAt) ? programDefinition(currentProgram).name : '', days:activeDayCount(currentProgram) } };
+  return { note, outcome:{ finished:!wasFinished && Boolean(currentProgram.finishedAt) ? programDefinition(currentProgram).name : '', days:activeDayCount(currentProgram),
+    noun:dayNoun(currentProgram) } };
 }
 
 // The summary's lines for a program day's outcome (completeProgramDay).
 function programOutcomeLines(outcome) {
-  return outcome && outcome.finished ? [`You finished ${outcome.finished}: all ${outcome.days} days done.`] : [];
+  return outcome && outcome.finished ? [`You finished ${outcome.finished}: all ${plural(outcome.days, outcome.noun)} done.`] : [];
 }
 
 // ---- Formatting -----------------------------------------------------------
@@ -209,6 +210,13 @@ function describeWalk(walk) {
   return parts.length ? parts.join(' · ') : 'Showed up';
 }
 
+// The plan words the walk in miles ("Walking 10k steps, 2 miles, ..."). Read in kilometres, the same distance is said in them, rounded to a
+// tenth (2 miles is 3.2 km), so the goal is in the unit the walk is logged in. Only the distance is changed; the plan itself is not.
+function walkGoalInUnit(goal, unit) {
+  if (unit !== 'km') return goal;
+  return goal.replace(/(\d+(?:\.\d+)?) miles?\b/g, (text, miles) => `${Math.round(Number(miles) * 1.609344 * 10) / 10} km`);
+}
+
 // The walk panel under today's workout: the day's walk goal, and either the walk logged today or the fields to log it.
 function renderProgramWalk(program, goal, editing = false) {
   const walk = walkOn(program);
@@ -218,7 +226,7 @@ function renderProgramWalk(program, goal, editing = false) {
       + '<div class="program-walk-actions"><button class="link-button" type="button" data-walk-action="edit">Change</button></div>';
     return;
   }
-  $('programWalk').innerHTML = `<div><span class="program-kicker">Today's walk</span><p class="program-walk-goal">${escapeHTML(goal)}</p></div>`
+  $('programWalk').innerHTML = `<div><span class="program-kicker">Today's walk</span><p class="program-walk-goal">${escapeHTML(walkGoalInUnit(goal, unit))}</p></div>`
     + '<div class="program-walk-fields">'
     + `<div><label for="walkSteps">Steps</label><input id="walkSteps" type="number" inputmode="numeric" min="0" max="200000" step="1" placeholder="0" value="${walk && walk.steps ? walk.steps : ''}" /></div>`
     + `<div><label for="walkDistance">Distance (${unit})</label><input id="walkDistance" type="number" inputmode="decimal" min="0" max="500" step="0.01" placeholder="0" value="${walk && walk.distance ? walk.distance : ''}" /></div>`
@@ -227,13 +235,20 @@ function renderProgramWalk(program, goal, editing = false) {
 }
 
 function saveWalk() {
-  const steps = Math.floor(Number($('walkSteps').value)) || 0;
-  const distance = Math.round(Number($('walkDistance').value) * 100) / 100 || 0;
-  const badSteps = steps < 0 || steps > 200000, badDistance = distance < 0 || distance > 500;
+  const stepsText = $('walkSteps').value.trim(), distanceText = $('walkDistance').value.trim();
+  const steps = stepsText === '' ? 0 : Number(stepsText);
+  const distance = distanceText === '' ? 0 : Number(distanceText);
+  // Whole steps, and distance to two decimal places, as the reference says: a value with more is refused where it was typed. Rounding
+  // it instead would keep a number other than the one typed, without a word to say so.
+  const distanceDecimals = Number.isFinite(distance) && Math.round(distance * 100) / 100 !== distance;
+  const badSteps = !Number.isInteger(steps) || steps < 0 || steps > 200000;
+  const badDistance = !Number.isFinite(distance) || distance < 0 || distance > 500 || distanceDecimals;
   markInvalid($('walkSteps'), badSteps);
   markInvalid($('walkDistance'), badDistance);
   if (badSteps || badDistance) {
-    showFeedback('A walk is up to 200,000 steps and 500 in distance.');
+    if (!Number.isInteger(steps)) showFeedback('Steps are whole numbers: type the count with no decimal point.');
+    else if (distanceDecimals) showFeedback('Distance is kept to two decimal places: type it with no more than two after the point.');
+    else showFeedback('A walk is up to 200,000 steps and 500 in distance.');
     return;
   }
   saveProgram({ ...currentProgram, walks:{ ...currentProgram.walks, [calendarDayKey(new Date())]:{ at:Date.now(), steps, distance, unit:distanceUnitOf() } } });
@@ -245,6 +260,17 @@ $('programWalk').addEventListener('click', event => {
   if (!button || !currentProgram) return;
   if (button.dataset.walkAction === 'edit') renderProgramWalk(currentProgram, programGoal(currentProgram), true);
   if (button.dataset.walkAction === 'save') saveWalk();
+});
+
+// Miles or kilometres, chosen in Settings, is in the walk's goal and its Distance label, so a change shows without a reload. Only those two
+// words are changed: a walk being typed in keeps what is typed.
+window.addEventListener('settingschange', () => {
+  const panel = $('programWalk');
+  if (!currentProgram || !panel || panel.hidden) return;
+  const goal = panel.querySelector('.program-walk-goal');
+  if (goal) goal.textContent = walkGoalInUnit(programGoal(currentProgram), distanceUnitOf());
+  const label = panel.querySelector('label[for=walkDistance]');
+  if (label) label.textContent = `Distance (${distanceUnitOf()})`;
 });
 
 // ---- The program card -----------------------------------------------------
@@ -262,7 +288,7 @@ function programDayRow(program, week, day, next, withStart = true) {
   const isNext = Boolean(next) && next.week === week && next.day === day;
   const label = `${entry ? 'Redo' : 'Start'} ${dayLabel(program, week, day)}`;
   const button = withStart ? `<button class="${isNext ? 'primary' : 'secondary'}" type="button" data-program-action="start" data-week="${week}" data-day="${day}" aria-label="${escapeHTML(label)}">${entry ? 'Redo' : 'Start'}</button>` : '';
-  return `<li class="program-day${entry ? ' done' : ''}${isNext ? ' next' : ''}"><div><strong>Day ${day + 1} · ${escapeHTML(dayTitle(program, week, day))}</strong>`
+  return `<li class="program-day${entry ? ' done' : ''}${isNext ? ' next' : ''}"><div><strong>${escapeHTML(capitalize(dayPlace(program, week, day)))} · ${escapeHTML(dayTitle(program, week, day))}</strong>`
     + `<span>${escapeHTML(programDefinition(program).dayDescription(program, week, day))}</span></div><div class="program-day-actions">${entry ? dayStatus(program, entry) : ''}${button}</div></li>`;
 }
 
@@ -301,7 +327,7 @@ function renderProgramFinished(program) {
   const skipped = days.filter(entry => entry.skipped).length;
   const walks = Object.values(program.walks).filter(walk => walk.at >= program.startedAt);
   const distances = ['mi', 'km'].map(unit => ({ unit, total:walks.filter(walk => walk.unit === unit).reduce((sum, walk) => sum + walk.distance, 0) })).filter(item => item.total > 0);
-  const lines = [`${plural(days.length - skipped, 'day')} done${skipped ? `, ${skipped} skipped` : ''}`,
+  const lines = [`${plural(days.length - skipped, dayNoun(program))} done${skipped ? `, ${skipped} skipped` : ''}`,
     `${plural(walks.length, 'walk')} logged${distances.length ? `, ${distances.map(item => formatWalkDistance(item.total, item.unit)).join(' and ')} in all` : ''}`];
   $('programNext').innerHTML = `<div><span class="program-kicker">All six weeks</span><strong>You finished ${escapeHTML(programDefinition(program).name)}</strong><ul>${lines.map(line => `<li>${escapeHTML(line)}</li>`).join('')}</ul></div>`
     + '<div class="program-next-actions"><button class="primary" type="button" data-program-action="restart">Start again</button></div>';
@@ -320,10 +346,10 @@ function renderProgram() {
   const next = nextProgramDay(program);
   const finished = activeDaysDone(program);
   $('programTitle').textContent = 'Your program';
-  $('programSummary').textContent = `${finished} of ${activeDayCount(program)} days done${next ? ` · week ${next.week + 1} of ${weeks.length}: ${weeks[next.week].name}` : ''}`;
+  $('programSummary').textContent = `${finished} of ${plural(activeDayCount(program), dayNoun(program))} done${next ? ` · week ${next.week + 1} of ${weeks.length}: ${weeks[next.week].name}` : ''}`;
   if (next) {
     const plan = definition.planLines(program, next.week, next.day).map(planLineHTML).join('');
-    $('programNext').innerHTML = `<div><span class="program-kicker">Next up · week ${next.week + 1}, day ${next.day + 1}</span><strong>${escapeHTML(dayTitle(program, next.week, next.day))}</strong><ul>${plan}</ul></div>`
+    $('programNext').innerHTML = `<div><span class="program-kicker">Next up · week ${next.week + 1}, ${escapeHTML(dayPlace(program, next.week, next.day))}</span><strong>${escapeHTML(dayTitle(program, next.week, next.day))}</strong><ul>${plan}</ul></div>`
       + `<div class="program-next-actions"><button class="primary" type="button" data-program-action="start" data-week="${next.week}" data-day="${next.day}">Start workout</button>`
       + `<button class="secondary" type="button" data-program-action="skip" data-week="${next.week}" data-day="${next.day}">Skip</button></div>`;
   } else {
@@ -379,6 +405,17 @@ function closeProgramForm() {
   returnFocus('program');
 }
 
+// The banner after an edit says what the edit changed, in the words each option gives its choice (program-definitions.js), and whether
+// it finished the program. An edit that changed nothing says so, rather than claiming an update.
+function programChangeMessage(definition, before, after) {
+  const sentences = definition.options.filter(option => before.options[option.id] !== after.options[option.id]).map(option => {
+    const choice = option.choices.find(item => item.value === after.options[option.id]);
+    return option.changed ? option.changed(choice) : `${option.label}: ${choice.label}.`;
+  });
+  if (after.finishedAt && !before.finishedAt) sentences.push(`All the days left are done or left out, so ${definition.name} is finished.`);
+  return sentences.length ? `${definition.name} updated. ${sentences.join(' ')}` : `${definition.name} is unchanged.`;
+}
+
 $('programForm').onsubmit = event => {
   event.preventDefault();
   const { definition, editing } = programForm;
@@ -388,7 +425,7 @@ $('programForm').onsubmit = event => {
   const { finishedAt, ...unfinished } = base;
   saveProgram(settleProgram(normalizeProgram({ ...unfinished, options:readProgramForm() })));
   closeProgramForm();
-  showFeedback(editing ? `${definition.name} updated. The days still to do use the new level.` : `${definition.name} is set up. ${nextUpMessage(currentProgram)}`, 'success');
+  showFeedback(editing ? programChangeMessage(definition, base, currentProgram) : `${definition.name} is set up. ${nextUpMessage(currentProgram)}`, 'success');
   scrollToCard($('programCard'), 'start');
 };
 $('programForm').addEventListener('change', syncProgramForm);

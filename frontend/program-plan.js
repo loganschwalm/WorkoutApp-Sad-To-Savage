@@ -33,6 +33,19 @@ function dayTitle(program, week, day) {
   return definition.dayName ? definition.dayName(program, week, day) : programDays(program)[day].name;
 }
 
+// Where a day sits in its week, as the card says it: "day 3", or "workout 2 of 3" for a program whose definition counts it that way.
+// Lower case, so the card can capitalise it or put it mid-sentence.
+function dayPlace(program, week, day) {
+  const definition = programDefinition(program);
+  return definition.dayPlace ? definition.dayPlace(program, week, day) : `day ${day + 1}`;
+}
+
+// "day" or "workout": what the days of a run are counted as. "day" unless the definition says otherwise.
+function dayNoun(program) {
+  const definition = programDefinition(program);
+  return definition.dayNoun ? definition.dayNoun(program) : 'day';
+}
+
 // "Deadlift Day, week 1" in a program of several weeks a block; just the day's name when a block is one week.
 function dayLabel(program, week, day) {
   const name = dayTitle(program, week, day);

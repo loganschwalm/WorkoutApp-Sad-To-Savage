@@ -186,6 +186,19 @@ def run(t):
     cdp.ev("document.getElementById('walkSteps').value = '999999'")
     click('#programWalk [data-walk-action=save]')
     check('a walk of a million steps is refused, and the one logged stays', program()['walks'][today]['steps'] == 0 and cdp.ev("document.getElementById('walkSteps').classList.contains('invalid') || document.getElementById('walkSteps').getAttribute('aria-invalid') === 'true'") is True)
+    # Steps are whole and distance has two decimal places (the reference): a value with more is refused where it was typed, not rounded
+    # into a number nobody typed.
+    cdp.ev("document.getElementById('walkSteps').value = '12.5'; document.getElementById('walkDistance').value = ''")
+    click('#programWalk [data-walk-action=save]')
+    check('12.5 steps is refused, saying steps are whole numbers, and nothing is kept', 'whole numbers' in cdp.ev("document.getElementById('formFeedback').textContent")
+          and cdp.ev("document.getElementById('walkSteps').getAttribute('aria-invalid')") == 'true' and program()['walks'][today]['steps'] == 0,
+          [cdp.ev("document.getElementById('formFeedback').textContent"), program()['walks'][today]])
+    cdp.ev("document.getElementById('walkSteps').value = ''; document.getElementById('walkDistance').value = '3.456'")
+    click('#programWalk [data-walk-action=save]')
+    check('3.456 miles is refused, saying two decimal places, and nothing is kept', 'two decimal places' in cdp.ev("document.getElementById('formFeedback').textContent")
+          and program()['walks'][today]['distance'] == 0, [cdp.ev("document.getElementById('formFeedback').textContent"), program()['walks'][today]])
+    check('the plan\'s walk goal reads in kilometres in kilometre mode: 2 miles is 3.2 km, and miles are left alone', cdp.ev("walkGoalInUnit('Walking 10k steps, 2 miles, or showing up', 'km')")
+          == 'Walking 10k steps, 3.2 km, or showing up' and cdp.ev("walkGoalInUnit('Walking 10k steps, 2 miles, or showing up', 'mi')") == 'Walking 10k steps, 2 miles, or showing up')
 
     # ------------------------------------------------------------------ S6 a Pilates day
     print('S6  a Pilates day')
@@ -271,21 +284,27 @@ def run(t):
     click('#programSubmit')
     cdp.pause(0.4)
     check('the choice is kept, with the level', program()['options'] == {'level': 'nts', 'pilates': 'no'}, program())
-    check('the summary counts the eighteen strength days', '0 of 18 days done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programSummary').textContent"))
-    check('the weeks list has no Pilates rows, three days to a week',
+    check('the banner says the Pilates days are left out, and says nothing of the level, which did not change', cdp.ev("document.getElementById('formFeedback').textContent")
+          == 'Sad to Savage updated. The Pilates days still to do are left out.', cdp.ev("document.getElementById('formFeedback').textContent"))
+    check('the summary counts the eighteen strength workouts', '0 of 18 workouts done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programSummary').textContent"))
+    check('the weeks list has no Pilates rows, three workouts to a week, numbered within the week',
           cdp.ev("document.querySelectorAll('#programWeeks .program-day').length") == 18
-          and 'Pilates' not in cdp.ev("document.getElementById('programWeeks').textContent"), cdp.ev("document.getElementById('programWeeks').textContent")[:300])
+          and 'Pilates' not in cdp.ev("document.getElementById('programWeeks').textContent")
+          and 'Workout 1 of 3 · ' in cdp.ev("document.querySelectorAll('#programWeeks .program-week')[0].textContent")
+          and 'Workout 3 of 3 · ' in cdp.ev("document.querySelectorAll('#programWeeks .program-week')[0].textContent")
+          and 'Day 3' not in cdp.ev("document.getElementById('programWeeks').textContent"), cdp.ev("document.getElementById('programWeeks').textContent")[:300])
     check('and each week says how many are done out of three', '0 of 3 done' in cdp.ev("document.querySelectorAll('#programWeeks .program-week')[0].textContent"))
     skip_to(1)
-    check('after day 1 the next is week 1, day 3: the Pilates day is passed over', cdp.ev("document.querySelector('#programNext strong').textContent") == 'Lower Body Focus'
-          and 'week 1, day 3' in cdp.ev("document.querySelector('#programNext .program-kicker').textContent")
-          and '1 of 18 days done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programNext').textContent")[:200])
+    check('after day 1 the next is the second workout of week 1, the Pilates day passed over', cdp.ev("document.querySelector('#programNext strong').textContent") == 'Lower Body Focus'
+          and 'week 1, workout 2 of 3' in cdp.ev("document.querySelector('#programNext .program-kicker').textContent")
+          and '1 of 18 workouts done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programNext').textContent")[:200])
     check('the Pilates day was not marked done or skipped', '0-1' not in program()['done'], program()['done'])
     check('the schedule and the calendar queue leave it out too: 17 days left in this run, not 29',
           cdp.ev("programQueue(40).filter(item => item.current).length") == 17, cdp.ev("programQueue(40).filter(item => item.current).length"))
     skip_to(17)
     check('all eighteen strength days done finishes the program, the Pilates days never asked for',
-          bool(program().get('finishedAt')) and len(program()['done']) == 18 and 'You finished Sad to Savage' in cdp.ev("document.querySelector('#programNext strong').textContent"),
+          bool(program().get('finishedAt')) and len(program()['done']) == 18 and 'You finished Sad to Savage' in cdp.ev("document.querySelector('#programNext strong').textContent")
+          and '18 skipped' in cdp.ev("document.getElementById('programNext').textContent"),
           program())
     click('#editProgramBtn')
     cdp.ev("(() => { const e = document.getElementById('programPilates'); e.value = 'yes'; e.dispatchEvent(new Event('change', { bubbles: true })); })()")
@@ -293,6 +312,20 @@ def run(t):
     cdp.pause(0.4)
     check('putting the Pilates days back reopens it with the 12 still to do', not program().get('finishedAt') and cdp.ev("document.querySelector('#programNext strong').textContent") == 'Full Body Focus'
           and '18 of 30 days done' in cdp.ev("document.getElementById('programSummary').textContent"), cdp.ev("document.getElementById('programSummary').textContent"))
+    check('and the banner says they are back', cdp.ev("document.getElementById('formFeedback').textContent") == 'Sad to Savage updated. The Pilates days are back in the program.',
+          cdp.ev("document.getElementById('formFeedback').textContent"))
     check('the server keeps the choice', t.wait_for(lambda: (server_program() or {}).get('options') == {'level': 'nts', 'pilates': 'yes'}), server_program())
+    click('#editProgramBtn')
+    click('#programSubmit')
+    cdp.pause(0.4)
+    check('an edit that changes nothing says so, rather than that it updated', cdp.ev("document.getElementById('formFeedback').textContent") == 'Sad to Savage is unchanged.',
+          cdp.ev("document.getElementById('formFeedback').textContent"))
+    click('#editProgramBtn')
+    set_level('sw')
+    click('#programSubmit')
+    cdp.pause(0.4)
+    check('a level change alone says the level is now that, and that the days still to do use it', program()['options'] == {'level': 'sw', 'pilates': 'yes'}
+          and cdp.ev("document.getElementById('formFeedback').textContent") == "Sad to Savage updated. The level is now Shelby's weights, and the days still to do use it.",
+          cdp.ev("document.getElementById('formFeedback').textContent"))
 
     check('there were no CSP violations on any page', (cdp.ev('window.__csp') or []) == [], cdp.ev('window.__csp'))
