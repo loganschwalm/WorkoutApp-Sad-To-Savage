@@ -111,9 +111,11 @@ function exerciseReach(exercise) {
   return plate ? plate.text : '';
 }
 
-// Draws both lines, from the workout as it stands and the weight in the field.
+// Draws both lines, from the workout as it stands and the weight in the field. Also the labels that say what the last set was: a change
+// to a set in place ends here (set-logging.js), so an edited set is said as it is now, without drawing the entry fields again.
 function renderReach() {
   if (!activeSession) return;
+  renderLastSetLabels();
   const base = reachBaseFor(activeSession);
   $('workoutReach').textContent = base.line;
   $('workoutReach').hidden = !base.line;

@@ -24,6 +24,15 @@ function renderActiveProgress() {
   $('nextExerciseBtn').textContent = onLast ? 'Finish workout' : 'Next exercise';
   // Before the last exercise, Next goes on; Finish early ends the workout there instead.
   $('finishEarlyBtn').hidden = onLast;
+  // When the planned sets of this move are all done, the same action is a button of its own above the set entry: the footer's is below
+  // the fold on a phone, and Complete set stays for an extra set. It is scrolled to when it first shows.
+  const current = exercises[currentIndex];
+  const planDone = Array.isArray(current.plan) && current.plan.length > 0 && plannedDone(current) >= current.plan.length;
+  const doneNext = $('doneNextBtn');
+  const wasHidden = doneNext.hidden;
+  doneNext.textContent = $('nextExerciseBtn').textContent;
+  doneNext.hidden = !planDone;
+  if (planDone && wasHidden) scrollToCard(doneNext, 'nearest');
   $('exerciseJump').innerHTML = exercises.map((exercise, index) => {
     const sets = (exercise.sets || []).length;
     const planned = Array.isArray(exercise.plan) ? exercise.plan.length : 0;
@@ -99,9 +108,12 @@ function planChipsHtml(exercise, plan) {
   // The sets that fill the plan's places: a warm-up the lifter added is not one of them (planSets, common.js).
   const done = planSets(exercise);
   const planState = index => index < done.length ? 'done' : index === done.length ? 'current' : 'upcoming';
+  // A set done keeps the plan's unit and "each way" (a hold's seconds, a steps set), so it reads as its planned chip did: "10 steps each way".
+  // A logged set has one number of reps, so the plan's range and plus are left out of it.
   const chip = (set, index) => {
     const logged = done[index];
-    return logged ? formatPlannedSet({ weight:isBodyweight(logged.weight) ? '' : logged.weight, reps:logged.reps }) : formatPlannedSet(set);
+    return logged ? formatPlannedSet({ ...set, weight:isBodyweight(logged.weight) ? '' : logged.weight, reps:logged.reps, repsMax:undefined, amrap:false })
+      : formatPlannedSet(set);
   };
   return plan.map((set, index) => `<li class="${planState(index)}">${escapeHTML(chip(set, index))}</li>`).join('');
 }
@@ -124,18 +136,38 @@ function showLastTime(label, described) {
   });
 }
 
+// A phone shows the target in three lines (styles.css): a program's Pilates day has a note from Shelby as long as a page, which is read
+// in full on Read more. Only a folded target can be measured (open, it is not clamped), and it is measured once the workout is on screen:
+// drawn while hidden, it has no height to overflow.
+function showTargetWhole(open) {
+  $('activeExerciseTarget').classList.toggle('open', open);
+  $('targetMore').textContent = open ? 'Read less' : 'Read more';
+  $('targetMore').setAttribute('aria-expanded', String(open));
+}
+
+function drawTargetMore() {
+  const target = $('activeExerciseTarget');
+  if (!target.classList.contains('open')) $('targetMore').hidden = !(target.scrollHeight > target.clientHeight + 1);
+}
+
+$('targetMore').onclick = () => { showTargetWhole(!$('activeExerciseTarget').classList.contains('open')); drawTargetMore(); };
+
 function renderActiveWorkout() {
   const exercise = activeSession.exercises[activeSession.currentIndex];
   exercise.sets = exercise.sets || [];
   const timed = isTimed(exercise);
   const previous = lastTime(exercise.name);
-  const lastSet = exercise.sets[exercise.sets.length - 1];
   const plan = Array.isArray(exercise.plan) && exercise.plan.length ? exercise.plan : null;
   $('activeWorkoutTitle').textContent = activeSession.name;
   renderActiveProgress();
   $('activeExerciseName').textContent = exercise.name;
-  $('activeExerciseTarget').textContent = plan ? plannedTarget(exercise, previous)
+  // A target that changes (the next set of a plan, or another exercise) is folded again; one that does not stays read in full.
+  const target = $('activeExerciseTarget');
+  const text = plan ? plannedTarget(exercise, previous)
     : `Target: ${exercise.reps} ${timed ? 'seconds' : 'reps'}${exercise.weight ? ` at ${formatWeight(exercise.weight)} ${weightUnit()}` : ''}`;
+  if (target.textContent !== text || target.dataset.exercise !== exercise.name) showTargetWhole(false);
+  target.textContent = text;
+  target.dataset.exercise = exercise.name;
   $('activePlan').hidden = !plan;
   $('activePlan').innerHTML = plan ? planChipsHtml(exercise, plan) : '';
   $('activeExerciseLast').hidden = !previous;
@@ -144,9 +176,9 @@ function renderActiveWorkout() {
     showLastTime(`Last time (${when}): `, describeLoggedSets(previous.sets, timed));
   }
   $('completedRepsLabel').textContent = timed ? 'Seconds' : 'Reps completed';
-  // Once a set is logged, one tap logs it again, whatever the fields were changed to since.
-  $('repeatSetBtn').hidden = !lastSet;
-  if (lastSet) $('repeatSetBtn').textContent = `Same as last set: ${describeLoggedSets([lastSet], timed)}`;
+  // A hold is started with its own Start timer (the primary action), so Complete set beside it is the secondary one, which ends it early.
+  $('completeSetBtn').classList.toggle('primary', !timed);
+  $('completeSetBtn').classList.toggle('secondary', timed);
   $('holdTimer').hidden = !timed;
   // A planned hold or session (a plank, the cool-down, a Pilates workout) has no weight to enter.
   $('activeWeight').closest('.weight-entry').hidden = timed && Boolean(plan);
@@ -163,14 +195,39 @@ function renderActiveWorkout() {
   renderSetType(exercise);
   renderSetTags(exercise);
   $('completedSets').innerHTML = completedSetsHtml(exercise, timed);
-  $('completedSetsToggle').hidden = !exercise.sets.length;
-  // The list is folded away, so its label says what was just logged: "Completed sets (3) · last 145 lbs × 6".
-  $('completedSetsSummary').textContent = `Completed sets (${exercise.sets.length})`
-    + (lastSet ? ` · last ${describeLoggedSets([lastSet], timed)}` : '');
   syncHoldDisplay();
   $('activeSyncNotice').hidden = !activeSyncFailed;
+  drawTargetMore();
   // What the next set or the finish is a step away from (reach.js), now the stall hint has had its say.
   renderReach();
+}
+
+// The two lines that say what the last set was: "Same as last set: 10 reps" and the completed sets' header. renderReach ends with them,
+// and so does a change to a set in place (set-logging.js), which changes the last set without drawing the rest of the workout again:
+// what is typed in the entry fields must not be put back.
+function renderLastSetLabels() {
+  const exercise = activeSession.exercises[activeSession.currentIndex];
+  const timed = isTimed(exercise);
+  const sets = exercise.sets || [];
+  const lastSet = sets[sets.length - 1];
+  // Once a set is logged, one tap logs it again, whatever the fields were changed to since.
+  $('repeatSetBtn').hidden = !lastSet;
+  if (lastSet) textWithKinds($('repeatSetBtn'), `Same as last set: ${describeLoggedSets([lastSet], timed)}`);
+  $('completedSetsToggle').hidden = !sets.length;
+  // The list is folded away, so its label says what was just logged: "Completed sets (3) · last 145 lbs × 6".
+  textWithKinds($('completedSetsSummary'), `Completed sets (${sets.length})` + (lastSet ? ` · last ${describeLoggedSets([lastSet], timed)}` : ''));
+}
+
+// A line of text with each set kind in brackets ("(warm-up)") kept whole: the hyphen in "warm-up" is a place a line may break, and on a
+// narrow phone the line broke there, leaving "(warm-" on one line and "up)" on the next.
+function textWithKinds(element, text) {
+  element.replaceChildren(...text.split(/(\([^)]*\))/).filter(Boolean).map(part => {
+    if (!part.startsWith('(')) return document.createTextNode(part);
+    const kind = document.createElement('span');
+    kind.className = 'set-kind-word';
+    kind.textContent = part;
+    return kind;
+  }));
 }
 
 // Going to another exercise, ending a workout or starting one closes whatever was open for the exercise before.
@@ -192,14 +249,20 @@ function goToExercise(index) {
   restRemaining = restDuration();
   updateRestTimer();
   $('restPanel').hidden = true;
+  // The sets of the exercise left behind are not what this one is about, so their list is folded away again.
+  $('completedSetsToggle').open = false;
   renderActiveWorkout();
   persistActiveSession();
+  // The new exercise opens with its name at the top of the screen. Where the page was before (the footer's Next, far down) it would
+  // otherwise be left halfway down, with the name off the top.
+  scrollToCard($('activeExercise'), 'start');
 }
 
 // While a workout goes on it has the Tracker to itself: the program, recent workouts, templates and saved workouts
 // wait behind one button under it, so there is nothing to scroll past between sets.
 function showActiveCard(shown) {
   $('activeWorkout').hidden = !shown;
+  if (shown) drawTargetMore();
   document.body.classList.toggle('training', shown);
   showOtherCards(false);
 }
@@ -346,6 +409,8 @@ function showSavedSession(savedSession) {
 function restoreLocalWorkout() {
   const local = readLocalActive();
   if (local && local.session) showSavedSession(local.session);
+  // After the workout is back, so an Undo of a removed set has its workout to go back into.
+  restoreUndo();
 }
 
 // `workouts` is null when the server could not be reached. The workout on this device is already on screen
@@ -409,13 +474,16 @@ function finishWorkoutAsking() {
 
 // Next goes on past the superset the current exercise is in, which is done as rounds rather than one exercise at a time.
 // On the last exercise it is Finish, so a second tap can arrive after the workout has closed: that one does nothing.
-$('nextExerciseBtn').onclick = () => {
+function goOnFromExercise() {
   if (!activeSession) return;
   const members = supersetMembers(activeSession, activeSession.currentIndex);
   const after = members[members.length - 1] + 1;
   if (after >= activeSession.exercises.length) finishWorkoutAsking();
   else goToExercise(after);
-};
+}
+$('nextExerciseBtn').onclick = goOnFromExercise;
+// The same, beside the set entry, once the planned sets are done (renderActiveProgress).
+$('doneNextBtn').onclick = goOnFromExercise;
 // Finish early ends the workout from any exercise, as Finish does on the last.
 $('finishEarlyBtn').onclick = () => { if (activeSession) finishWorkoutAsking(); };
 $('prevExerciseBtn').onclick = () => { if (activeSession && activeSession.currentIndex > 0) goToExercise(activeSession.currentIndex - 1); };
@@ -429,8 +497,54 @@ $('endWorkoutBtn').onclick = () => {
   const logged = session.exercises.reduce((total, item) => total + (item.sets?.length || 0), 0);
   if (logged && getWorkoutSettings().confirmEnd && !confirm(`Cancel this workout? Its ${plural(logged, 'logged set')} will not be saved.`)) return;
   closeActiveWorkout();
-  showFeedback(`“${session.name}” was cancelled. Nothing was saved.`, 'info', { label:'Undo', run:() => resumeWorkout(session) });
+  showFeedback(`“${session.name}” was cancelled. Nothing was saved.`, 'info', { label:'Undo', run:() => undoRecord({ kind:'workout', session }), keep:{ kind:'workout', session } });
 };
+
+// What an Undo in the workout puts back, as a record that can be kept on this device: a cancelled workout (its whole session), or a set
+// taken away. Kept with the banner (keepUndo, common.js), so a reload in its ten seconds still offers it (restoreUndo).
+function undoRecord(record) {
+  if (record.kind === 'workout') resumeWorkout(record.session);
+  else if (record.kind === 'set') putBackSet(record);
+}
+
+// Puts a set taken away back in its place. The record says which workout and which exercise by place, since after a reload there is no
+// object left to hold on to; an exercise moved or swapped out since cannot take it back.
+function putBackSet(record) {
+  const session = activeSession;
+  if (!session || session.clientId !== record.clientId || session.startedAt !== record.startedAt) {
+    showFeedback('That set cannot come back: its workout has ended.');
+    return;
+  }
+  const exercise = session.exercises[record.exerciseIndex];
+  if (!exercise || exercise.name !== record.exerciseName) {
+    showFeedback(`That set cannot come back: ${record.exerciseName} was moved or swapped out.`);
+    return;
+  }
+  exercise.sets = exercise.sets || [];
+  exercise.sets.splice(Math.min(record.index, exercise.sets.length), 0, record.set);
+  persistActiveSession();
+  renderActiveWorkout();
+  showFeedback(`Set ${record.index + 1} of ${exercise.name} is back.`, 'success');
+}
+
+// Puts the Undo the page was showing back on screen, if its ten seconds have not run out when the page comes back (a reload, or a phone
+// that was locked). It runs with the time it has left, and is kept again as it was, so it runs out when it would have.
+function restoreUndo() {
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(undoStorageKey) || 'null');
+  } catch (error) {
+    console.error('Unable to read the undo kept on this device.', error);
+  }
+  if (!saved || !saved.keep) return;
+  const left = saved.until - Date.now();
+  if (!(left > 0)) { keepUndo(null); return; }
+  showFeedback(saved.message, saved.type, { label:'Undo', run:() => undoRecord(saved.keep), keep:saved.keep });
+  // The banner's own timer was set for a full ten seconds; this one is for what is left of them.
+  clearTimeout(showFeedback.timer);
+  showFeedback.timer = setTimeout(clearFeedback, left);
+  keepUndo(saved);
+}
 
 // Puts a cancelled workout back as it was, unless another has started since.
 function resumeWorkout(session) {
@@ -452,7 +566,13 @@ function resumeWorkout(session) {
 $('activeWorkout').addEventListener('focusin', e => {
   const input = e.target;
   if (input.matches('input[type=number]')) setTimeout(() => { if (document.activeElement === input) input.select(); });
+  // A number being typed on a short screen hides the tab bar (styles.css), which would otherwise sit over the field and Complete set.
+  document.body.classList.toggle('typing', input.matches('input[type=number]'));
 });
+$('activeWorkout').addEventListener('focusout', () => document.body.classList.remove('typing'));
+// Start timer is the rest-timer.js handler's, which runs first. This one runs after it, so the hold's panel is brought into view once it has
+// begun (holdInterval is set by then, and is not when the hold could not start).
+$('holdBtn').addEventListener('click', () => { if (holdInterval) scrollToCard($('holdTimer'), 'nearest'); });
 $('activeAddName').oninput = () => markInvalid($('activeAddName'), false);
 $('activeAddReps').oninput = () => markInvalid($('activeAddReps'), false);
 $('activeAddTimed').onchange = () => { $('activeAddRepsLabel').textContent = $('activeAddTimed').checked ? 'Target seconds' : 'Target reps'; };

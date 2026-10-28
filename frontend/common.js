@@ -90,6 +90,20 @@ function escapeHTML(value) {
 // ({ label, run }), such as Undo, adds a button that lasts as long as the banner does, so the banner then stays up a
 // little longer. Its timer is kept on the function rather than in a variable, which a script.js from before this moved
 // here, served from the cache for one load, declares for itself (see the note on $ above).
+// An Undo kept on this device for the ten seconds it is offered, so a reload in that time offers it again (restoreUndo, active-workout.js).
+// Only an action with `keep` (what Undo puts back) is kept; any other message replaces it. Storage can be refused (a private window), in which
+// case the Undo is only the one on screen.
+const undoStorageKey = 'workout-tracker-undo';
+
+function keepUndo(record) {
+  try {
+    if (record) localStorage.setItem(undoStorageKey, JSON.stringify(record));
+    else localStorage.removeItem(undoStorageKey);
+  } catch (error) {
+    console.error('Unable to keep the undo on this device.', error);
+  }
+}
+
 function showFeedback(message, type = 'error', action = null) {
   const feedback = $('formFeedback');
   feedback.textContent = message;
@@ -106,6 +120,7 @@ function showFeedback(message, type = 'error', action = null) {
   feedback.hidden = false;
   clearTimeout(showFeedback.timer);
   if (type !== 'error') showFeedback.timer = setTimeout(clearFeedback, action ? 10000 : 6000);
+  keepUndo(action && action.keep ? { message, type, until:Date.now() + 10000, keep:action.keep } : null);
 }
 
 // The banner for something just taken away, with Undo in it, and the keyboard on Undo: the button that was pressed went with the thing
@@ -120,6 +135,8 @@ function clearFeedback() {
   clearTimeout(showFeedback.timer);
   $('formFeedback').hidden = true;
   $('formFeedback').textContent = '';
+  // Gone from the screen, the Undo is gone from this device too.
+  keepUndo(null);
 }
 
 // Marks a field the person has to fix (or, once they type in it, no longer), for the red border and for screen readers.

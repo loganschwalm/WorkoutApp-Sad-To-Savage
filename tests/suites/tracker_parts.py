@@ -80,8 +80,10 @@ def run(t):
           == [('Set 1', '2 left', '100', '5', '0'), ('Set 2', '', '', '8', '1'), ('Set 3', '4+ left', '95', '6', '2')], rows)
     check('with the reps described as reps', rows[0]['repsLabel'] == 'Set 1 reps', rows[0])
     timed_rows = call("""(() => { const holder = document.createElement('ul'); holder.innerHTML = completedSetsHtml({ sets: [{ weight: 0, reps: 45 }] }, true);
-      return [holder.querySelector('[data-field=reps]').getAttribute('aria-label'), holder.querySelectorAll('.set-field span')[1].textContent]; })()""")
-    check('and a hold’s as seconds', timed_rows == ['Set 1 seconds', 's'], timed_rows)
+      return [holder.querySelector('[data-field=reps]').getAttribute('aria-label'), holder.querySelectorAll('.set-field span')[0].textContent,
+              holder.querySelectorAll('[data-field=weight]').length]; })()""")
+    # A hold has no weight to lift, so its set has no weight field at all: its seconds are the only field.
+    check('and a hold’s as seconds, with no weight field', timed_rows == ['Set 1 seconds', 's', 0], timed_rows)
     check('markup in a weight or a number is text, not markup', call("""(() => { const holder = document.createElement('ul');
       holder.innerHTML = completedSetsHtml({ sets: [{ weight: '"><b>x</b>', reps: '<i>1</i>' }] }, false);
       return holder.querySelectorAll('b, i').length === 0 && holder.children.length === 1; })()""") is True)
