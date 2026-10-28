@@ -388,7 +388,8 @@ function showOfflineNotice(shown) {
     showHistoryFeedback(offlineNotice, true);
     offlineNoticeShown = true;
   } else if (offlineNoticeShown) {
-    $('historyFeedback').hidden = true;
+    // Only while it is still the message on show: another (a download's, say) has replaced it otherwise, and is not this page's to hide.
+    if ($('historyFeedback').textContent === offlineNotice) $('historyFeedback').hidden = true;
     offlineNoticeShown = false;
   }
 }
@@ -416,10 +417,18 @@ function loadHistory() {
 window.localReady.then(loadHistory);
 // A workout finished here (in the Tracker, or another tab of this browser) joins the list at once; one that uploads is then read again
 // from the server, so it shows as saved, not waiting. The page takes in the queue another tab changes, as it takes in the saved ones.
+// The count waiting as this page last drew it. A retry of an upload that still fails reports a change every time, and drawing the list
+// again would close an open menu and move the keyboard's place in the calendar, so it is drawn again only when the count moves.
+let drawnWaitingCount = null;
 window.addEventListener('syncchange', event => {
   if (!historyWorkouts) return;
-  if (event.detail.uploaded) loadHistory();
-  else showHistory(historyWorkouts);
+  if (event.detail.uploaded) {
+    loadHistory();
+    return;
+  }
+  if (event.detail.pendingWorkouts === drawnWaitingCount) return;
+  drawnWaitingCount = event.detail.pendingWorkouts;
+  showHistory(historyWorkouts);
 });
 window.addEventListener('storage', event => {
   if (historyWorkouts && event.key === localKey('pending')) showHistory(historyWorkouts);
