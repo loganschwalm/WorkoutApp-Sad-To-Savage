@@ -46,6 +46,8 @@ def run(t):
         cdp.pause(0.3)
 
     def ui_login(username, query=''):
+        # A browser already signed in is sent on from the sign-in page, so it is signed out first to see the form.
+        t.set_cookie('')
         cdp.goto('/login.html' + query)
         cdp.ev(f"document.getElementById('username').value = {json.dumps(username)}; document.getElementById('password').value = 'chalk-and-plates-42';"
                "document.getElementById('authForm').requestSubmit()")

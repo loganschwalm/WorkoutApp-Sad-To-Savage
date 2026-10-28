@@ -27,6 +27,8 @@ def run(t):
         cdp.ev(f"document.getElementById('{form}').requestSubmit()")
 
     def open_login():
+        # A browser already signed in is sent on from the sign-in page, so it is signed out first to see the form.
+        t.set_cookie('')
         cdp.goto('/login.html')
         cdp.wait("document.readyState === 'complete'")
         cdp.pause(0.5)  # the page asks the server what it offers
@@ -413,6 +415,9 @@ def run(t):
     open_login()
     check('signing in shows no advice and sets no limits, for accounts from before them', not shown('passwordAdvice')
           and not cdp.ev("document.getElementById('username').hasAttribute('maxlength')"))
+    fill(username='ruleslifter', password='deadlifts-on-monday')
+    submit('authForm')
+    cdp.wait("location.pathname === '/'")
 
     t.open_tracker()
     cdp.wait("window.localUsername === 'ruleslifter'")
