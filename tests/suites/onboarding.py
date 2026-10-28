@@ -190,6 +190,8 @@ def run(t):
 
     # ------------------------------------------------------------------ O1 creating an account in the browser
     print('O1  Create account lands on the Tracker with the welcome open, on its first step')
+    # The sign-in page sends a signed-in person on (login.js), so the browser signs out first, as anyone creating an account would.
+    t.set_cookie('')
     cdp.goto('/login.html')
     cdp.pause(0.5)
     cdp.ev("document.getElementById('registerTab').click()")
@@ -257,6 +259,23 @@ def run(t):
     pilates_choices = cdp.ev("[...document.querySelectorAll('#onboarding input[name=onboardingPilates]')].map(input => input.value)")
     check('the Pilates days are a choice on the same step: included or strength only', pilates_choices == ['yes', 'no'], pilates_choices)
     check('included to start with', picked('onboardingPilates') == ['yes'], picked('onboardingPilates'))
+    welcome_lead = "document.getElementById('onboardingWelcomeLead').textContent"
+    week_lead = "document.getElementById('onboardingWeekLead').textContent"
+    today_text = "document.getElementById('onboardingTodayText').textContent"
+    check('while the plan includes Pilates, the welcome, the week and the Today line say so',
+          'mat Pilates' in cdp.ev(welcome_lead) and 'five days a week' in cdp.ev(week_lead) and 'mat Pilates session' in cdp.ev(today_text), cdp.ev(welcome_lead))
+    pick('onboardingPilates', 'no')
+    check('a new account’s goal follows the program: three a week with Strength only', t.field('onboardingGoal') == '3', t.field('onboardingGoal'))
+    go(0)
+    check('with Strength only, the welcome does not mention Pilates', 'Pilates' not in cdp.ev(welcome_lead) and 'strength and a daily walk' in cdp.ev(welcome_lead), cdp.ev(welcome_lead))
+    go(3)
+    check('and the week says three strength days, with no Pilates named', 'three strength days a week' in cdp.ev(week_lead) and 'Pilates' not in cdp.ev(week_lead), cdp.ev(week_lead))
+    t.set_field('onboardingGoal', '4')
+    go(1)
+    pick('onboardingPilates', 'yes')
+    check('a goal picked by hand is kept when the Pilates choice changes', t.field('onboardingGoal') == '4', t.field('onboardingGoal'))
+    check('and the Today line and the welcome say Pilates again', 'mat Pilates' in cdp.ev(welcome_lead) and 'mat Pilates session' in cdp.ev(today_text))
+    t.set_field('onboardingGoal', '5')
     go(2)
     check('units start from the settings: pounds and miles for a new account', picked('onboardingUnit') == ['lbs'] and picked('onboardingDistance') == ['mi'],
           [picked('onboardingUnit'), picked('onboardingDistance')])
@@ -475,6 +494,7 @@ def run(t):
     # ------------------------------------------------------------------ O2 signing in, and accounts made elsewhere
     print('O2  signing in, and an account made through the API, show no welcome')
     account('returning')
+    t.set_cookie('')  # signed out, as the sign-in page needs (a signed-in person is sent on from it)
     cdp.goto('/login.html')
     cdp.pause(0.5)
     set_flag()  # as an account made in this tab and not yet welcomed would leave it
@@ -509,4 +529,15 @@ def run(t):
     t.click('onboardingSkip')
     cdp.pause(0.2)
     check('(and Skip puts it away)', is_closed() is True)
+
+    # ------------------------------------------------------------------ O9 seen again from Settings, by an account not yet welcomed
+    print('O9  seen again from Settings, an account not yet welcomed keeps its own goal, whatever the Pilates choice')
+    cdp.ev("saveLocalState('settings', { ...getWorkoutSettings(), welcomed: false, weeklyGoal: 4 })")
+    cdp.ev('startOnboarding({ replay: true })')
+    check('it opens with the goal the account has, not the default', t.field('onboardingGoal') == '4', t.field('onboardingGoal'))
+    pick('onboardingPilates', 'no')
+    check('and a Pilates choice leaves that goal alone', t.field('onboardingGoal') == '4', t.field('onboardingGoal'))
+    t.click('onboardingSkip')
+    cdp.pause(0.2)
+    check('(and it closes)', is_closed() is True)
     t.set_cookie(t.token)

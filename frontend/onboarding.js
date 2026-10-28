@@ -14,6 +14,8 @@ const onboardingFlag = 'workout-tracker-welcome';
 let onboardingIndex = 0;
 // Until a distance unit is picked (here or in Settings), it goes with the weight unit, as distanceUnitOf has it.
 let onboardingDistanceChosen = false;
+// Until a weekly goal is picked by hand, a new account's goal follows the Pilates choice (see onboardingChange).
+let onboardingGoalChosen = false;
 
 // ---- When it shows --------------------------------------------------------
 
@@ -33,6 +35,13 @@ function onboardingForgetFlag() {
 function needsOnboarding() {
   const training = typeof activeSession !== 'undefined' && Boolean(activeSession);
   return onboardingFlagged() && getWorkoutSettings().welcomed !== true && !training;
+}
+
+// Whether this is the account's first welcome, so its goal is the program's default rather than its own: not welcomed yet, and not seen
+// again from Settings. An account from before the welcome that asks for it again keeps the goal it has (the brief's rule: an existing
+// account's goal is not changed silently). The replay mark is set before the welcome is prefilled, which is what reads it.
+function onboardingFirstWelcome() {
+  return getWorkoutSettings().welcomed !== true && $('onboarding').dataset.replay !== 'true';
 }
 
 // `index.html?welcome` is how Settings asks for it again from another page. The word is taken off the address, so a reload
@@ -73,6 +82,25 @@ function onboardingPilatesChoices() {
   return programDefinitions[0].options[1].choices.map(choice => onboardingChoice('onboardingPilates', choice.value, choice.label, '', choice.help)).join('');
 }
 
+// The lines that name the Pilates days, for the choice as it stands: the welcome, the week and the tour's Today line. Strength only
+// leaves the Pilates days out of every one of them, since the program then has no Pilates to say. Included is the plan as written.
+function onboardingPilatesCopy(pilates) {
+  const strengthOnly = pilates === 'no';
+  return {
+    welcome: `Six weeks of strength${strengthOnly ? '' : ', mat Pilates'} and a daily walk, one day at a time. Open the app and it says what today is; log it, and the program moves on.`,
+    week: `The program is ${strengthOnly ? 'three strength' : 'five'} days a week. The History calendar counts your workouts against a weekly goal, and each week in a row you reach it adds to your streak.`,
+    today: strengthOnly
+      ? 'The next workout of the program: its warm-up and supersets, and the daily walk to log. Start it and log each set; the rest timer counts down between rounds, and new records are called out as you set them.'
+      : 'The next day of the program: its warm-up and supersets, or the mat Pilates session, and the daily walk to log. Start it and log each set; the rest timer counts down between rounds, and new records are called out as you set them.'
+  };
+}
+
+// A new account's weekly goal starts at the workouts a week the program has as the Pilates choice leaves it: five, or three with
+// Strength only. (The goal is not the program's to set for anyone already welcomed: their goal is theirs.)
+function onboardingDefaultGoal(pilates) {
+  return pilates === 'no' ? 3 : 5;
+}
+
 // Monday first, as Settings and the calendar show the week, each with the number the settings keep (Sunday is 0).
 function onboardingDayChoices() {
   return trainingDays.map(([value, short, name]) => `<label class="weekday"><input type="checkbox" name="onboardingDay" value="${value}" aria-label="${name}" />`
@@ -88,11 +116,14 @@ function onboardingStep(name, title, body) {
 
 function onboardingMarkup() {
   const goals = [1, 2, 3, 4, 5, 6, 7].map(goal => `<option value="${goal}">${goal} workout${goal === 1 ? '' : 's'} a week</option>`).join('');
+  // Written for the plan as it is until the Pilates choice is made; onboardingRenderCopy sets them to the choice as it stands.
+  const copy = onboardingPilatesCopy('yes');
   const pages = [
-    ['strength', 'Today', 'The next day of the program: its warm-up and supersets, or the mat Pilates session, and the daily walk to log. Start it and log each set; the rest timer counts down between rounds, and new records are called out as you set them.'],
+    ['strength', 'Today', copy.today],
     ['progress', 'Progress', 'A chart for each exercise, your personal records, and the achievements you earn along the way.'],
     ['history', 'History', 'Every workout on a calendar, with your weekly goal and the streaks you build.']
-  ].map(([page, name, text]) => `<li><span class="onboarding-tour-icon" data-page="${page}" aria-hidden="true"></span><div><strong>${name}</strong><p>${text}</p></div></li>`).join('');
+  ].map(([page, name, text]) => `<li><span class="onboarding-tour-icon" data-page="${page}" aria-hidden="true"></span><div><strong>${name}</strong>`
+    + `<p${page === 'strength' ? ' id="onboardingTodayText"' : ''}>${text}</p></div></li>`).join('');
   return `
 <div class="onboarding" id="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle-welcome" hidden>
   <div class="onboarding-frame">
@@ -101,18 +132,17 @@ function onboardingMarkup() {
       <button class="onboarding-skip" id="onboardingSkip" type="button">Skip</button>
     </div>
     <div class="onboarding-steps">
-      ${onboardingStep('welcome', 'Welcome to Sad to Savage', `<p class="onboarding-lead">Six weeks of strength, mat Pilates and a daily walk, one day at a time. Open the app and it says what today is; log it, and the program moves on.</p>
+      ${onboardingStep('welcome', 'Welcome to Sad to Savage', `<p class="onboarding-lead" id="onboardingWelcomeLead">${copy.welcome}</p>
         <p class="onboarding-text">It keeps working when the connection drops: what you log is saved on this device and uploads once you are back online.</p>
         <p class="onboarding-note">A few choices and you are ready to start. It takes about a minute, and any of it can be changed later.</p>`)}
-      ${onboardingStep('level', 'Which weights?', `<p class="onboarding-lead">Every exercise in the program gives a range of weight (or a band) for two levels. Choose the one you will follow; you can change it at any time, and the days still to do follow it.</p>
+      ${onboardingStep('level', 'Which weights?', `<p class="onboarding-lead">Each exercise has a weight range for two levels. Choose one now, or change it any time: the days still to do follow it.</p>
         <fieldset class="onboarding-group"><legend>Your level</legend><div class="onboarding-choices">${onboardingLevelChoices()}</div></fieldset>
-        <fieldset class="onboarding-group"><legend>Pilates days</legend><div class="onboarding-choices">${onboardingPilatesChoices()}</div></fieldset>
-        <p class="onboarding-note">The plan has two mat Pilates days a week. Choose strength only and they are skipped: the program is the three strength days and the walk.</p>`)}
+        <fieldset class="onboarding-group"><legend>Pilates days</legend><div class="onboarding-choices">${onboardingPilatesChoices()}</div></fieldset>`)}
       ${onboardingStep('units', 'Pounds or kilograms?', `<p class="onboarding-lead">Every weight is shown in the unit you choose, from Today to your charts. Switching later never changes what you logged.</p>
         <fieldset class="onboarding-group"><legend>Weight</legend><div class="onboarding-segments">${onboardingChoice('onboardingUnit', 'lbs', 'Pounds', 'lbs', '', 'segment')}${onboardingChoice('onboardingUnit', 'kg', 'Kilograms', 'kg', '', 'segment')}</div></fieldset>
         <fieldset class="onboarding-group"><legend>Distance, for your walk</legend><div class="onboarding-segments">${onboardingChoice('onboardingDistance', 'mi', 'Miles', 'mi', '', 'segment')}${onboardingChoice('onboardingDistance', 'km', 'Kilometres', 'km', '', 'segment')}</div></fieldset>
         <p class="onboarding-note">Distance goes with the weight unit until you pick one.</p>`)}
-      ${onboardingStep('week', 'Plan your week', `<p class="onboarding-lead">The program is five days a week. The History calendar counts your workouts against a weekly goal, and each week in a row you reach it adds to your streak.</p>
+      ${onboardingStep('week', 'Plan your week', `<p class="onboarding-lead" id="onboardingWeekLead">${copy.week}</p>
         <div class="onboarding-group"><label for="onboardingGoal">Weekly goal</label><select id="onboardingGoal">${goals}</select></div>
         <fieldset class="onboarding-group weekday-choices onboarding-days"><legend>Days you train (optional)</legend>${onboardingDayChoices()}</fieldset>
         <p class="onboarding-note">With days chosen, Today says what is planned and your phone can remind you. Leave them empty to train whenever suits you: the program waits for you either way.</p>`)}
@@ -140,8 +170,19 @@ function onboardingBuild() {
   const dialog = $('onboarding');
   dialog.addEventListener('click', onboardingGuard(onboardingClick));
   dialog.addEventListener('change', onboardingGuard(onboardingChange));
+  dialog.addEventListener('input', onboardingGuard(onboardingInput));
+  dialog.addEventListener('scroll', onboardingGuard(onboardingCueScroll));
+  window.addEventListener('resize', onboardingGuard(onboardingCueScroll));
   document.addEventListener('keydown', onboardingGuard(onboardingKey));
   return dialog;
+}
+
+// A step taller than the window scrolls under its actions, and a fade on the edge above them says so while there is more below.
+// It is on only while there is more, so a step that fits has nothing faded.
+function onboardingCueScroll() {
+  const dialog = $('onboarding');
+  if (!dialog || dialog.hidden) return;
+  dialog.classList.toggle('onboarding-more', dialog.scrollHeight - dialog.clientHeight - dialog.scrollTop > 8);
 }
 
 // ---- The choices ----------------------------------------------------------
@@ -166,18 +207,29 @@ function onboardingChoices() {
   return { unit, distanceUnit, weeklyGoal:weeklyGoalFrom($('onboardingGoal').value), days, definition, level, pilates };
 }
 
-// Every opening starts from the settings as they are, so a welcome seen again shows what was chosen since. The program is five days a
-// week, so for an account not yet welcomed (whose goal is still the default) it starts at five.
+// Every opening starts from the settings as they are, so a welcome seen again shows what was chosen since. An account not yet welcomed
+// (whose goal is still the default) starts at the program's workouts a week, as its Pilates choice leaves them.
 function onboardingPrefill() {
   const settings = getWorkoutSettings();
   onboardingSetRadio('onboardingUnit', settings.unit === 'kg' ? 'kg' : 'lbs');
   onboardingSetRadio('onboardingDistance', distanceUnitOf(settings));
   onboardingDistanceChosen = settings.distanceUnit === 'mi' || settings.distanceUnit === 'km';
-  $('onboardingGoal').value = String(settings.welcomed === true ? weeklyGoalFrom(settings.weeklyGoal) : 5);
   const { days } = scheduleFrom(settings);
   $('onboarding').querySelectorAll('input[name="onboardingDay"]').forEach(input => { input.checked = days.includes(Number(input.value)); });
   onboardingSetRadio('onboardingLevel', currentProgram ? currentProgram.options.level : programDefinitions[0].options[0].default);
   onboardingSetRadio('onboardingPilates', currentProgram ? currentProgram.options.pilates : programDefinitions[0].options[1].default);
+  onboardingGoalChosen = false;
+  $('onboardingGoal').value = String(onboardingFirstWelcome() ? onboardingDefaultGoal(onboardingRadio('onboardingPilates')?.value)
+    : weeklyGoalFrom(settings.weeklyGoal));
+  onboardingRenderCopy();
+}
+
+// The lines that depend on the Pilates choice, set to the choice as it stands (see onboardingPilatesCopy).
+function onboardingRenderCopy() {
+  const copy = onboardingPilatesCopy(onboardingRadio('onboardingPilates')?.value === 'no' ? 'no' : 'yes');
+  $('onboardingWelcomeLead').textContent = copy.welcome;
+  $('onboardingWeekLead').textContent = copy.week;
+  $('onboardingTodayText').textContent = copy.today;
 }
 
 // The last step says back what was chosen, and its button says what it will do.
@@ -213,6 +265,7 @@ function onboardingShowStep(index) {
   const name = onboardingSteps[onboardingIndex];
   const last = onboardingIndex === onboardingSteps.length - 1;
   const dialog = $('onboarding');
+  onboardingRenderCopy();
   if (name === 'ready') onboardingRenderReady();
   dialog.querySelectorAll('.onboarding-step').forEach(step => { step.hidden = step.dataset.step !== name; });
   dialog.setAttribute('aria-labelledby', `onboardingTitle-${name}`);
@@ -229,6 +282,7 @@ function onboardingShowStep(index) {
   $('onboardingStart').hidden = !last;
   // A long step left scrolled down would open the next one part way through.
   dialog.scrollTop = 0;
+  onboardingCueScroll();
   $(`onboardingTitle-${name}`).focus({ preventScroll:true });
 }
 
@@ -258,12 +312,23 @@ function onboardingClick(event) {
   else if (button.id === 'onboardingStart') finishOnboarding('done');
 }
 
+// A goal picked by hand is kept whatever the Pilates choice does to the default; the select's input event is what says it was picked.
+function onboardingInput(event) {
+  if (event.target.id === 'onboardingGoal') onboardingGoalChosen = true;
+}
+
 // Picking a weight unit moves the distance with it, until a distance has been picked.
 function onboardingChange(event) {
   const { name, value } = event.target;
   if (name === 'onboardingDistance') onboardingDistanceChosen = true;
   if (name === 'onboardingUnit') {
     if (!onboardingDistanceChosen) onboardingSetRadio('onboardingDistance', value === 'kg' ? 'km' : 'mi');
+  }
+  // Leaving the Pilates days out changes how many days a week the program has, so a goal not yet picked by hand follows it on the first
+  // welcome only. Any other account keeps the goal it has, whatever is chosen here.
+  if (name === 'onboardingPilates') {
+    if (!onboardingGoalChosen && onboardingFirstWelcome()) $('onboardingGoal').value = String(onboardingDefaultGoal(value));
+    onboardingRenderCopy();
   }
 }
 

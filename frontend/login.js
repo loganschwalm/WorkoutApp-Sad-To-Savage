@@ -25,12 +25,13 @@ let resetEmail = '';
 // such as a tab or newline it strips, which turns "/\t/evil.example" into "//evil.example", another site. Nor is a path
 // beginning // followed: "/.//evil.example" resolves on this site, but to the path "//evil.example", which followed on
 // its own is another site again.
+// Nor is this page itself: a signed-in person sent back here would be sent on to the same place, and go round for ever.
 function nextDestination() {
   const next = new URLSearchParams(location.search).get('next');
   if (!next) return '/';
   try {
     const url = new URL(next, location.origin);
-    return url.origin === location.origin && !url.pathname.startsWith('//') ? url.pathname + url.search + url.hash : '/';
+    return url.origin === location.origin && !url.pathname.startsWith('//') && !/^\/login\.html$/i.test(url.pathname) ? url.pathname + url.search + url.hash : '/';
   } catch (error) {
     return '/';
   }
@@ -113,23 +114,36 @@ async function submitWith(button, task) {
   button.disabled = false;
 }
 
+// Replaces this page in the history rather than adding to it, so Back from the Tracker never comes back to a sign-in form.
 function signedIn(result) {
   if (result.user) rememberAccount(result.user);
-  window.location.href = nextDestination();
+  window.location.replace(nextDestination());
   return true;
 }
 
-// A server with registration turned off only offers signing in, and one with no mail server cannot send reset codes.
-fetch('/api/auth/me').then(response => response.json()).then(info => {
-  resetAvailable = info.passwordReset === true;
-  forgotButton.hidden = mode !== 'login';
-  inviteRequired = info.registrationCode === true;
-  // The mode may have been chosen before the server answered.
-  if (inviteRequired && mode === 'register') setMode('register');
-  if (info.registrationOpen !== false) return;
-  registerTab.hidden = true;
-  if (mode === 'register') setMode('login');
-}).catch(() => {});
+// A signed-in person has no use for this page, and going Back to it from the welcome found it again with the name still in the box. The
+// server's answer decides, not a cookie: a cookie can outlive its session, and then Sign in again (settings.js) would come back here
+// for a session the server has already ended. Asked again when the page comes back from the history cache, where the script does
+// not run again.
+function checkServer() {
+  fetch('/api/auth/me').then(response => response.json()).then(info => {
+    if (info.user) {
+      signedIn(info);
+      return;
+    }
+    // A server with registration turned off only offers signing in, and one with no mail server cannot send reset codes.
+    resetAvailable = info.passwordReset === true;
+    forgotButton.hidden = mode !== 'login';
+    inviteRequired = info.registrationCode === true;
+    // The mode may have been chosen before the server answered.
+    if (inviteRequired && mode === 'register') setMode('register');
+    if (info.registrationOpen !== false) return;
+    registerTab.hidden = true;
+    if (mode === 'register') setMode('login');
+  }).catch(() => {});
+}
+checkServer();
+window.addEventListener('pageshow', event => { if (event.persisted) checkServer(); });
 
 // Settings sends someone here after deleting their account.
 if (new URLSearchParams(location.search).has('deleted')) showNotice('Your account and everything in it have been deleted.');

@@ -1057,4 +1057,21 @@ def run(t):
           and state['months'][0][1] == '1 workout · 30 min' and state['summary'] == f'{total - 1} saved workouts', [state, cdp.ev("document.getElementById('formFeedback').textContent"), cdp.dialogs])
     check('and off the server', all(w['id'] != push for w in t.api('GET', '/api/workouts', token=historian)[0]['workouts']))
     check('the calendar follows', cdp.ev(f"document.querySelector('.calendar-day[data-date=\"{today.isoformat()}\"]').title").endswith(': Leg Day'))
+
+    # ------------------------------------------------------------------ P10 the sign-in page is for people who are not signed in
+    print('P10 the sign-in page sends a signed-in person on; a signed-out one still gets the form')
+    t.set_cookie(t.token)
+    cdp.goto('/history.html')
+    cdp.goto('/login.html')
+    check('signed in, the sign-in page goes on to the Tracker rather than showing its form',
+          cdp.wait("location.pathname === '/' && !!document.getElementById('programCard')", timeout=10), cdp.ev('location.href'))
+    # Replaced rather than left behind, so Back from the Tracker goes to the page before the sign-in page, not to the form.
+    cdp.ev('history.back()')
+    check('and Back from the Tracker does not return to the sign-in page', cdp.wait("location.pathname === '/history.html'", timeout=10), cdp.ev('location.href'))
+    # Signed out: an empty cookie is no session, and the form stays where it is.
+    t.set_cookie('')
+    cdp.goto('/login.html')
+    cdp.pause(0.8)  # long enough for the page to ask the server and, if it were going to, to leave
+    check('signed out, the sign-in form stays on the page, with nothing filled in', cdp.ev("location.pathname") == '/login.html'
+          and cdp.ev("document.getElementById('authForm').hidden") is False and cdp.ev("document.getElementById('username').value") == '', cdp.ev('location.href'))
     t.set_cookie(t.token)
