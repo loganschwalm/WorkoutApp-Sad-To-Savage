@@ -26,6 +26,21 @@ def run(t):
     cdp.pause(0.8)
     sets_after_reload = cdp.ev("document.querySelectorAll('#completedSets li').length")
     check('refresh mid-workout keeps the logged set', sets_after_reload == 1, f'sets={sets_after_reload}')
+    # What is typed for the next set, and not logged yet, survives a reload too, and is gone once that set is logged.
+    t.set_field('activeWeight', '105')
+    t.set_field('completedReps', '9')
+    cdp.pause(0.3)
+    cdp.send('Page.reload')
+    time.sleep(0.4)
+    cdp.wait("document.readyState === 'complete'")
+    cdp.wait(ACTIVE)
+    cdp.pause(0.8)
+    check('typed weight and reps are back after a refresh', t.field('activeWeight') == '105' and t.field('completedReps') == '9',
+          (t.field('activeWeight'), t.field('completedReps')))
+    cdp.ev("document.getElementById('completeSetBtn').click()")
+    cdp.pause(0.6)
+    kept = cdp.ev("Object.keys(localStorage).filter(key => key.startsWith('workout-tracker-entry-'))")
+    check('logging the set takes them off this device', kept == [], kept)
     before = len(workouts())
     for _ in range(3):
         cdp.ev("document.getElementById('nextExerciseBtn').click()")

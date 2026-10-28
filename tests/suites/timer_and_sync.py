@@ -241,6 +241,22 @@ def run(t):
     check('the first response really was dropped', cdp.dropped == 1, cdp.dropped)
     check('server stored exactly one copy', len(workouts()) == n + 1, f'{n} -> {len(workouts())}')
 
+    print('P5b a workout the server already has is finished again as already saved, not saved')
+    open_tracker()
+    start(1)
+    cdp.pause(0.6)
+    log_set(5)
+    client_id = cdp.ev('activeSession.clientId')
+    # The server has this workout already (an earlier upload of it, or another tab's), under the clientId the page is finishing with.
+    api('POST', '/api/workouts', {'name': 'Pull Day', 'notes': '', 'createdAt': int(time.time() * 1000), 'clientId': client_id,
+                                  'exercises': [ex('Deadlift', 100, 5, [(5, 100)])]}, token)
+    n = len(workouts())
+    finish_all()
+    feedback = lambda: cdp.ev("document.getElementById('formFeedback').textContent") or ''
+    check('finishing it says it was already saved, not that it was saved', wait_for(lambda: feedback().startswith('This workout was already saved.')), feedback())
+    check('and no second copy is stored, with nothing left to upload', len(workouts()) == n and safe_ev('readPendingWorkouts().length', -1) == 0,
+          (n, len(workouts()), safe_ev('readPendingWorkouts().length', -1)))
+
     print('P6  another account on the same browser')
     me_id = api('GET', '/api/auth/me', token=token)[0]['user']['id']
     open_tracker()
@@ -684,6 +700,8 @@ def run(t):
            "document.querySelector('#exerciseJump [data-jump=\"3\"]').click()")
     cdp.pause(0.3)
     set_seconds(600)
+    check('the Seconds field says its length in minutes beside it', cdp.ev("document.getElementById('completedRepsLabel').textContent") == 'Seconds · 10 min',
+          cdp.ev("document.getElementById('completedRepsLabel').textContent"))
     cdp.ev("document.getElementById('holdBtn').click()")
     cdp.pause(1.3)
     s = hold_shown()
@@ -704,6 +722,8 @@ def run(t):
     s = hold_shown()
     check('Stop fills in the seconds held as the logged value, and offers Start again', not s['running'] and s['button'] == 'Start timer' and not s['pauseShown']
           and s['field'] in ('1', '2', '3'), s)
+    check('and the label goes back to plain seconds for the seconds held', cdp.ev("document.getElementById('completedRepsLabel').textContent") == 'Seconds',
+          cdp.ev("document.getElementById('completedRepsLabel').textContent"))
     cdp.ev("document.getElementById('holdBtn').click()")
     cdp.pause(0.3)
     check('Start after a Stop counts the whole hold again, not the seconds held', cdp.ev("document.getElementById('holdDisplay').textContent") in ('10:00', '9:59'), hold_shown())
