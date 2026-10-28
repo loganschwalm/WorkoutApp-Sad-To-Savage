@@ -21,7 +21,7 @@ def run(t):
         cdp.pause(0.2)
 
     def rows():
-        return cdp.ev("[...document.querySelectorAll('#completedSets li')].map(li => ({ reps: li.querySelector('[data-field=reps]').value, unit: li.querySelectorAll('.set-field span')[1].textContent, label: li.querySelector('[data-field=reps]').getAttribute('aria-label') }))")
+        return cdp.ev("[...document.querySelectorAll('#completedSets li')].map(li => ({ reps: li.querySelector('[data-field=reps]').value, unit: li.querySelector('[data-field=reps]').nextElementSibling.textContent, label: li.querySelector('[data-field=reps]').getAttribute('aria-label') }))")
 
     def names():
         return cdp.ev('activeSession.exercises.map(e => e.name)')
