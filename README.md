@@ -173,7 +173,7 @@ python backend/server.py            # then open http://localhost:6769/
 python scripts/demo-server.py       # the same, on a fresh database with twelve days of the program done and walked
 ```
 
-The demo signs in as `savage-test` / `Sad-To-Savage-Test`. Add `--follow` to keep it on whatever CI last
+The demo signs in as `savage-test` / `Sad-To-Savage-Demo`. Add `--follow` to keep it on whatever CI last
 passed, rebuilding each time it passes again.
 
 ## Using it on your phone

@@ -4,7 +4,7 @@
     python scripts/demo-server.py             this checkout, until Ctrl+C
     python scripts/demo-server.py --follow    whatever CI last passed, rebuilt each time it passes again
 
-Then open http://localhost:6769/ and sign in as savage-test / Sad-To-Savage-Test. Every start is a fresh database,
+Then open http://localhost:6769/ and sign in as savage-test / Sad-To-Savage-Demo. Every start is a fresh database,
 so whatever is logged in it is gone at the next one; data/workouts.db is never touched.
 
 --follow keeps its own clone of the repository in data/preview and checks every minute whether `stable` has moved,
@@ -28,7 +28,8 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PREVIEW_DIR = os.path.join(ROOT, 'data', 'preview')
-USERNAME, EMAIL, PASSWORD = 'savage-test', 'savage-test@example.com', 'Sad-To-Savage-Test'
+# The password may not hold the username or the email's name (the server refuses it), so it does not say "savage-test".
+USERNAME, EMAIL, PASSWORD = 'savage-test', 'savage-test@example.com', 'Sad-To-Savage-Demo'
 DAY_MS = 86400000
 
 # ---- Twelve days of Sad to Savage ---------------------------------------------------------------------------------

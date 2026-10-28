@@ -319,3 +319,17 @@ def run(t):
     goes_round('the big view', 'bigView')
     cdp.ev("closeBigView()")
     end_workout()
+
+    # ------------------------------------------------------------------ F10 Back closes Settings
+    print('F10 the Back button closes Settings, and goes back a page only once it is shut')
+    settle('/history.html', "!!document.querySelector('nav.site-nav')")
+    open_settings()
+    cdp.pause(0.3)
+    cdp.ev("history.back()")
+    cdp.pause(0.6)
+    hidden, path = cdp.ev("document.getElementById('settingsModal').hidden"), cdp.ev("location.pathname")
+    check('Back with Settings open closes it and stays on the Tracker', hidden is True and path == '/index.html', (hidden, path))
+    cdp.ev("history.back()")
+    cdp.pause(0.6)
+    path = cdp.ev("location.pathname")
+    check('the next Back, with Settings shut, goes to the page before', path == '/history.html', path)

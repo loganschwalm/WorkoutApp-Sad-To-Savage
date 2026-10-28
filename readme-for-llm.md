@@ -1932,7 +1932,7 @@ PORT=9000 WORKOUT_DB=/tmp/scratch.db python backend/server.py
 ```
 
 To try the app on realistic data, run it with twelve days of Sad to Savage already done (made from the plan itself, at the New to
-strength level, with a walk on each day and one day of only showing up), and sign in as `savage-test` / `Sad-To-Savage-Test`:
+strength level, with a walk on each day and one day of only showing up), and sign in as `savage-test` / `Sad-To-Savage-Demo`:
 
 ```bash
 python scripts/demo-server.py             # this checkout, until Ctrl+C
