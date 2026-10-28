@@ -34,6 +34,8 @@ def run(t):
         return fresh[0] if fresh else None
 
     def ui_login(query=''):
+        # A browser already signed in is sent on from the sign-in page, so each attempt starts signed out.
+        set_cookie('')
         cdp.goto('/login.html' + query)
         cdp.ev("document.getElementById('username').value = 'tester'; document.getElementById('password').value = 'chalk-and-plates-42'; document.getElementById('authForm').requestSubmit()")
         cdp.wait("location.pathname !== '/login.html'")

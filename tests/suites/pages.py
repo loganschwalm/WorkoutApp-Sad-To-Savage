@@ -70,12 +70,15 @@ def run(t):
               ('Progress with workouts to chart', '/progress.html', "chartData && chartData.points.length > 0", None),
               ('the sign-in page', '/login.html', "!!document.getElementById('authForm')", None)]
     for label, path, ready, action in states:
+        # The sign-in page sends a signed-in browser on (login.js), so it is shown to a signed-out one.
+        t.set_cookie('' if path == '/login.html' else t.token)
         settle(path, ready)
         if action:
             action()
             cdp.pause(0.4)
         showing = cdp.ev(leaks)
         check(f'{label}: every hidden element is invisible', showing == [], showing)
+    t.set_cookie(t.token)
     settle('/progress.html', "chartData && chartData.points.length > 0")
     cdp.ev("renderProgress([])")
     check('and does show when there is nothing to chart',
@@ -243,11 +246,14 @@ def run(t):
     check('and the choice reaches the server', t.wait_for(lambda: t.api('GET', '/api/state', token=t.token)[0]['settings'].get('theme') == 'system'))
 
     device('dark')
+    # A browser already signed in is sent on from the sign-in page, so it is signed out to see the form, and back in after.
+    t.set_cookie('')
     cdp.goto('/login.html')
     cdp.wait("!!document.getElementById('authForm')")
     check('the sign-in page follows the device too', cdp.ev(theme) == 'dark' and cdp.ev('window.__themeAtBody') == 'dark',
           f"{cdp.ev('window.__themeAtBody')} {cdp.ev(theme)}")
     check('with the browser chrome to match', cdp.ev("document.querySelector('meta[name=theme-color]').content").lower() == '#0b0e13')
+    t.set_cookie(t.token)
 
     print('P6b colour themes beyond light and dark')
     device('light')
@@ -291,9 +297,11 @@ def run(t):
     cdp.pause(0.3)
     check('and recolours it when the theme changes', cdp.ev("getComputedStyle(document.querySelector('#legend .legend-swatch')).backgroundColor") == 'rgb(240, 85, 85)',
           cdp.ev("getComputedStyle(document.querySelector('#legend .legend-swatch')).backgroundColor"))
+    t.set_cookie('')
     cdp.goto('/login.html')
     cdp.wait("!!document.getElementById('authForm')")
     check('the sign-in page is in the chosen theme too', cdp.ev('document.documentElement.dataset.palette') == 'crimson' and var('--accent') == '#f05555')
+    t.set_cookie(t.token)
     t.open_tracker()
     choose('system')
     check('Match system goes back to the device', cdp.ev('document.documentElement.dataset.palette') == 'light' and cdp.ev(theme) == 'light')

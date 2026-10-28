@@ -64,9 +64,16 @@ SIZES = {'normal': 16, 'large': 18.4, 'larger': 20.8, 'largest': 24}
 
 def run(t):
     cdp, check, api, token = t.cdp, t.check, t.api, t.token
-    open_tracker, start, end_workout = t.open_tracker, t.start, t.end_workout
+    start, end_workout = t.start, t.end_workout
+
+    def open_tracker():
+        # The sign-in page is looked at signed out (see settle), so the way back to the tracker is signing in again.
+        t.set_cookie(token)
+        t.open_tracker()
 
     def settle(path, ready):
+        # The sign-in page sends a signed-in browser on (login.js), so it is shown to a signed-out one; every other page to this account.
+        t.set_cookie('' if path == '/login.html' else token)
         cdp.goto(path)
         cdp.wait(ready, timeout=10)
         cdp.pause(0.5)
@@ -84,6 +91,7 @@ def run(t):
         return api('GET', '/api/state', token=token)[0]['settings']
 
     def open_settings(page='/index.html'):
+        t.set_cookie(token)
         cdp.goto(page)
         cdp.wait("typeof getWorkoutSettings === 'function' && !!window.serverStateReady")
         cdp.ev('window.serverStateReady.then(() => true)')
