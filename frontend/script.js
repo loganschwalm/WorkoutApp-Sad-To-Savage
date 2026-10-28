@@ -47,10 +47,12 @@ function takeAccountState() {
   exerciseNotes = loadExerciseNotes();
   exerciseLibrary = loadExerciseLibrary();
   renderExerciseNote();
+  // Before the suggestions, which include the program's exercises: drawn first, they would be the old program's until the
+  // saved workouts next load, and when those had loaded already that would be never.
+  reloadProgram();
   renderExerciseSuggestions();
   // An exercise's equipment, which says whether it gets plates, may only arrive now.
   if (activeSession) showPlates();
-  reloadProgram();
 }
 window.serverStateReady.then(takeAccountState);
 window.addEventListener('accountstatechange', takeAccountState);

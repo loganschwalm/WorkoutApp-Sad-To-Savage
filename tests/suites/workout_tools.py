@@ -95,6 +95,8 @@ def run(t):
     api('PUT', '/api/state', {'program': {'definition': 'sad-to-savage', 'startedAt': 1, 'cycle': 1, 'options': {'level': 'nts'}, 'done': {}, 'walks': {}}}, token)
     open_tracker()
     cdp.wait('initialLoadDone', 30)
+    # The program comes with the account's state, which may answer after the workouts have loaded.
+    cdp.ev('window.serverStateReady.then(() => true)')
     options = suggestions()
     check('every exercise logged is suggested', {'Bench Press', 'Overhead Press', 'Barbell Row', 'Pull-up', 'Dumbbell Bench Press'} <= set(options), options)
     check('and the program’s exercises', {'DB Bench Chest Press', 'Banded Lateral Walk', 'Plank Hold', 'Seated Cable Lat Pulldown'} <= set(options), options)
