@@ -2,11 +2,15 @@
 // rest after it, the guard against a thumb that bounces, and correcting or taking away a set already logged (also used by the form
 // for a saved workout). Loaded before script.js, which declares activeSession; nothing here reads it until a set is logged.
 
-// The weight a planned set suggests starting at: its own `start`, or for a workout planned before sets carried one (it was started, and
-// is still going) the bottom of the range in the exercise's note ("New to strength: 7.5-10lb DBs"), where the program can read it.
+// The weight a planned set suggests starting at: the bottom of the range in the exercise's note ("New to strength: 7.5-10lb DBs"), in
+// the unit shown, or else the planned set's own `start` (a workout planned before the note was read the same way). The note is read
+// again, rather than the `start` taken as it is kept, because a start is a number in the unit it was planned in: a change of unit
+// converts a workout's weights (inUnit) but not this, so it would still read 7.5 once the unit is kg. The note is always in pounds.
 function plannedStart(exercise, planned) {
-  if (planned.start) return planned.start;
-  return exercise.note && typeof sadToSavageStartWeight === 'function' ? sadToSavageStartWeight(exercise.note.replace(/^[^:]*:\s*/, '')) : '';
+  const fromNote = exercise.note && typeof sadToSavageStartWeight === 'function'
+    ? sadToSavageStartWeight(exercise.note.replace(/^[^:]*:\s*/, '')) : '';
+  if (planned.start && fromNote === '') return planned.start;
+  return fromNote;
 }
 
 // The weight and reps the entry fields start the next set with. A workout from a training program plans every set, so the next
@@ -95,6 +99,42 @@ function readSetEntry() {
   return { weightValue:$('activeWeight').value, reps:Number($('completedReps').value) };
 }
 
+// The entry fields as typed and not yet logged are kept on this device, so a reload, or a trip to History and back, does not start them
+// over. The key is per account (localKey, so forgetLocalAccount removes it with the account's other copies), and holds the exercise they
+// were typed for, so they never land in another exercise's fields. The weight is kept with its unit, as the workout in progress is.
+function saveTypedEntry() {
+  // Once the account has been deleted nothing is written for it, as writeLocal does for every other account copy.
+  if (!activeSession || localAccountForgotten) return;
+  const exercise = activeSession.exercises[activeSession.currentIndex];
+  try {
+    localStorage.setItem(localKey('entry'), JSON.stringify({ name:exercise.name, weight:$('activeWeight').value, reps:$('completedReps').value,
+      unit:recordUnit(activeSession) }));
+  } catch (error) {
+    // No storage: the entry is only kept while the page stays open, as it always was.
+  }
+}
+
+// Once a set is logged, the workout ends, or another exercise is on show, what was typed belongs to none of those, so nothing is kept.
+function clearTypedEntry() {
+  try { localStorage.removeItem(localKey('entry')); } catch (error) { /* nothing was kept */ }
+}
+
+// Puts back the entry fields as they were typed for the exercise on show, when a workout is shown again (a reload). A weight kept in
+// the other unit is converted to the one the workout is in now.
+function restoreTypedEntry() {
+  if (!activeSession) return;
+  const exercise = activeSession.exercises[activeSession.currentIndex];
+  let kept = null;
+  try { kept = JSON.parse(localStorage.getItem(localKey('entry'))); } catch (error) { kept = null; }
+  if (!kept || kept.name !== exercise.name) return;
+  $('activeWeight').value = convertWeight(kept.weight ?? '', recordUnit(kept), recordUnit(activeSession));
+  $('completedReps').value = kept.reps ?? '';
+  showPlates();
+  renderReach();
+  syncHoldDisplay();
+  showSecondsLabel();
+}
+
 // What is wrong with an entry, if anything, as [what to tell the lifter, the field to look at].
 function setEntryProblem({ weightValue, reps }, timed) {
   if (!reps || reps < 1) return [timed ? 'Enter the seconds held for this set.' : 'Enter the reps completed for this set.', $('completedReps')];
@@ -134,6 +174,8 @@ function recordSet(exercise, { weightValue, reps, type: repeatedType }) {
   const slot = plannedDone(exercise);
   exercise.sets.push({ reps, weight, ...effort, ...(type ? { type } : {}) });
   persistActiveSession();
+  // The entry was for this set, which is logged now: what the fields hold next is the next set's, drawn below.
+  clearTypedEntry();
   renderActiveWorkout();
   const recordNow = exerciseRecord(exercise.name);
   // A goal reached gets a bigger firework than a record, and the record's would only sit on top of it.
@@ -253,7 +295,7 @@ function repeatLastSet() {
   logSet({ weightValue:String(last.weight || 0), reps:Number(last.reps), type:setTypeOf(last) });
 }
 $('repeatSetBtn').onclick = event => { if (!bouncedTap(event)) repeatLastSet(); };
-$('completedReps').oninput = () => { markInvalid($('completedReps'), false); syncHoldDisplay(); };
+$('completedReps').oninput = () => { markInvalid($('completedReps'), false); syncHoldDisplay(); showSecondsLabel(); saveTypedEntry(); };
 // Logged sets can be corrected in place; a value that is not valid snaps back to what was logged.
 $('completedSets').onchange = e => {
   const index = Number(e.target.dataset.set);

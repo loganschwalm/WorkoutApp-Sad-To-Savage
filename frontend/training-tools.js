@@ -256,6 +256,9 @@ function firstWithSetsLeft(session, index) {
 function moveWithinSuperset(index) {
   closeExercisePanels();
   activeSession.currentIndex = index;
+  // Another exercise is on show now, so the sets logged so far and what was typed belong to the one left, as goToExercise says.
+  $('completedSetsToggle').open = false;
+  clearTypedEntry();
   persistActiveSession();
   renderActiveWorkout();
 }
@@ -538,4 +541,4 @@ $('weightStepper').onclick = e => {
   input.value = String(Math.max(0, (Number(input.value) || 0) + step));
   input.dispatchEvent(new Event('input', { bubbles:true }));
 };
-$('activeWeight').oninput = () => { markInvalid($('activeWeight'), false); showPlates(); renderReach(); };
+$('activeWeight').oninput = () => { markInvalid($('activeWeight'), false); showPlates(); renderReach(); saveTypedEntry(); };

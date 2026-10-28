@@ -858,3 +858,25 @@ def run(t):
           and text('nextExerciseBtn') == 'Finish workout', cdp.dialogs)
     cdp.answer = True
     end_workout()
+
+    # ---- P: a move not yet logged starts in the unit a change of unit switches to
+    print('P   a move not yet logged starts in the unit it is switched to')
+    open_tracker()
+    cdp.ev("""startWorkout({ name: 'Plan Day', notes: '', exercises: [
+      { name: 'Lateral Raise', weight: '', reps: '10', sets: [], plan: [{ weight: '', reps: 10, start: 7.5 }], note: 'New to strength: 7.5-10lb DBs' },
+      { name: 'Bench Press', weight: '', reps: '8', sets: [] } ] })""")
+    cdp.pause(0.4)
+    check('a move starts at the bottom of its range, in pounds', field('activeWeight') == '7.5', field('activeWeight'))
+    cdp.ev("document.getElementById('settingsButton').click()")
+    cdp.ev("document.getElementById('unitSetting').value = 'kg'; document.getElementById('settingsForm').requestSubmit()")
+    cdp.pause(0.8)
+    cdp.ev("document.getElementById('nextExerciseBtn').click()")
+    cdp.pause(0.3)
+    cdp.ev("document.getElementById('prevExerciseBtn').click()")
+    cdp.pause(0.3)
+    check('after the switch to kilograms it starts at the same range in kilograms, to the nearest half',
+          field('activeWeight') == '3.5' and text('completedRepsLabel') == 'Reps completed', (field('activeWeight'), text('completedRepsLabel')))
+    cdp.ev("document.getElementById('settingsButton').click()")
+    cdp.ev("document.getElementById('unitSetting').value = 'lbs'; document.getElementById('settingsForm').requestSubmit()")
+    cdp.pause(0.8)
+    end_workout()

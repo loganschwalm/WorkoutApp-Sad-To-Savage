@@ -175,7 +175,6 @@ function renderActiveWorkout() {
     const when = new Date(previous.date).toLocaleDateString(undefined, { month:'short', day:'numeric' });
     showLastTime(`Last time (${when}): `, describeLoggedSets(previous.sets, timed));
   }
-  $('completedRepsLabel').textContent = timed ? 'Seconds' : 'Reps completed';
   // A hold is started with its own Start timer (the primary action), so Complete set beside it is the secondary one, which ends it early.
   $('completeSetBtn').classList.toggle('primary', !timed);
   $('completeSetBtn').classList.toggle('secondary', timed);
@@ -186,6 +185,8 @@ function renderActiveWorkout() {
   const defaults = nextSetDefaults(exercise, previous, timed);
   $('activeWeight').value = defaults.weight;
   $('completedReps').value = defaults.reps;
+  // After the field has its value: the label says the length the field holds.
+  showSecondsLabel();
   showPlates();
   renderExerciseNote();
   renderSuperset();
@@ -200,6 +201,25 @@ function renderActiveWorkout() {
   drawTargetMore();
   // What the next set or the finish is a step away from (reach.js), now the stall hint has had its say.
   renderReach();
+}
+
+// The Seconds field of a hold says its length in minutes beside it ("Seconds · 25 min"), from what the field holds: that is the length
+// the hold's display counts down, and a Stop puts the seconds held into the field, so the label follows it. Under a minute it is only
+// "Seconds", which the number of seconds is already plain about. Any other exercise is "Reps completed".
+function showSecondsLabel() {
+  const label = $('completedRepsLabel');
+  const exercise = activeSession ? activeSession.exercises[activeSession.currentIndex] : null;
+  if (!exercise || !isTimed(exercise)) {
+    label.textContent = 'Reps completed';
+    return;
+  }
+  const seconds = Math.floor(Number($('completedReps').value)) || 0;
+  if (seconds < 60) {
+    label.textContent = 'Seconds';
+    return;
+  }
+  // A whole number of minutes reads as the hold's own words ("25 min"); otherwise the minutes and the seconds left over ("1 min 30 s").
+  label.textContent = `Seconds · ${seconds % 60 ? `${Math.floor(seconds / 60)} min ${seconds % 60} s` : formatDuration(seconds)}`;
 }
 
 // The two lines that say what the last set was: "Same as last set: 10 reps" and the completed sets' header. renderReach ends with them,
@@ -245,6 +265,8 @@ function goToExercise(index) {
   effortChoice = null;
   setTypeChoice = null;
   activeSession.currentIndex = index;
+  // What was typed was for the exercise left behind, not the one on show, so it is not kept for this one.
+  clearTypedEntry();
   stopRestTimer();
   restRemaining = restDuration();
   updateRestTimer();
@@ -278,6 +300,8 @@ function hideActiveWorkout() {
   // The keyboard was on one of its buttons, which go with it; a workout ended on another device leaves it where it was.
   const hadFocus = $('activeWorkout').contains(document.activeElement);
   closeExercisePanels();
+  // The workout has ended, so what was typed for its next set is of nothing now.
+  clearTypedEntry();
   activeSession = null;
   stopRestTimer();
   $('restPanel').hidden = true;
@@ -316,6 +340,8 @@ function startWorkout(stored) {
     currentIndex:0, clientId:newClientId(), unit:weightUnit(), startedAt:Date.now()
   };
   if (template.programDay) activeSession.programDay = template.programDay;
+  // A new workout starts with its fields as the program or the last time says, not with what was typed in one it replaces.
+  clearTypedEntry();
   restRemaining = restDuration();
   updateRestTimer();
   persistActiveSession();
@@ -367,7 +393,10 @@ async function finishWorkout() {
   const synced = await flushPendingWorkouts();
   const note = (skipped ? ` ${skipped} exercise${skipped === 1 ? '' : 's'} with no sets ${skipped === 1 ? 'was' : 'were'} left out.` : '')
     + (programNote ? ` ${programNote}` : '');
-  showFeedback(synced ? `“${workout.name}” saved successfully.${note}`
+  // The server answers a finished workout it already has with alreadySaved (a retry, or one finished again on another tab), so the page
+  // says that rather than that it was saved now, which would not be true.
+  if (workoutWasAlreadySaved(workout.clientId)) showFeedback(`This workout was already saved.${note}`, 'success');
+  else showFeedback(synced ? `“${workout.name}” saved successfully.${note}`
     : `“${workout.name}” is saved on this device and will sync when the server is reachable again.${note}`, 'success');
 }
 
@@ -399,6 +428,8 @@ function showSavedSession(savedSession) {
   // A rest this device was showing when the page went away comes back with it (see rememberRest in rest-timer.js).
   restoreRest();
   renderActiveWorkout();
+  // What was typed for the exercise on show before the page went away is put back in its fields (kept by saveTypedEntry).
+  restoreTypedEntry();
   $('activeNotesToggle').open = Boolean(activeSession.notes);
   showActiveCard(true);
   syncWakeLock();
@@ -571,8 +602,12 @@ $('activeWorkout').addEventListener('focusin', e => {
 });
 $('activeWorkout').addEventListener('focusout', () => document.body.classList.remove('typing'));
 // Start timer is the rest-timer.js handler's, which runs first. This one runs after it, so the hold's panel is brought into view once it has
-// begun (holdInterval is set by then, and is not when the hold could not start).
-$('holdBtn').addEventListener('click', () => { if (holdInterval) scrollToCard($('holdTimer'), 'nearest'); });
+// begun (holdInterval is set by then, and is not when the hold could not start). A Stop has put the seconds held in the field by then,
+// so the Seconds label is drawn from it here.
+$('holdBtn').addEventListener('click', () => {
+  if (holdInterval) scrollToCard($('holdTimer'), 'nearest');
+  showSecondsLabel();
+});
 $('activeAddName').oninput = () => markInvalid($('activeAddName'), false);
 $('activeAddReps').oninput = () => markInvalid($('activeAddReps'), false);
 $('activeAddTimed').onchange = () => { $('activeAddRepsLabel').textContent = $('activeAddTimed').checked ? 'Target seconds' : 'Target reps'; };

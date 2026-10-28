@@ -203,8 +203,12 @@ def run(t):
     click('supersetToggle')
     check('which makes them a superset', visible('supersetLine') and text('supersetLine') == 'Superset with Barbell Row: a set of each in turn, then rest.'
           and text('supersetToggle') == 'Leave superset', text('supersetLine'))
+    # The completed sets are open on the first move; a hop to the next one folds them away, as moving to another exercise does.
+    cdp.ev("document.getElementById('completedSetsToggle').open = true")
     log(100, 8)
     check('a set goes straight on to the other, with no rest', current() == 'Barbell Row' and not visible('restPanel'))
+    check('and the completed sets fold away on that hop, so the controls below are not pushed down',
+          cdp.ev("document.getElementById('completedSetsToggle').open") is False, cdp.ev("document.getElementById('completedSetsToggle').open"))
     log(80, 8)
     check('which ends the round: rest, and back to the first', current() == 'Bench Press' and visible('restPanel'))
     cdp.ev("document.getElementById('addActiveExercise').open = true")
