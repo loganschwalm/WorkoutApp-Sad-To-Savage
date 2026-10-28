@@ -102,6 +102,8 @@ def run(t):
 
     # ------------------------------------------------------------------ S3 closed registration
     print('S3  the sign-in page follows the registration setting')
+    # A browser already signed in is sent on from the sign-in page, so it is signed out to see the form.
+    t.set_cookie('')
     settle('/login.html', "!!document.getElementById('registerTab')")
     cdp.pause(0.3)
     check('an open server offers Create account',
