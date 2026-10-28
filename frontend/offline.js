@@ -22,6 +22,16 @@ let localAccountForgotten = false;
 let localAccountElsewhere = false;
 // The stamp of each part of the account state as this page last knew it, by its key (see takeOtherTabsChanges).
 const knownStateStamps = new Map();
+// The workout in progress as this page last had it, as JSON (null for none). Another tab leaving it different is what
+// takeOtherTabsWorkout takes in; this page's own writes keep it current (writeLocal, noteActiveSession).
+let knownActiveJson = 'null';
+// Set once the server has said a finished workout is saved already (its answer to an upload, or to a copy of it in progress),
+// by clientId, for the page to say so (workoutWasAlreadySaved).
+const serverSavedClientIds = new Set();
+// The clientIds of the saved workouts as this device keeps them, cached until that copy changes (savedClientIds).
+let savedClientIdsCache = null;
+// Whether the in-workout sync is failing because the sign-in expired (a 401), not because the server cannot be reached.
+let activeSignedOut = false;
 
 // Falls back to memory when localStorage is unavailable, so syncing still works (it just cannot survive a reload).
 function readLocal(key) {
@@ -34,6 +44,7 @@ function writeLocal(key, value) {
   if (localAccountForgotten) return;
   // This page's own change to a part of the account state is not another tab's (see takeOtherTabsChanges).
   if (knownStateStamps.has(key)) knownStateStamps.set(key, value?.stamp);
+  if (key === localKey('active')) noteActiveSession(value?.session);
   try {
     localStorage.setItem(key, JSON.stringify(value));
     memoryStore.delete(key);
@@ -86,8 +97,19 @@ let localUserConfirmed = false;
 
 function keepSavedWorkoutsCopy(workouts) {
   if (localAccountForgotten || !localUserConfirmed) return;
+  savedClientIdsCache = null;
   try { localStorage.setItem(localKey('workouts'), JSON.stringify(workouts)); }
   catch (error) { dropSavedWorkoutsCopies(); }
+}
+
+// The clientIds of the saved workouts as this device last loaded them, as a Set. Parsed once per copy, not once per call: a
+// page asks on every change to the workout in progress (saveLocalActive), and the copy can be long.
+function savedClientIds() {
+  if (!savedClientIdsCache || savedClientIdsCache.key !== localKey('workouts')) {
+    const copy = readSavedWorkoutsCopy() || [];
+    savedClientIdsCache = { key:localKey('workouts'), ids:new Set(copy.map(workout => workout && workout.clientId).filter(Boolean)) };
+  }
+  return savedClientIdsCache.ids;
 }
 
 function readSavedWorkoutsCopy() {
@@ -101,6 +123,7 @@ function readSavedWorkoutsCopy() {
 
 // Every account's copy on this device: whether any was there to drop.
 function dropSavedWorkoutsCopies() {
+  savedClientIdsCache = null;
   try {
     const keys = Object.keys(localStorage).filter(key => key.startsWith(savedWorkoutsCopyPrefix));
     keys.forEach(key => localStorage.removeItem(key));
@@ -169,7 +192,7 @@ function newClientId() {
 }
 
 function reportSyncStatus(uploaded = 0) {
-  window.dispatchEvent(new CustomEvent('syncchange', { detail:{ pendingWorkouts:readPendingWorkouts().length, rejectedWorkouts:readRejectedWorkouts().length, refusedParts:refusedStateParts(), activeOffline:activeSyncFailed, uploaded } }));
+  window.dispatchEvent(new CustomEvent('syncchange', { detail:{ pendingWorkouts:readPendingWorkouts().length, rejectedWorkouts:readRejectedWorkouts().length, refusedParts:refusedStateParts(), activeOffline:activeSyncFailed, activeSignedOut, uploaded } }));
 }
 
 // The signed-in account decides which local copy is ours; fall back to the last known account when the server is unreachable.
@@ -179,6 +202,8 @@ window.localReady = syncFetch('/api/auth/me', {}, 4000).then(response => respons
   window.localEmail = result.user ? result.user.email : null;
   localUserConfirmed = localUserId !== null;
   if (localUserId !== null) writeLocal(lastUserStorageKey, localUserId);
+  // The account may be another than the last one seen here, so its workout in progress is what this page now holds.
+  noteActiveSession(readLocalActive()?.session);
 }).catch(() => {});
 
 // ---- In-progress workout --------------------------------------------------
@@ -191,10 +216,62 @@ function mirrorActiveSession(session) {
   writeLocal(localKey('active'), { session, dirty:false, stamp:`${Date.now()}-${++changeCounter}` });
 }
 
-// A null session is recorded too: it means the workout ended and the server still has to be told.
+// A null session is recorded too: it means the workout ended and the server still has to be told. A copy of a workout that is
+// finished already is not kept as one in progress (finishedWorkoutHere), so a tab that has not heard of the finish cannot bring
+// the workout back: the page is told, and the copy goes.
 function saveLocalActive(session) {
+  if (session && finishedWorkoutHere(session.clientId)) {
+    refuseFinishedSession(session);
+    return;
+  }
   writeLocal(localKey('active'), { session, dirty:true, stamp:`${Date.now()}-${++changeCounter}` });
   scheduleActiveSync(400);
+}
+
+// Whether a workout with this clientId is finished already: the server has said so, or it is waiting to upload on this device, or the
+// saved workouts as this device last loaded them have it. The server checks again (save_active_session), so a copy of this that is out
+// of date costs nothing it would have kept.
+function finishedWorkoutHere(clientId) {
+  if (!clientId) return false;
+  return serverSavedClientIds.has(clientId) || readPendingWorkouts().some(workout => workout.clientId === clientId) || savedClientIds().has(clientId);
+}
+
+// The copy of a finished workout was not kept, so the workout in progress on this page is over, and the page says why. Once per
+// workout, since a page that goes on logging into it would otherwise say it at every set. The page's workout is closed on its next
+// turn, not in the middle of the call that found this out (persistActiveSession is still running there).
+const refusedFinishedWorkouts = new Set();
+function refuseFinishedSession(session) {
+  if (refusedFinishedWorkouts.has(session.clientId)) return;
+  refusedFinishedWorkouts.add(session.clientId);
+  if (typeof showFeedback === 'function') showFeedback('This workout was already saved, so the sets logged on this device since are not kept.', 'info');
+  setTimeout(() => { if (typeof hideActiveWorkout === 'function') hideActiveWorkout(); }, 0);
+}
+
+// Whether the server said, in answer to an upload of this workout, that it was saved already. For the page to say so when the person
+// finished it again, instead of that it was saved (a copy of it in progress may have sets the saved one does not, which are not kept).
+function workoutWasAlreadySaved(clientId) {
+  return serverSavedClientIds.has(clientId);
+}
+
+// The in-workout notice (index.html's activeSyncNotice) says what is wrong: that the server cannot be reached, or that the sign-in has
+// expired (a 401), which the sign-in banner (settings.js shows it on any 401) is where to mend. Its own words are kept for the first.
+let activeNoticeText = null;
+function describeActiveSyncNotice() {
+  const notice = document.getElementById('activeSyncNotice');
+  if (!notice) return;
+  if (activeNoticeText === null) activeNoticeText = notice.textContent;
+  notice.textContent = activeSignedOut
+    ? 'Your sign-in has expired, so your sets are saved on this device but not sent. Sign in again, with the banner at the top of this page, to keep them syncing.'
+    : activeNoticeText;
+}
+
+// The state of the in-workout sync: failing (and whether for an expired sign-in), or not. Reported only when it changes.
+function setActiveSyncState(failed, signedOut = false) {
+  const changed = failed !== activeSyncFailed || (failed && signedOut !== activeSignedOut);
+  activeSyncFailed = failed;
+  activeSignedOut = failed && signedOut;
+  describeActiveSyncNotice();
+  if (changed) reportSyncStatus();
 }
 
 function scheduleActiveSync(delay) {
@@ -213,15 +290,25 @@ async function syncActiveSession() {
     const response = record.session
       ? await syncFetch('/api/active-session', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ session:record.session }) })
       : await syncFetch('/api/active-session', { method:'DELETE' });
-    if (!response.ok) throw new Error(`Active workout sync failed (${response.status}).`);
+    if (!response.ok) throw Object.assign(new Error(`Active workout sync failed (${response.status}).`), { signedOut:response.status === 401 });
+    const answer = record.session ? await response.json().catch(() => ({})) : {};
     const latest = readLocal(key);
-    if (latest && latest.stamp === record.stamp) writeLocal(key, { ...latest, dirty:false });
+    if (answer.stored === false) {
+      // The server kept no copy: the workout is saved already (save_active_session). This copy is then refused on this page too, once
+      // nothing has changed since it was sent (a finish made meanwhile is the same workout, and says nothing new).
+      serverSavedClientIds.add(record.session.clientId);
+      if (latest && latest.stamp === record.stamp) {
+        writeLocal(key, { session:null, dirty:false, stamp:`${Date.now()}-${++changeCounter}` });
+        refuseFinishedSession(record.session);
+      }
+    }
+    else if (latest && latest.stamp === record.stamp) writeLocal(key, { ...latest, dirty:false });
     activeRetryCount = 0;
-    if (activeSyncFailed) { activeSyncFailed = false; reportSyncStatus(); }
+    setActiveSyncState(false);
   } catch (error) {
     console.error('Unable to sync active workout; it is saved on this device and will be retried.', error);
     activeRetryCount += 1;
-    if (!activeSyncFailed) { activeSyncFailed = true; reportSyncStatus(); }
+    setActiveSyncState(true, Boolean(error.signedOut));
   } finally {
     activeSyncing = false;
   }
@@ -348,6 +435,11 @@ function flushPendingWorkouts() {
           failed.push(workout);
           queue = untried();
           continue;
+        }
+        // Stored now, or saved already (the server says which): either way the workout is on the server. Kept for the page to say so.
+        else {
+          const answer = await response.json().catch(() => ({}));
+          if (answer.alreadySaved && workout.clientId) serverSavedClientIds.add(workout.clientId);
         }
       } catch (error) {
         // The server could not be reached, so the rest would fail too: all of them wait for the retry.
@@ -568,6 +660,35 @@ function takeOtherTabsChanges() {
 
 window.addEventListener('storage', event => { if (event.key === null || event.key.startsWith('workout-tracker-')) takeOtherTabsChanges(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) takeOtherTabsChanges(); });
+
+// ---- The workout in progress, as another tab leaves it ----------------------
+// The workout in progress is one record, written whole, so a tab that holds an older copy of it writes that over what another tab
+// stored, and a finished workout comes back on a tab that still shows it. So a tab takes in another's change to it: at once, on the
+// browser's storage event, and on coming back into view for a tab the browser froze. It is shown in place as the page shows the
+// device's copy when it loads (showSavedSession), or taken away when another tab has finished it (hideActiveWorkout). A change is
+// one whose content differs from what this page last had, not one with a newer stamp: every load writes a stamp of its own
+// (mirrorActiveSession), so comparing stamps would have two open tabs taking in each other's forever.
+function noteActiveSession(session) {
+  knownActiveJson = JSON.stringify(session ?? null);
+}
+
+function takeOtherTabsWorkout() {
+  if (localAccountForgotten || localAccountElsewhere) return;
+  const session = readLocalActive()?.session ?? null;
+  if (JSON.stringify(session) === knownActiveJson) return;
+  noteActiveSession(session);
+  // Only the Tracker has a workout to show, or to take away: other pages have neither function, and nothing to do.
+  if (session && typeof showSavedSession === 'function') showSavedSession(session);
+  else if (!session && typeof hideActiveWorkout === 'function') hideActiveWorkout();
+}
+
+noteActiveSession(readLocalActive()?.session);
+window.addEventListener('storage', event => {
+  if (event.key === null || event.key === localKey('active')) takeOtherTabsWorkout();
+  // A copy of the saved workouts changed here or in another tab: the clientIds it has are read again (savedClientIds).
+  if (event.key && event.key.startsWith(savedWorkoutsCopyPrefix)) savedClientIdsCache = null;
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) takeOtherTabsWorkout(); });
 
 // Who this device last had signed in is forgotten when they sign out; their copies stay, under their id, for their next sign-in.
 function forgetLastUser() {

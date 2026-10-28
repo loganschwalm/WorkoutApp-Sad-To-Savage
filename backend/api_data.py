@@ -21,6 +21,13 @@ from workouts import etag_matches, export_zone, exported_workouts, stored_workou
 import_slots = threading.BoundedSemaphore(MAX_IMPORTS_AT_ONCE)
 
 
+def workout_finished(database, user_id, client_id):
+    """Whether the workout with this clientId has been finished: it is saved, or was and has been deleted since. A copy of it
+    that is still in progress is no longer the workout (see save_active_session)."""
+    return (database.execute('SELECT 1 FROM workouts WHERE user_id = ? AND client_id = ?', (user_id, client_id)).fetchone() is not None
+            or database.execute('SELECT 1 FROM deleted_workouts WHERE user_id = ? AND client_id = ?', (user_id, client_id)).fetchone() is not None)
+
+
 class DataApi:
     """The endpoints of an account's data: its workouts, the workout in progress, its synced state, and exporting and importing it."""
 
@@ -55,9 +62,12 @@ class DataApi:
             # Held for writing from here, so two requests cannot both take the account's last place.
             database.execute('BEGIN IMMEDIATE')
             # Clients retry uploads after network failures, so a repeated clientId must not create a second workout, and is
-            # answered even by an account that has since reached its limit.
-            stored = client_id and database.execute('SELECT id FROM workouts WHERE user_id = ? AND client_id = ?', (user['id'], client_id)).fetchone()
-            if stored:
+            # answered even by an account that has since reached its limit. The answer says it was already saved, so the page
+            # can tell the person that rather than that it was saved (a copy of the workout in progress may have had sets the
+            # saved one does not, which are not kept).
+            stored = database.execute('SELECT id FROM workouts WHERE user_id = ? AND client_id = ?', (user['id'], client_id)).fetchone() if client_id else None
+            already_saved = stored is not None
+            if already_saved:
                 status, stored_id = HTTPStatus.OK, stored['id']
             elif client_id and database.execute('SELECT 1 FROM deleted_workouts WHERE user_id = ? AND client_id = ?', (user['id'], client_id)).fetchone():
                 # Uploaded, then deleted, and now sent again by a retry or another tab. Answered as done, so the page drops it from
@@ -69,7 +79,14 @@ class DataApi:
                 status = HTTPStatus.CREATED
                 stored_id = database.execute('INSERT INTO workouts (user_id, name, notes, created_at, payload, client_id) VALUES (?, ?, ?, ?, ?, ?)',
                                              (user['id'], name, notes, created_at, payload, client_id)).lastrowid
-        self.send_json(status, {'id': stored_id} if stored_id is not None else {'id': None, 'deleted': True})
+            if client_id:
+                # The workout is finished, so the copy of it still in progress (one left on the server by a tab that had not heard
+                # of the finish) goes with it, in the same transaction: nothing can bring it back as a workout to finish again.
+                database.execute("DELETE FROM active_sessions WHERE user_id = ? AND json_extract(payload, '$.clientId') = ?", (user['id'], client_id))
+        reply = {'id': stored_id} if stored_id is not None else {'id': None, 'deleted': True}
+        if already_saved:
+            reply['alreadySaved'] = True
+        self.send_json(status, reply)
 
     def update_workout(self, user):
         target = workout_id(self.api_path)
@@ -116,7 +133,12 @@ class DataApi:
     def get_active_session(self, user):
         with connection() as database:
             row = database.execute('SELECT payload FROM active_sessions WHERE user_id = ?', (user['id'],)).fetchone()
-        self.send_json(HTTPStatus.OK, {'session': json.loads(row['payload']) if row else None})
+            session = json.loads(row['payload']) if row else None
+            # A copy stored before save_active_session refused such copies: it is taken away here, so no page opens it again.
+            if isinstance(session, dict) and isinstance(session.get('clientId'), str) and workout_finished(database, user['id'], session['clientId']):
+                database.execute('DELETE FROM active_sessions WHERE user_id = ?', (user['id'],))
+                session = None
+        self.send_json(HTTPStatus.OK, {'session': session})
 
     def save_active_session(self, user):
         data = self.read_json()
@@ -129,9 +151,21 @@ class DataApi:
             # then is refused now, rather than held until the workout is finished.
             if session.get('exercises') is not None:
                 validate_exercises(session['exercises'])
+        stored = True
         with connection() as database:
-            database.execute('INSERT INTO active_sessions (user_id, payload, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at', (user['id'], json.dumps(session), int(time.time() * 1000)))
-        self.send_json(HTTPStatus.OK, {'ok': True})
+            # Held for writing from here, so a finish cannot land between the check and the write.
+            database.execute('BEGIN IMMEDIATE')
+            client_id = session.get('clientId') if session is not None else None
+            if isinstance(client_id, str) and client_id and workout_finished(database, user['id'], client_id):
+                # This is a copy of a workout already finished (and maybe deleted since), from a tab that had not heard of it. Stored,
+                # it would come back on every tab that loads it, to be finished again as a second copy of the workout, so it is
+                # not stored, and any copy stored already goes. The answer says so (stored false), which is not an error: the page
+                # takes it as the workout being over.
+                database.execute("DELETE FROM active_sessions WHERE user_id = ? AND json_extract(payload, '$.clientId') = ?", (user['id'], client_id))
+                stored = False
+            else:
+                database.execute('INSERT INTO active_sessions (user_id, payload, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at', (user['id'], json.dumps(session), int(time.time() * 1000)))
+        self.send_json(HTTPStatus.OK, {'ok': True, 'stored': stored})
 
     def clear_active_session(self, user):
         with connection() as database:

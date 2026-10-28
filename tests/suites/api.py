@@ -2411,6 +2411,37 @@ def run_deletion(t, check, request):
     check('only the newest are kept, so deleting never fills the database', len(remembered) == kept and 'another' in remembered and 'old-0' not in remembered, len(remembered))
     check('and they go with the account', post('/api/account/delete', {'password': 'chalk-and-plates-42'}, keeper)[0] == 200 and tombstones() == [], len(tombstones()))
 
+    print('A49 a copy in progress of a workout already finished is not kept, and a second finish says it was saved already')
+    finisher = register('finisher')
+    finisher_id = me(finisher)['id']
+    finish = lambda body: request('POST', '/api/workouts', json.dumps(body).encode(), json_headers, token=finisher)
+    save_copy = lambda session: request('POST', '/api/active-session', json.dumps({'session': session}).encode(), json_headers, token=finisher)
+    copy_in_progress = lambda: request('GET', '/api/active-session', token=finisher)[2]['session']
+    late = {'name': 'Late Copy', 'clientId': 'late-copy', 'exercises': [t.ex('Squat', 100, 5, [(5, 100)])]}
+    still_going = {'name': 'Still Going', 'clientId': 'still-going', 'exercises': [t.ex('Squat', 100, 5, [(5, 100)])]}
+    check('a copy in progress is kept, as ever', save_copy(late)[2] == {'ok': True, 'stored': True} and copy_in_progress()['clientId'] == 'late-copy', save_copy(late))
+    status, _, reply = finish(late)
+    check('finishing it takes the copy in progress with it', status == 201 and copy_in_progress() is None, (status, copy_in_progress()))
+    first_id = reply.get('id')
+    check('a copy sent after the finish is not kept, and the answer says so, not as an error',
+          save_copy(late)[2] == {'ok': True, 'stored': False} and copy_in_progress() is None, save_copy(late))
+    status, _, reply = finish(late)
+    check('finishing it again is answered as saved already, with the one workout', status == 200 and reply == {'id': first_id, 'alreadySaved': True}, (status, reply))
+    check('a copy of a workout still in progress is kept beside it', save_copy(still_going)[2] == {'ok': True, 'stored': True}
+          and save_copy(late)[2] == {'ok': True, 'stored': False} and copy_in_progress()['clientId'] == 'still-going', copy_in_progress())
+    request('DELETE', f'/api/workouts/{first_id}', None, None, token=finisher)
+    check('a copy of a workout deleted since is not kept either', save_copy(late)[2] == {'ok': True, 'stored': False}, save_copy(late))
+    status, _, reply = finish(late)
+    check('and an upload of it is answered as deleted, as before', status == 200 and reply == {'id': None, 'deleted': True}, (status, reply))
+    check('a copy with no clientId is kept as ever', save_copy({'name': 'Plain', 'exercises': []})[2] == {'ok': True, 'stored': True})
+    db = sqlite3.connect(t.db_path('test.db'))
+    # A copy stored before this (a tab that had not heard of the finish) is taken away when the page next asks for it.
+    db.execute('UPDATE active_sessions SET payload = ? WHERE user_id = ?', (json.dumps(late), finisher_id))
+    db.commit()
+    check('a copy stored before, of a workout already finished, is not handed out again', copy_in_progress() is None
+          and db.execute('SELECT COUNT(*) FROM active_sessions WHERE user_id = ?', (finisher_id,)).fetchone()[0] == 0)
+    db.close()
+
     print('A31 an admin deletes an account from the command line')
     register('removable')
     main.api('POST', '/api/workouts', {'name': 'Theirs', 'exercises': [t.ex('Row', 80, 8, [(8, 80)])]}, register('removable2'))
