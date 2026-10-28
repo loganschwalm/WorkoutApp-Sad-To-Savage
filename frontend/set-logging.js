@@ -103,7 +103,8 @@ function readSetEntry() {
 // over. The key is per account (localKey, so forgetLocalAccount removes it with the account's other copies), and holds the exercise they
 // were typed for, so they never land in another exercise's fields. The weight is kept with its unit, as the workout in progress is.
 function saveTypedEntry() {
-  if (!activeSession) return;
+  // Once the account has been deleted nothing is written for it, as writeLocal does for every other account copy.
+  if (!activeSession || localAccountForgotten) return;
   const exercise = activeSession.exercises[activeSession.currentIndex];
   try {
     localStorage.setItem(localKey('entry'), JSON.stringify({ name:exercise.name, weight:$('activeWeight').value, reps:$('completedReps').value,
