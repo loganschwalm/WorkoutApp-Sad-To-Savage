@@ -22,6 +22,20 @@ function matchesSearch(workout, words) {
   return words.every(word => text.includes(word));
 }
 
+// A workout in the list is known by its id on the server, or while it waits to sync on this device, by its clientId (it has no id
+// yet). Its open or shut state is kept under this, so it is the same across a redraw.
+function historyKey(workout) {
+  return workout.id !== undefined ? `id:${workout.id}` : `queued:${workout.clientId || workout.createdAt}`;
+}
+
+// The saved workouts with those waiting to sync on this device (the queue the Tracker's status counts), newest first. One that is on the
+// server already (a retry that got through, say) is the saved one, so it is not listed twice.
+function listedWorkouts(saved) {
+  const onServer = new Set(saved.map(workout => workout.clientId).filter(Boolean));
+  const waiting = readPendingWorkouts().filter(workout => !onServer.has(workout.clientId));
+  return [...saved, ...waiting].sort((a, b) => b.createdAt - a.createdAt);
+}
+
 // "12 workouts · 11 h 40 min", of a month or a year: the time only counts workouts that were timed.
 function describeGroup(workouts) {
   const seconds = workouts.reduce((sum, workout) => sum + (Number(workout.duration) > 0 ? Number(workout.duration) : 0), 0);
@@ -41,16 +55,21 @@ function workoutLines(workout) {
 // A row: the name (tap for the sets), and a ⋯ menu to edit or delete it. Editing happens in the Today page's workout form. A cardio
 // session (imported from an export; there is no page to log one) can be deleted but not edited.
 function historyRow(workout) {
-  const open = openWorkouts.has(workout.id);
-  return `<li class="saved-workout history-workout" data-id="${escapeHTML(workout.id)}" data-date="${calendarDayKey(new Date(workout.createdAt))}">`
+  const key = historyKey(workout);
+  const open = openWorkouts.has(key);
+  // One still waiting to sync has no id yet, so no menu (edit and delete need the server): it opens to its sets, and uploads by itself.
+  const queued = workout.id === undefined;
+  return `<li class="saved-workout history-workout" data-key="${escapeHTML(key)}"${queued ? '' : ` data-id="${escapeHTML(workout.id)}"`} data-date="${calendarDayKey(new Date(workout.createdAt))}">`
     + '<div class="saved-workout-summary saved-workout-row">'
     + `<button class="saved-workout-toggle" type="button" data-action="view" aria-expanded="${open}">`
-    + `<strong>${escapeHTML(workout.name)}</strong><span>${escapeHTML(isCardio(workout) ? describeSessionDate(workout) : describeWorkoutDate(workout))}</span></button>`
-    + '<div class="row-actions">'
-    + `<details class="row-menu"><summary class="secondary" aria-label="More for ${escapeHTML(workout.name)}">&middot;&middot;&middot;</summary>`
-    + `<div class="row-menu-items">${isCardio(workout) ? '' : '<button type="button" data-action="edit">Edit</button>'}`
-    + (canExportActivity(workout) ? '<button type="button" data-action="export">Download .tcx</button>' : '')
-    + '<button class="danger" type="button" data-action="delete">Delete</button></div></details></div></div>'
+    + `<strong>${escapeHTML(workout.name)}</strong><span>${escapeHTML(isCardio(workout) ? describeSessionDate(workout) : describeWorkoutDate(workout))}</span>`
+    + `${queued ? '<span class="badge">Waiting to sync</span>' : ''}</button>`
+    + (queued ? '<div class="row-actions"></div>' : '<div class="row-actions">'
+      + `<details class="row-menu"><summary class="secondary" aria-label="More for ${escapeHTML(workout.name)}">&middot;&middot;&middot;</summary>`
+      + `<div class="row-menu-items">${isCardio(workout) ? '' : '<button type="button" data-action="edit">Edit</button>'}`
+      + (canExportActivity(workout) ? '<button type="button" data-action="export">Download .tcx</button>' : '')
+      + '<button class="danger" type="button" data-action="delete">Delete</button></div></details></div>')
+    + '</div>'
     + `<div class="workout-details"${open ? '' : ' hidden'}>${workout.notes ? `<p class="workout-note">${escapeHTML(workout.notes)}</p>` : ''}`
     + `<ul>${workoutLines(workout)}</ul></div></li>`;
 }
@@ -67,10 +86,14 @@ function renderHistoryStatus(workouts) {
 }
 
 function renderHistory(workouts) {
-  renderHistoryStatus(workouts);
+  // Those waiting to sync on this device are listed with the saved ones, so the status, the search and the groups all count them.
+  const everything = listedWorkouts(workouts);
+  const waiting = everything.length - workouts.length;
+  renderHistoryStatus(everything);
   const words = searchWords();
-  const shown = words.length ? workouts.filter(workout => matchesSearch(workout, words)) : workouts;
-  $('historySummary').textContent = words.length ? `${shown.length} of ${plural(workouts.length, 'saved workout')}` : plural(workouts.length, 'saved workout');
+  const shown = words.length ? everything.filter(workout => matchesSearch(workout, words)) : everything;
+  $('historySummary').textContent = (words.length ? `${shown.length} of ${plural(everything.length, 'saved workout')}` : plural(workouts.length, 'saved workout'))
+    + (waiting ? ` · ${waiting} waiting to sync` : '');
   // Newest first, as the server sends them, so each month's workouts arrive together, and the months of a year.
   const years = new Map();
   shown.forEach(workout => {
@@ -96,7 +119,7 @@ function renderHistory(workouts) {
         `<ul class="history-year-list">${monthItems}</ul>`) + '</li>';
   }).join('');
   $('historyList').innerHTML = shown.length ? list
-    : `<li class="empty">${workouts.length ? 'No saved workouts match that search.' : 'No saved workouts yet.'}</li>`;
+    : `<li class="empty">${everything.length ? 'No saved workouts match that search.' : 'No saved workouts yet.'}</li>`;
 }
 
 // A year or a month opened or closed by its heading. Drawn by hand, not left to the browser, so what was said is kept (groupOpened)
@@ -127,7 +150,7 @@ async function deleteHistoryWorkout(workout) {
     showHistoryFeedback('This workout could not be deleted. Check your connection and try again.', true);
     return;
   }
-  openWorkouts.delete(workout.id);
+  openWorkouts.delete(historyKey(workout));
   showHistory(historyWorkouts.filter(item => item.id !== workout.id));
   $('historyFeedback').hidden = true;
   // No question first: it can be taken back.
@@ -145,9 +168,8 @@ async function deleteHistoryWorkout(workout) {
 function showWorkoutDetails(row, open) {
   row.querySelector('.workout-details').hidden = !open;
   row.querySelector('[data-action=view]').setAttribute('aria-expanded', String(open));
-  const id = Number(row.dataset.id);
-  if (open) openWorkouts.add(id);
-  else openWorkouts.delete(id);
+  if (open) openWorkouts.add(row.dataset.key);
+  else openWorkouts.delete(row.dataset.key);
 }
 
 $('historyList').onclick = event => {
@@ -161,7 +183,7 @@ $('historyList').onclick = event => {
   if (!button || !historyWorkouts) return;
   const action = button.dataset.action;
   const row = button.closest('.history-workout');
-  const workout = historyWorkouts.find(item => String(item.id) === row.dataset.id);
+  const workout = listedWorkouts(historyWorkouts).find(item => historyKey(item) === row.dataset.key);
   if (!workout) return;
   const menu = button.closest('.row-menu');
   if (menu) menu.open = false;
@@ -232,10 +254,12 @@ function renderCalendar() {
   const today = startOfDay(new Date());
   const thisWeek = startOfWeek(today);
   const first = addDays(thisWeek, -7 * (calendarWeeks - 1));
-  const { days, weeks, cardioOnly } = trainingByDate(historyWorkouts);
+  // A workout waiting to sync was finished here, so its day counts as trained like the rest (listedWorkouts).
+  const listed = listedWorkouts(historyWorkouts);
+  const { days, weeks, cardioOnly } = trainingByDate(listed);
   // The training days still to come, and today's if it has not been trained: planned, with the program's workout for each.
   const schedule = scheduleFrom(getWorkoutSettings());
-  const planned = plannedDays(trainedDayKeys(historyWorkouts), 21, schedule);
+  const planned = plannedDays(trainedDayKeys(listed), 21, schedule);
   const plans = new Map(planned.filter(day => !day.trained).map(day => [day.key, day]));
   const thisWeekCount = weeks.get(calendarDayKey(thisWeek)) || 0;
   const breaks = breaksFrom();
@@ -355,15 +379,49 @@ window.addEventListener('settingschange', () => {
   renderCalendar();
 });
 
-window.localReady.then(flushPendingWorkouts).then(getSavedWorkouts).then(showHistory).catch(error => {
-  // Offline, the copy on this device from the last load is shown instead, and said to be one (see getSavedWorkouts).
-  if (error.copy) {
-    console.error('Unable to load workout history; showing the copy on this device.', error);
-    showHistory(error.copy);
-    showHistoryFeedback('Can’t reach the server. These are your workouts as this device last loaded them.', true);
-    return;
+// The line that says the server cannot be reached, shown while it cannot, and taken away once a load gets through. History is the
+// page that holds the workouts, so it says so here too, as the Tracker's status line does (where it is hidden while a workout goes on).
+const offlineNotice = 'Can’t reach the server. These are your workouts as this device last loaded them.';
+let offlineNoticeShown = false;
+function showOfflineNotice(shown) {
+  if (shown) {
+    showHistoryFeedback(offlineNotice, true);
+    offlineNoticeShown = true;
+  } else if (offlineNoticeShown) {
+    $('historyFeedback').hidden = true;
+    offlineNoticeShown = false;
   }
-  $('historySummary').textContent = 'Unable to load workouts.';
-  $('calendarSummary').textContent = 'The calendar shows once your workouts load.';
-  console.error('Unable to load workout history.', error);
+}
+
+// Uploads what is waiting, then loads the saved workouts (the upload may have added some). Offline, the copy kept on this device from the
+// last load is shown instead, and said to be one (see getSavedWorkouts); the page then waits for the next try, which comes when the
+// device is back online or in view, or after an upload.
+function loadHistory() {
+  return flushPendingWorkouts().then(getSavedWorkouts).then(workouts => {
+    showHistory(workouts);
+    showOfflineNotice(false);
+  }).catch(error => {
+    if (error.copy) {
+      console.error('Unable to load workout history; showing the copy on this device.', error);
+      showHistory(error.copy);
+      showOfflineNotice(true);
+      return;
+    }
+    $('historySummary').textContent = 'Unable to load workouts.';
+    $('calendarSummary').textContent = 'The calendar shows once your workouts load.';
+    console.error('Unable to load workout history.', error);
+  });
+}
+
+window.localReady.then(loadHistory);
+// A workout finished here (in the Tracker, or another tab of this browser) joins the list at once; one that uploads is then read again
+// from the server, so it shows as saved, not waiting. The page takes in the queue another tab changes, as it takes in the saved ones.
+window.addEventListener('syncchange', event => {
+  if (!historyWorkouts) return;
+  if (event.detail.uploaded) loadHistory();
+  else showHistory(historyWorkouts);
 });
+window.addEventListener('storage', event => {
+  if (historyWorkouts && event.key === localKey('pending')) showHistory(historyWorkouts);
+});
+window.addEventListener('online', () => { if (historyWorkouts) loadHistory(); });

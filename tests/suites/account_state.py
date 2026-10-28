@@ -2,6 +2,10 @@
 
 import json
 import re
+import time
+import urllib.request
+
+from ..harness import CDP, LIGHT_DEVICE
 
 INTERCEPT = True
 
@@ -290,3 +294,116 @@ def run(t):
     check('a page opening tries it again', wait_for(lambda: 'again' in server_state()['goals']), server_state()['goals'])
     api('PATCH', '/api/state', {'goals': {'value': goals_before}, 'exerciseNotes': {'value': notes_before}}, token)
     loaded()
+
+    # ------------------------------------------------------------------ S12 two tabs, one workout
+    print('S12 a workout finished in one tab is not brought back by another tab that still shows it')
+    cdp.block_api = False
+    cdp.block_paths = []
+    cdp.answer = True
+    loaded()
+    opened = []
+
+    def second_tab():
+        """Another tab of this browser: the same profile, so the same cookie, origin and localStorage. Driven as t.cdp is."""
+        with urllib.request.urlopen(urllib.request.Request(f'http://127.0.0.1:{t.browser.port}/json/new', method='PUT'), timeout=10) as reply:
+            target = json.load(reply)
+        tab = CDP(target['webSocketDebuggerUrl'], t.base_url)
+        opened.append((target['id'], tab))
+        for domain in ('Page', 'Runtime'):
+            tab.send(f'{domain}.enable')
+        tab.send('Emulation.setEmulatedMedia', features=LIGHT_DEVICE)
+        tab.goto('/index.html')
+        tab.wait('initialLoadDone === true', timeout=20)
+        tab.pause(0.4)
+        return tab
+
+    def probe(tab, expression, default=None):
+        """Evaluated in a tab, where a function this build does not have is an answer of its own (the default)."""
+        try:
+            return tab.ev(expression)
+        except RuntimeError:
+            return default
+
+    def saved_named(name):
+        return [w for w in api('GET', '/api/workouts', token=token)[0]['workouts'] if w['name'] == name]
+
+    cdp.ev("startWorkout({ name: 'Tab Finish', notes: '', exercises: [{ name: 'Bench Press', weight: '', reps: '8' }, { name: 'Overhead Press', weight: '', reps: '8' }] })")
+    cdp.ev("document.getElementById('completedReps').value = '8'; document.getElementById('completeSetBtn').click()")
+    check('a set logged here is kept on the server', wait_for(lambda: t.server_sets() == 1), t.active_session())
+    other = second_tab()
+    check('another tab of this browser shows the same workout', other.ev("!document.getElementById('activeWorkout').hidden") is True)
+    cdp.ev("document.getElementById('finishEarlyBtn').click()")
+    check('finishing it here saves it, with the set logged here',
+          wait_for(lambda: len(saved_named('Tab Finish')) == 1) and sum(len(e['sets']) for e in saved_named('Tab Finish')[0]['exercises']) == 1, saved_named('Tab Finish'))
+    finished = saved_named('Tab Finish')[0]['clientId']
+    check('the other tab stops showing it, because it is saved',
+          other.wait("document.getElementById('activeWorkout').hidden === true", timeout=8), other.ev("document.getElementById('activeWorkout').hidden"))
+    check('and the server keeps no workout in progress', t.active_session() is None, t.active_session())
+    # A tab that did not hear of the finish (frozen, say) and logs a set now: its copy of the workout is refused, not stored again.
+    stale = {'name': 'Tab Finish', 'notes': '', 'currentIndex': 0, 'clientId': finished, 'unit': 'lbs',
+             'exercises': [{'name': 'Bench Press', 'weight': 100, 'reps': 8, 'sets': [{'weight': 100, 'reps': 8}, {'weight': 100, 'reps': 6}]}]}
+    other.ev(f"saveLocalActive({json.dumps(stale)})")
+    other.pause(1.5)
+    check('a workout already saved is not stored as in progress again, so it cannot come back on another tab', t.active_session() is None, t.active_session())
+    check('nor is it kept on the device as in progress',
+          probe(other, "(readLocal(localKey('active')) || {}).session ?? null") is None, probe(other, "readLocal(localKey('active'))"))
+    # Finishing it again (the stale tab's sets too) is answered as already saved, so the page can say that rather than "saved".
+    again = {'name': 'Tab Finish', 'notes': '', 'createdAt': int(time.time() * 1000), 'clientId': finished, 'unit': 'lbs',
+             'exercises': stale['exercises']}
+    other.ev(f"queuePendingWorkout({json.dumps(again)})")
+    check('a finished workout the server already has is answered as saved already',
+          probe(other, f"flushPendingWorkouts().then(() => workoutWasAlreadySaved({json.dumps(finished)}))", False) is True)
+    check('and the server still has the one workout, with the one set it had', len(saved_named('Tab Finish')) == 1
+          and sum(len(e['sets']) for e in saved_named('Tab Finish')[0]['exercises']) == 1, saved_named('Tab Finish'))
+    loaded()
+    cdp.pause(1)
+    check('the first tab, reloaded, shows no workout in progress', cdp.ev("document.getElementById('activeWorkout').hidden") is True,
+          cdp.ev("document.getElementById('activeWorkout').hidden"))
+    for target_id, tab in opened:
+        tab.close()
+        urllib.request.urlopen(f'http://127.0.0.1:{t.browser.port}/json/close/{target_id}', timeout=10).close()
+
+    # ------------------------------------------------------------------ S13 History: waiting to sync, and the server out of reach
+    print('S13 History lists a workout finished offline as waiting to sync, and says when the server cannot be reached')
+    loaded()
+    waiting = {'name': 'Offline Finish', 'notes': '', 'createdAt': int(time.time() * 1000), 'clientId': 'offline-finish-1', 'unit': 'lbs',
+               'exercises': [{'name': 'Row', 'weight': 60, 'reps': 8, 'sets': [{'weight': 60, 'reps': 8}]}]}
+    cdp.ev(f"queuePendingWorkout({json.dumps(waiting)})")
+    cdp.block_api = True
+    cdp.goto('/history.html')
+    cdp.wait("document.querySelectorAll('#historyList .history-workout').length > 0", timeout=12)
+    cdp.pause(0.4)
+    queued_row = "[...document.querySelectorAll('#historyList .history-workout')].find(row => row.dataset.key === 'queued:offline-finish-1')"
+    check('History lists the workout finished offline, with a badge saying it is waiting to sync',
+          cdp.ev(f"!!{queued_row} && {queued_row}.querySelector('.badge').textContent === 'Waiting to sync'") is True, cdp.ev(f"!!{queued_row}"))
+    check('and its summary says how many are waiting', 'waiting to sync' in cdp.ev("document.getElementById('historySummary').textContent"),
+          cdp.ev("document.getElementById('historySummary').textContent"))
+    check('it opens to its sets, though it has no menu (edit and delete need the server)',
+          cdp.ev(f"{queued_row}.querySelector('.row-menu') === null && (({queued_row}).querySelector('[data-action=view]').click(), !{queued_row}.querySelector('.workout-details').hidden)") is True)
+    notice = cdp.ev("document.getElementById('historyFeedback').hidden === false ? document.getElementById('historyFeedback').textContent : ''")
+    check('History says the server cannot be reached, with the curly apostrophe, and that these are what the device last loaded',
+          notice == 'Can’t reach the server. These are your workouts as this device last loaded them.', notice)
+    cdp.block_api = False
+    cdp.ev("syncNow()")
+    check('once the server is back the workout uploads, and History shows it as saved, not waiting',
+          cdp.wait("[...document.querySelectorAll('#historyList .history-workout')].some(row => row.dataset.key.startsWith('id:') && row.textContent.includes('Offline Finish') && !row.querySelector('.badge'))", timeout=12)
+          and 'Offline Finish' in [w['name'] for w in api('GET', '/api/workouts', token=token)[0]['workouts']])
+    check('and the notice goes', cdp.wait("document.getElementById('historyFeedback').hidden === true", timeout=8), cdp.ev("document.getElementById('historyFeedback').textContent"))
+
+    # ------------------------------------------------------------------ S14 the sign-in expired, in the middle of a workout
+    print('S14 a workout in progress whose sign-in expired says so, and points to the sign-in banner')
+    loaded()
+    cdp.ev("startWorkout({ name: 'Expired Sign-in', notes: '', exercises: [{ name: 'Row', weight: '', reps: '8' }, { name: 'Curl', weight: '', reps: '8' }] })")
+    default_notice = cdp.ev("document.getElementById('activeSyncNotice').textContent")
+    cdp.send('Network.deleteCookies', name='session', domain='127.0.0.1')
+    cdp.ev("document.getElementById('completedReps').value = '8'; document.getElementById('completeSetBtn').click()")
+    check('the notice says the sign-in has expired, and the banner at the top offers to sign in again',
+          cdp.wait("document.getElementById('activeSyncNotice').textContent.includes('sign-in has expired')", timeout=10)
+          and cdp.ev("!!document.getElementById('sessionExpired')") is True, cdp.ev("document.getElementById('activeSyncNotice').textContent"))
+    check('and not that the server cannot be reached', 'reach the server' not in cdp.ev("document.getElementById('activeSyncNotice').textContent"))
+    t.set_cookie(token)
+    cdp.ev("syncNow()")
+    check('once signed in again, the notice goes back to what it said, and the workout is saved',
+          cdp.wait(f"document.getElementById('activeSyncNotice').textContent === {json.dumps(default_notice)}", timeout=10) and t.server_sets() == 1,
+          cdp.ev("document.getElementById('activeSyncNotice').textContent"))
+    cdp.ev("closeActiveWorkout()")
