@@ -151,7 +151,7 @@ const sadToSavage = {
   },
   // The walk is the plan's goal for the day; once the program is over, the usual one.
   walkGoal:(program, next) => next ? sadToSavageDay(next.week, next.day).walk : sadToSavagePlan.days[0].walk,
-  setup:{ intro:editing => editing ? 'Change your level any time: the days still to do show the range for the new one.'
+  setup:{ intro:editing => editing ? 'Change your level or the Pilates days any time: the days still to do follow the new choices, and days done are untouched.'
     : 'Choose the range of weights the plan shows you. You can change this later.' }
 };
 

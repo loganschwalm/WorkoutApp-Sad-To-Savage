@@ -37,6 +37,13 @@ function needsOnboarding() {
   return onboardingFlagged() && getWorkoutSettings().welcomed !== true && !training;
 }
 
+// Whether this is the account's first welcome, so its goal is the program's default rather than its own: not welcomed yet, and not seen
+// again from Settings. An account from before the welcome that asks for it again keeps the goal it has (the brief's rule: an existing
+// account's goal is not changed silently). The replay mark is set before the welcome is prefilled, which is what reads it.
+function onboardingFirstWelcome() {
+  return getWorkoutSettings().welcomed !== true && $('onboarding').dataset.replay !== 'true';
+}
+
 // `index.html?welcome` is how Settings asks for it again from another page. The word is taken off the address, so a reload
 // or a bookmark does not bring the welcome back.
 function maybeStartOnboarding() {
@@ -212,8 +219,8 @@ function onboardingPrefill() {
   onboardingSetRadio('onboardingLevel', currentProgram ? currentProgram.options.level : programDefinitions[0].options[0].default);
   onboardingSetRadio('onboardingPilates', currentProgram ? currentProgram.options.pilates : programDefinitions[0].options[1].default);
   onboardingGoalChosen = false;
-  $('onboardingGoal').value = String(settings.welcomed === true ? weeklyGoalFrom(settings.weeklyGoal)
-    : onboardingDefaultGoal(onboardingRadio('onboardingPilates')?.value));
+  $('onboardingGoal').value = String(onboardingFirstWelcome() ? onboardingDefaultGoal(onboardingRadio('onboardingPilates')?.value)
+    : weeklyGoalFrom(settings.weeklyGoal));
   onboardingRenderCopy();
 }
 
@@ -317,10 +324,10 @@ function onboardingChange(event) {
   if (name === 'onboardingUnit') {
     if (!onboardingDistanceChosen) onboardingSetRadio('onboardingDistance', value === 'kg' ? 'km' : 'mi');
   }
-  // Leaving the Pilates days out changes how many days a week the program has, so a goal not yet picked by hand follows it. An
-  // account welcomed before keeps the goal it has, whatever is chosen here.
+  // Leaving the Pilates days out changes how many days a week the program has, so a goal not yet picked by hand follows it on the first
+  // welcome only. Any other account keeps the goal it has, whatever is chosen here.
   if (name === 'onboardingPilates') {
-    if (!onboardingGoalChosen && getWorkoutSettings().welcomed !== true) $('onboardingGoal').value = String(onboardingDefaultGoal(value));
+    if (!onboardingGoalChosen && onboardingFirstWelcome()) $('onboardingGoal').value = String(onboardingDefaultGoal(value));
     onboardingRenderCopy();
   }
 }

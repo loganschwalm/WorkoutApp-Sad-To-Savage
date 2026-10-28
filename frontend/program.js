@@ -389,7 +389,8 @@ function openProgramForm(definition) {
   const options = editing ? currentProgram.options : normalizeOptions(definition, {});
   programForm = { definition, editing };
   rememberOpener('program');
-  $('programModalTitle').textContent = `${editing ? 'Edit' : 'Start'} ${definition.name}`;
+  // Editing changes the level and the Pilates days, so the dialog is named for both.
+  $('programModalTitle').textContent = editing ? 'Level and Pilates days' : `Start ${definition.name}`;
   $('programOptions').innerHTML = definition.options.map(option => optionField(option, options[option.id])).join('');
   $('programIntro').textContent = definition.setup.intro(editing);
   $('programSubmit').textContent = editing ? 'Save changes' : 'Start program';

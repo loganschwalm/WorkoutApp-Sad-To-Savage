@@ -227,7 +227,7 @@ def run(t):
     # ------------------------------------------------------------------ S8 the level changes what the days say
     print('S8  changing the level')
     click('#editProgramBtn')
-    check('the dialog is for editing, with the level chosen', cdp.ev("document.getElementById('programModalTitle').textContent") == 'Edit Sad to Savage' and cdp.ev("document.getElementById('programLevel').value") == 'nts')
+    check('the dialog is for editing, with the level chosen', cdp.ev("document.getElementById('programModalTitle').textContent") == 'Level and Pilates days' and cdp.ev("document.getElementById('programLevel').value") == 'nts')
     set_level('sw')
     click('#programSubmit')
     cdp.pause(0.4)

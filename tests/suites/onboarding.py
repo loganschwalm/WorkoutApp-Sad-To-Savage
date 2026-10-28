@@ -529,4 +529,15 @@ def run(t):
     t.click('onboardingSkip')
     cdp.pause(0.2)
     check('(and Skip puts it away)', is_closed() is True)
+
+    # ------------------------------------------------------------------ O9 seen again from Settings, by an account not yet welcomed
+    print('O9  seen again from Settings, an account not yet welcomed keeps its own goal, whatever the Pilates choice')
+    cdp.ev("saveLocalState('settings', { ...getWorkoutSettings(), welcomed: false, weeklyGoal: 4 })")
+    cdp.ev('startOnboarding({ replay: true })')
+    check('it opens with the goal the account has, not the default', t.field('onboardingGoal') == '4', t.field('onboardingGoal'))
+    pick('onboardingPilates', 'no')
+    check('and a Pilates choice leaves that goal alone', t.field('onboardingGoal') == '4', t.field('onboardingGoal'))
+    t.click('onboardingSkip')
+    cdp.pause(0.2)
+    check('(and it closes)', is_closed() is True)
     t.set_cookie(t.token)
