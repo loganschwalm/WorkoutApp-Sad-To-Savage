@@ -424,6 +424,9 @@ def run(t):
     check('though one from the day before is no reason not to', len(yesterday.messages()) == 1, len(yesterday.messages()))
     check('a push service that fails is tried again on the next look, until it takes it', len(retrying.messages()) == 3, len(retrying.messages()))
     check('one the service refuses for good (403) is not sent the same message again every minute', len(refused.messages()) == 1, len(refused.messages()))
+    # The day is put back when the answer is settled, a moment after it comes, so the look that tries it again may be a look later
+    # than the one that tried the phone that failed outright; it is waited for, as the phone that is gone is below.
+    wait_until(lambda: len(busy.messages()) >= 2)
     check('though one told to slow down (429) is tried again', len(busy.messages()) == 2, len(busy.messages()))
     check('and one that says the phone is gone has it forgotten', wait_until(lambda: database("SELECT COUNT(*) FROM push_subscriptions WHERE endpoint LIKE '%/gone'")[0][0] == 0))
     database("UPDATE push_subscriptions SET last_sent = '2000-01-01' WHERE endpoint LIKE '%/ready'")
