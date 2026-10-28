@@ -169,11 +169,29 @@ let reloadAfterImport = false;
 
 // Settings are kept as they change, so every way out of the dialog keeps them: Done, the ×, Escape and a tap outside it.
 // Closing also keeps a rest duration still being typed, which is only taken once its field is left.
+//
+// Opening the sheet puts an entry on the history, so the device's Back button (or a swipe back on a phone) closes the sheet
+// instead of leaving the page with the sheet still open over it. Closing it from its own controls takes that entry off again,
+// and the popstate that Back's step brings is then ignored, so one close is one step back and no more. With the sheet shut,
+// Back is left to the browser, as it was before.
+let settingsEntryPushed = false;
+let settingsPopExpected = false;
+let reloadWhenPopped = false;
+
 function closeSettings() {
   saveSettings();
   getSettingElement('settingsModal').hidden = true;
   returnFocus('settings');
-  if (reloadAfterImport) location.reload();
+  if (settingsEntryPushed) {
+    // Taking the entry off happens a moment later, so a reload after an import waits for it: the page then reloads without the
+    // sheet's entry still on the history, where Back would have to be pressed once more to leave.
+    settingsEntryPushed = false;
+    settingsPopExpected = true;
+    reloadWhenPopped = reloadAfterImport;
+    history.back();
+  } else if (reloadAfterImport) {
+    location.reload();
+  }
 }
 
 // Keeps what the form says, when that differs from what is kept already, and tells the page. True when anything changed.
@@ -297,10 +315,30 @@ function openSettings() {
   showAccount();
   getSettingElement('dataStatus').hidden = true;
   getSettingElement('settingsModal').hidden = false;
+  // The entry Back closes the sheet by (see closeSettings). Only one, however often the sheet is opened without closing.
+  if (!settingsEntryPushed) {
+    history.pushState({ settingsSheet: true }, '');
+    settingsEntryPushed = true;
+  }
   getSettingElement('themeSetting').querySelector('input[name=theme]:checked').focus();
   // reminders.js looks at what this browser can do and has been told, which can have changed since.
   window.dispatchEvent(new Event('settingsopen'));
 }
+
+// Back while the sheet is open closes it. Back has already taken the sheet's entry off, so closeSettings does not take another
+// step. The popstate from closeSettings' own step back is the one expected, and is ignored. With the sheet shut, nothing here
+// runs, so Back leaves the page as it did before the sheet existed.
+window.addEventListener('popstate', () => {
+  if (settingsPopExpected) {
+    settingsPopExpected = false;
+    if (reloadWhenPopped) location.reload();
+    return;
+  }
+  if (!getSettingElement('settingsModal').hidden) {
+    settingsEntryPushed = false;
+    closeSettings();
+  }
+});
 
 window.getWorkoutSettings = getWorkoutSettings;
 applySettings(getWorkoutSettings());
@@ -501,7 +539,13 @@ if (getSettingElement('welcomeAgainButton')) {
   getSettingElement('welcomeAgainButton').onclick = () => {
     if (typeof startOnboarding !== 'function' || reloadAfterImport) {
       saveSettings();
-      location.href = 'index.html?welcome';
+      // The sheet's entry is replaced rather than left under the Tracker, so Back from there goes where it went before the sheet.
+      if (settingsEntryPushed) {
+        settingsEntryPushed = false;
+        location.replace('index.html?welcome');
+      } else {
+        location.href = 'index.html?welcome';
+      }
       return;
     }
     closeSettings();
