@@ -45,7 +45,7 @@ library, with SQLite for storage, so there is no build step, no package manager 
 - Pick your level once: **New to strength** or **Shelby's weights**. Each exercise says the range of weight or band for that level,
   and you can change it any time.
 - Prefer to only lift? Choose **Strength only** when you set up (or later) and the Pilates days are left out: the program is the
-  three strength days a week, 18 in all, and the walk.
+  three strength workouts a week ("Workout 2 of 3"), 18 in all, and the walk.
 - The program moves on when you finish a day, so a missed day never leaves you behind. Skip a day (with Undo), redo one, or
   see all six weeks at once with what you did on each.
 - Log the day's walk (steps, distance, or just that you showed up) beside the workout, on the day you walked it.
@@ -58,7 +58,7 @@ library, with SQLite for storage, so there is no build step, no package manager 
 - Log each set's weight and reps, with last time's numbers filled in and −5/+5 buttons beside the weight.
 - A Pilates day is one timed session as long as Shelby's workout, and the cool-down is a timer too.
 - A rest timer starts after each round, with a sound and vibration when it's over (−30s/+30s, End rest, pause), and is still
-  there if the phone closes the app mid-rest.
+  there if the phone closes the app mid-rest. A timed set is a hold: Start timer counts it down, with Pause and Stop, and it is kept the same way.
 - Big view, a button in the workout, shows the set to do and the rest clock in very large type, to read from a few feet away.
 - Swap an exercise when the equipment is taken, add one mid-workout, or put the exercises in another order.
 - Tag a set as a warm-up, a drop set, to failure or AMRAP (or change it later, even in a saved workout). Warm-ups and drop sets
@@ -80,7 +80,7 @@ library, with SQLite for storage, so there is no build step, no package manager 
 **Everywhere**
 - Works through network drops: everything saves on the phone first and uploads when the server is back, and a change
   made on one device (or in one tab) never undoes one made on another meanwhile. Opened offline, Today, History and Progress show
-  your workouts as the phone last loaded them.
+  your workouts as the phone last loaded them. Workouts still waiting to upload are listed in History, marked Waiting to sync.
 - Add it to your phone's home screen to open it like an app. Long-pressing its icon offers shortcuts to Today's workout (it starts
   the program's next day, or carries on the one under way), History and Log weight (on Android).
 - Pick the days you train: Today says what is planned (and nudges you when you missed a day), History marks the planned days
