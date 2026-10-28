@@ -116,13 +116,19 @@ own workouts, program, and settings.
   anyone who has asked for less motion, and moves no box, so a measure taken as it appears is unaffected.
 - Finish early, beside Next exercise until the last, ends the workout there: the exercises with sets are saved and the
   rest left out, after asking first. Finish workout, which Next exercise becomes in the same place on the last exercise, asks
-  the same while any exercise has no sets, so a double tap on Next before the last cannot finish without it.
+  the same while any exercise has no sets, so a double tap on Next before the last cannot finish without it. On a phone Finish early
+  sits under the buttons, not beside them.
+- Once a move's planned sets are all logged, a solid Next exercise button (Finish workout on the last exercise) shows above the set
+  entry, where the thumb is, since the footer's is below the fold on a phone. Complete set stays for an extra set. The footer's
+  Previous and Next have widths of their own, so Next does not move from one exercise to the next.
 - A thumb that bounces logs one set. A tap on Complete set, Same as last set or the big view's button within 0.6 seconds
   of a set being logged is ignored (`bouncedTap` in `set-logging.js`), since the button is still under the thumb once the set
   is in. Only real taps are judged: a click the page makes itself is not.
 - Enter on the keyboard does the same as the buttons: on the weight it goes to the reps, and on the reps it logs the set,
   with the same guard (a key held down logs one, and `enterkeyhint` makes the phone's key say Next and Done).
-- A set half typed is kept when a setting changes. Any `settingschange` (the Settings dialog, What's new, onboarding, or
+- A set half typed is kept when a setting changes, and across a reload or a trip to another page: what is typed in the weight and
+  reps is kept on this device for the account (`workout-tracker-entry-<account id>`) until the set is logged, the exercise changes,
+  or the workout starts or ends. Any `settingschange` (the Settings dialog, What's new, onboarding, or
   settings arriving from another device) draws the workout again, and `applyUnit` in `script.js` puts the weight and reps
   back after it, the weight converted if the unit was what changed.
 - Move through exercises one at a time, or go straight to any of them: tap "Exercise 2 of 6" for a
@@ -139,9 +145,10 @@ own workouts, program, and settings.
   exercises added on Progress, and the program's exercises. Picking one keeps "Bench press" and
   "Bench Press" from becoming two exercises.
 - Enter the weight and reps completed for each set, right under the exercise, with −5 and +5 buttons
-  beside the weight.
+  beside the weight. For a dumbbell or cable move in pounds they step 2.5 lb (or the Settings step, if that is smaller); kilograms are unchanged.
   A set with no weight is logged as bodyweight; for a barbell, dumbbell, machine, cable or kettlebell exercise the app
-  asks first, since an empty weight there is more likely left out than meant. A 0 typed in is taken as meant.
+  asks first, since an empty weight there is more likely left out than meant, and only once for each exercise in a workout: a yes is
+  remembered for the rest of that workout. A 0 typed in is taken as meant.
   Reps are whole numbers (2.5 is refused, saying so), when a set is logged, corrected or edited; a hold's seconds are
   taken as typed.
 - A value far past anything you have done is asked about before it is logged, since it is more likely a slip of the
@@ -161,7 +168,8 @@ own workouts, program, and settings.
   heavier and warm-ups use. It loads the fewest plates that make the weight, so with 2 kg plates and no
   1.25s, 4 kg a side is two 2s. Pounds and kilograms each keep their own.
 - See how you did last time on each exercise; its weight and reps are prefilled, and after each set the next one defaults to the set you just logged.
-  What to do this set and last time's sets are in the ink at body size, each run of sets kept whole when the line wraps.
+  What to do this set and last time's sets are in the ink at body size, each run of sets kept whole when the line wraps. On a
+  phone the target is three lines at most, with Read more for the rest, as last time's line is.
 - View completed sets during the workout, correct a set's weight or reps in place, or remove a set that was logged by mistake.
   They fold away under Completed sets, beside Workout notes and Add an exercise, with a count of how many are done
   and the last one logged ("Completed sets (3) · last 145 lbs × 6").
@@ -169,7 +177,8 @@ own workouts, program, and settings.
   replaces it, and correcting a logged set does not zoom the page in on an iPhone.
   Each logged set is one line on a phone, and its × takes it away at once; the banner says which set went ("Removed set 2 of Bench Press
   (105 lbs × 6)") with an Undo button for 10 seconds that puts it back in its place, even after
-  moving on to another exercise.
+  moving on to another exercise. The Undo is kept on this device for those ten seconds (`workout-tracker-undo`), so a reload still
+  offers it.
 - Go back to a previous exercise, or add an exercise in the middle of a workout.
 - Exercises with no logged sets count as skipped and are left out of the saved workout, so they never appear as done in History or Progress.
 - Automatically start a configurable rest timer after each set. It sits under the set entry and, while a rest runs, stays
@@ -180,8 +189,10 @@ own workouts, program, and settings.
   each round".
   Everything else uses the default from Settings. The rest after a warm-up (a set with that kind, planned or tagged) is short, at most 45
   seconds (`WARMUP_REST_SECONDS`, `restAfterLastSet`), whatever the exercise's rest is.
+  No rest starts after a set when nothing is left to do after it: no set of its block (its superset) remains, and no exercise
+  follows. A rest between superset rounds is unchanged.
 - Pause and restart the rest timer, or give yourself 30 seconds more or less with −30s and +30s,
-  running or paused. End rest is the main button of the panel; on a phone Pause rest and ··· sit beside it, and ··· opens Fix last set
+  running or paused. A paused rest's button says Resume, and Start rest is for a rest not begun or over. End rest is the main button of the panel; on a phone Pause rest and ··· sit beside it, and ··· opens Fix last set
   and Restart rest in a row under them (`showRestMore` in `rest-timer.js`), which closes again when one is chosen. On a wide screen all four
   show and there is no ···. Taking it down to nothing ends the rest quietly.
   A thin bar along the bottom of the timer drains as the rest runs out.
@@ -193,7 +204,8 @@ own workouts, program, and settings.
   ("Rest over", in a status line that stays in the page, emptied when a rest runs; the big view, a modal dialog, has one of
   its own); ending a rest or taking it to nothing yourself says nothing.
 - Keep accurate rest time even when the screen locks or the tab is in the background; the timer alerts you with a sound and vibration when rest is over (configurable in Settings).
-- The rest comes back with the page. A phone often closes an app left locked through a rest, so whenever the page is put
+- The rest comes back with the page, and so does a hold on the page (`workout-tracker-hold-<account id>`, `rememberHold` and
+  `restoreHold` in `rest-timer.js`). A phone often closes an app left locked through a rest, so whenever the page is put
   away the rest on show is kept on the device (`rememberRest` in `rest-timer.js`; it is not uploaded), with the workout and
   set it follows. When the same workout comes back with nothing logged since, so does the rest: running on to the same end
   time, paused at the time it had, or at 0:00 if it ran out meanwhile, without an alert that would come late.
@@ -230,7 +242,14 @@ own workouts, program, and settings.
 - Timed exercises, such as a plank or a dead hang, are held for seconds rather than done for reps. The
   program's plank holds, its cool-down and a Pilates session are timed, and an exercise added mid-workout can be marked Timed. Its set
   entry asks for seconds, and Start timer counts them down; when they are up, the rest alert sounds
-  and the set logs itself. Stop, or Complete set, ends a hold early with the seconds actually held.
+  and the set logs itself. Stop ends a hold early and puts the seconds actually held into the Seconds field, for Complete set to
+  log; Complete set ends it the same way and logs the set with those seconds.
+  Start timer is the primary button; while a hold runs that button says Stop, and the hold panel scrolls into view when it starts.
+  Pause, beside it, keeps the time left, and Resume (in the same place) carries on from it. A hold on the page, running or paused, is kept on this
+  device (`workout-tracker-hold-<account id>`), so it comes back after a reload with its workout; one that ran out while the page
+  was away is logged with its seconds, without an alert. The end of a hold always vibrates, even with the vibration setting off;
+  its sound still follows the rest sound setting. A hold has no weight field, so its line in the completed sets is one line. Its
+  Seconds label gives its length in minutes beside it (for example "Seconds · 25 min"; under a minute it is only "Seconds").
   History, last time and Progress show holds in seconds.
 - Finishing a workout shows a summary: how long it took, the exercises, sets and volume, and any new
   personal records, such as "Bench Press: 190 lbs × 3, your heaviest yet (was 185 lbs)". A record is
@@ -300,7 +319,7 @@ own workouts, program, and settings.
 - Past sessions, under last time's numbers, lists the last five times you did the exercise, with a link
   to every session of it on the Progress page.
 - Go heavier: when every set at last time's weight reached its target, the app says so and offers the
-  next step up (5 lbs, or 2.5 kg, or the weight step from Settings) in one tap. The target is the exercise's reps, or the first set's if
+  next step up (5 lbs, or 2.5 kg, or the weight step from Settings; a dumbbell or cable move in pounds takes 2.5 lbs, or the Settings step if smaller) in one tap. The target is the exercise's reps, or the first set's if
   that was more, so a set that fell away (8, 8, 6) does not count; nor does a set logged with no reps
   left. A planned exercise says nothing of it: its plan is the plan.
 - Stalls: a lift whose best estimated one-rep max (Epley, sets of up to 12 reps) is at least three weeks old, with at
@@ -323,13 +342,14 @@ own workouts, program, and settings.
   (`supersetMoveHtml` in `training-tools.js`): each a row with its target ("12 reps each side", "30 seconds"), the weight it will start
   at (last time's, or the plan's start; for a band or a bench, the plan's words for it) and how far along it is ("Set 2 of 3", "Done"),
   the one on show ringed, and a tap on a row goes to that move. Next exercise moves on past the whole superset, and an exercise added
-  mid-superset goes after it.
+  mid-superset goes after it. Moving to another move of the superset folds the completed sets, as a change of exercise does.
 - Restore an active workout after refreshing the page.
 - Finish a workout by moving past its last exercise, or cancel it with Cancel workout, in the ⋯ menu in the workout's header: for a workout
   started by mistake, or one you do not want kept. A cancelled workout is not saved anywhere, as if it had never been
   started: it is not in History, last time's numbers, personal records or Progress, the program's day stays to
   do, and other devices stop showing it. With nothing logged it goes at once; with sets logged it asks first (Settings
-  can turn that off). Either way the banner offers Undo for 10 seconds, which brings it back as it was.
+  can turn that off). Either way the banner offers Undo for 10 seconds, which brings it back as it was; a reload in those ten seconds still offers it
+  (`workout-tracker-undo`).
 
 ### Network drops
 
@@ -338,10 +358,14 @@ Logged sets, notes, finished workouts, settings, and your program and walks are 
 - If the server cannot be reached, keep training. A notice explains that your sets are stored on this device, and they upload automatically when the connection returns (retries back off up to one minute).
 - Reloading the page restores the in-progress workout from the device straight away, without waiting for the
   server, so it is back on screen even on a connection that stalls rather than fails, as in a basement gym. If the
-  workout changed or ended on another device meanwhile, the server's copy replaces it once it answers.
-- Finishing a workout while offline queues it locally and shows how many workouts are waiting to sync. The History and Progress pages upload anything queued before they load your workouts.
+  workout changed or ended on another device meanwhile, the server's copy replaces it once it answers. A workout in progress that the server has already finished is not kept in progress
+  again: the server stores no copy of it (its answer to a save is `stored: false`), and a copy it still held is removed when that
+  workout is saved, created or read back. The page then takes the workout as over, and says "This workout was already saved, so the
+  sets logged on this device since are not kept."
+- Finishing a workout while offline queues it locally and shows how many workouts are waiting to sync. The History and Progress pages upload anything queued before they load your workouts. History lists the ones still waiting with a
+  Waiting to sync badge, and counts them in its summary and on the calendar; they have no ⋯ menu until they are saved.
 - A page opened while the server is out of reach shows the saved workouts as the device last loaded them: the Tracker's
-  last time's numbers and records, History (which says they are the device's copy) and Progress,
+  last time's numbers and records, History (which says "Can’t reach the server" and that they are the device's copy) and Progress,
   while the status line still says the server is unreachable. Each load keeps that copy (`getSavedWorkouts` in
   `common.js`, `keepSavedWorkoutsCopy` in `offline.js`), so it can be one load behind: a workout deleted just before going
   offline is listed until the next load. It is only a copy, so it never costs anything that is not uploaded yet: when the
@@ -352,7 +376,8 @@ Logged sets, notes, finished workouts, settings, and your program and walks are 
   the form says so and keeps what was typed for another go. Save checks every row first (`exerciseFault`, the rules Add
   uses): an exercise whose name or reps were emptied after it was added is refused with the cursor on it, and nothing is
   queued or sent. A workout already saved with an empty name or reps has to be given one before an edit of it saves.
-- Uploads are safe to retry: each finished workout carries a unique `clientId`, and the server stores it once however many copies arrive, even at the same moment. Two open tabs (or the installed app and a browser tab) uploading the same queue never lose a workout between them.
+- Uploads are safe to retry: each finished workout carries a unique `clientId`, and the server stores it once however many copies arrive, even at the same moment. A copy the server already has is answered `alreadySaved: true`, and the page says "This workout was
+  already saved." rather than that it was saved. Two open tabs (or the installed app and a browser tab) uploading the same queue never lose a workout between them.
   Nor does a retry bring back a workout deleted since: the `clientId` of each deleted workout is kept (`deleted_workouts`,
   migration 16, the newest 5,000 per account), and an upload of one is answered as done and not stored again. Importing a
   file that has it is how it comes back on purpose.
@@ -379,7 +404,9 @@ Logged sets, notes, finished workouts, settings, and your program and walks are 
 - Two tabs of the same browser (or the installed app beside a tab) share the device's copy, so each takes in what the
   other stores: at once, when the browser says its storage changed, and when it comes back into view, for a tab the browser
   froze meanwhile (`accountstatechange` in `offline.js`; each page takes it in as it takes the server's copy on loading,
-  the Settings dialog's fields too). A change made in one is then never sent up as if it had removed what the other added.
+  the Settings dialog's fields too). A change made in one is then never sent up as if it had removed what the other added. The workout in progress is taken in the same
+  way (`takeOtherTabsWorkout` in `offline.js`): a tab shows the other's workout in progress, and takes it away when the other has
+  finished it, so a finished workout is not kept in progress again on any tab.
 - Local copies are kept per account, so another account signed in on the same browser never sees them.
 - A page left open while another account signs in on the same browser (in another tab) keeps its account's work to itself.
   The cookie is the browser's, not the page's, so every request a page sends to sync says which account it is for
@@ -388,7 +415,8 @@ Logged sets, notes, finished workouts, settings, and your program and walks are 
   uploaded stays on the device until its own account signs in again. It notices before anything goes up, too, when the
   other tab's sign-in writes the last account seen on this device. A request without the header (an older page) is
   answered as before, and so is `GET /api/auth/me`, which a page asks to find out whose it is.
-- If your sign-in expires while a page is open, a banner offers to sign in again and returns you to the same page; nothing on screen is discarded, and a workout in progress stays on the device.
+- If your sign-in expires while a page is open, a banner offers to sign in again and returns you to the same page; nothing on screen is discarded, and a workout in progress stays on the device. The workout's own sync notice says the sign-in has
+  expired and points to that banner, rather than reporting a fault with the network.
 
 A service worker caches the app's own files, so reloading with no connection still opens the
 app rather than a browser error page. It always asks the server first and only falls back to
@@ -444,12 +472,16 @@ time; it cannot follow another, and the `definition` of the stored program is al
 - **Starting it.** Before there is a program the card says what it is ("Ready when you are") with Start the program and the six weeks
   listed (no Start buttons). Start the program opens a dialog that asks for two options. The **level**: New to strength (the lighter
   range for each exercise) or Shelby's weights (the heavier). And **Pilates days**: included (the plan as written) or **Strength only**.
-  The welcome (see [The welcome](#the-welcome)) asks both too and starts the program itself. Change level, in the card's ⋯ menu, opens
-  the same dialog; the days still to do take the new level, and days done are untouched.
+  The welcome (see [The welcome](#the-welcome)) asks both too and starts the program itself. Level and Pilates days, in the card's ⋯ menu, opens
+  the same dialog, titled for both; the days still to do take the new level and the Pilates choice, and days done are untouched.
+  The banner after a save says what changed ("The level is now New to strength, and the days still to do use it."; "The Pilates
+  days still to do are left out."), or that nothing did.
 - **Strength only** (`options.pilates === 'no'`). The definition's `dayActive` hook leaves the two Pilates days of every week out of
   the run: `nextProgramDay` never lands on one, the weeks list does not show them ("3 strength" per week, "0 of 3 done"), the summary
   counts 18 days rather than 30 (`activeDayCount`, `activeDaysDone` in `program-plan.js`), the schedule's queue (`programQueue`) and the
-  program calendar's span skip them, and the program finishes when the last strength day is done ("all 18 days done"). Nothing is
+  program calendar's span skip them, and the program finishes when the last strength day is done ("all 18 workouts done"). The days are counted and numbered as workouts
+  then: the summary reads "3 of 18 workouts done", the next-up line "Workout 2 of 3", and each row "Workout 2 of 3 · Lower Body
+  Focus", where with the Pilates days they stay "day N" and "days" (`dayPlace` and `dayNoun` in `program-definitions.js`). Nothing is
   written for a day left out, so it is not skipped, just not there. Changing the option later reworks the run: days done stay done
   (a Pilates day done earlier still shows in History, it just no longer counts), turning Pilates off can finish the program and turning
   it back on reopens it (`finishedAt` is recomputed by `settleProgram`). A program without a `dayActive` hook has every day. Start over, in the same menu, asks first and then clears the program, its days and its walks (the workouts finished
@@ -468,15 +500,15 @@ time; it cannot follow another, and the `definition` of the stored program is al
   **Mat Pilates: Full Body Focus** (the focus of the day), one timed exercise as long as the plan says (25 minutes shows as "25 minutes"
   and the hold timer starts at 25:00), with Shelby's message as its note, then the same cool-down. Swap, Add an exercise, Skip an
   exercise, notes, the big view and the rest of the workout screen work as in any workout.
-- **The card** (Today). Its panel names the next day and the week ("Next up · week 1, day 1", the focus in large type) and lists
+- **The card** (Today). Its panel names the next day and the week ("Next up · week 1, day 1", or "week 1, workout 1 of 3" with Strength only; the focus in large type) and lists
   what it holds a line each: the warm-up and each block ("Superset 1 · 3 rounds: DB Bench Chest Press (12 reps), Banded Single Arm
   Reverse Fly (12 reps each side)"), then the cool-down ("Then 3-5 minutes of stretching: ...") and "You need: 2 DBs, Long
   Resistance Band, Bench, ..." (every piece of equipment of the day, once); a Pilates day lists Shelby's message, the cool-down and what
   to have. Start workout begins it; Skip marks it skipped, says so in the banner with Undo for ten seconds (which puts the program back
   as it was, and refuses if the program has changed since), and moves on. Under the panel is the **walk**, and under that **The six
   weeks**: each week a fold (the next day's open) saying its quote and "3 strength · 2 Pilates" and how many days are done, each day a
-  row ("Day 3 · Lower Body Focus", what it is, "Done · 3.9 mi" or "Skipped", and Start or Redo, which starts a day again; the next
-  day's button is solid). The summary line says "7 of 30 days done · week 2 of 6: Discipline beats motivation every time." Done days show the walk logged
+  row ("Day 3 · Lower Body Focus", or "Workout 2 of 3 · Lower Body Focus" with Strength only, what it is, "Done · 3.9 mi" or "Skipped", and Start or Redo, which starts a day again; the next
+  day's button is solid). The summary line says "7 of 30 days done · week 2 of 6: Discipline beats motivation every time." With Strength only it reads "3 of 18 workouts done". Done days show the walk logged
   on the day they were done.
 - **Pacing.** A day is done when its workout is finished with at least one set logged (or it is skipped), whatever day that is, so a
   missed day never leaves the program behind: the next day waits. Finishing a workout from the program marks its day done through
@@ -484,15 +516,17 @@ time; it cannot follow another, and the `definition` of the stored program is al
   the plan; a workout saved from a program that has since been started over or gone round again marks nothing. Redo on a done row starts
   it again and records it again.
 - **The daily walk** (`renderProgramWalk`, `saveWalk`). Steps and distance are both optional; logging a walk with neither is *showing
-  up*, which the plan counts. Under the card's panel: the day's walk goal and Steps and Distance (in miles or kilometres, as Settings says)
+  up*, which the plan counts. Under the card's panel: the day's walk goal and Steps and Distance (in miles or kilometres, as Settings says; the plan's goal, written in miles, reads in kilometres converted, so 2 miles is 3.2 km,
+  `walkGoalInUnit`, and changes with Settings without a reload)
   with Log walk, or, once one is logged today, "8,200 steps · 3.9 mi" with Change. It is kept on the program by the **calendar day it
   was walked** (`program.walks["2026-10-25"] = { at, steps, distance, unit }`), not by the program day, so it can be logged after the
   workout (which has moved the program on) and on a day with nothing to start; a done day's row shows the walk of the day it was done.
-  Up to 200,000 steps and 500 distance, whole steps, two decimals of distance; anything else is refused where it was typed. At most 400 days of
+  Up to 200,000 steps and 500 distance, whole steps, two decimals of distance; anything else is refused where it was typed, with a message saying why: steps that are not whole numbers, or a distance with more
+  than two decimal places. Nothing is rounded silently. At most 400 days of
   walks are kept (the latest). Walks sync with the program (a day on its own merges with another device's, the later change to the same
   day winning whole) and are checked by the server (`validate_program`).
 - **Finishing.** When every day is done or skipped the program is *finished* (`program.finishedAt`, set once by `settleProgram`): the
-  workout that finished it says so in its summary ("You finished Sad to Savage: all 30 days done.", or 18 with Strength only) with the biggest fireworks,
+  workout that finished it says so in its summary ("You finished Sad to Savage: all 30 days done.", or "all 18 workouts done" with Strength only) with the biggest fireworks,
   the card says "You finished Sad to Savage" with the days done and skipped, the walks logged and the distance in all, and offers
   **Start again**. Start again is a new run from week 1 (`cycle` goes up and `startedAt` is now, so the old run's days are not carried
   into it and another device that is still in the old run is superseded), keeping the level and the walks; it is undone by nothing,
@@ -671,6 +705,10 @@ the app. Neither is the server's doing.
 - Sets are written compactly: "3 × 5 at 185 lbs", "115 lbs × 5, 5, 5, 5, 9", and bodyweight sets
   as reps ("10, 9, 8 reps") rather than "0 lbs". The last-time line during a workout uses the same
   style.
+- A workout finished on this device and not yet uploaded is listed with the saved ones, with a Waiting to sync badge and no ⋯ menu
+  until it is on the server. The summary says how many are waiting ("· 2 waiting to sync"), and the calendar counts them as trained
+  days. While the server cannot be reached, History says "Can’t reach the server" and that these are the workouts as the device
+  last loaded them.
 - Navigate between Today (the Tracker), Progress and History.
 
 ### Progress analytics
@@ -866,12 +904,14 @@ letting it into the app, and start the program.
   never see it, and nor does an account that was welcomed on another device. Whatever goes wrong starting it is caught in
   `script.js`, so the Tracker starts either way.
 - **The steps**, in order (`data-step`): `welcome` (what the app is), `level` (New to strength or Shelby's weights, the first chosen to
-  begin with, and under it whether to include the Pilates days, included to begin with), `units` (pounds or kilograms, miles or kilometres for the walk), `week` (the weekly goal, 1 to 7, starting from 5 for an
-  account not yet welcomed since the program is five days a week, and the days you train, Monday first), `tour` (Today, Progress and
+  begin with, and under it whether to include the Pilates days, included to begin with), `units` (pounds or kilograms, miles or kilometres for the walk), `week` (the weekly goal, 1 to 7, starting from 3 with Strength only
+  and 5 otherwise, for an account not yet welcomed (the default follows the Pilates choice only until a goal is picked by hand;
+  an account already welcomed keeps its own goal), and the days you train, Monday first; with Strength only its line reads "The
+  program is three strength days a week"), `tour` (Today, Progress and
   History) and `ready`, which says back what was chosen. A line says "Step N of 6", with a dot for each. Back, Next ("Get started" on
   the first step) and Skip are on every step but the last, which has one button saying what it will do: "Start Sad to Savage" (or "Save
   and go to Today" when the program is already under way and the welcome is being seen again). The units, goal, days and level start
-  from the settings and the program as they are, so a replay shows what is set now.
+  from the settings and the program as they are, so a replay shows what is set now, and keeps the goal the account has, even one not yet welcomed.
 - **Finishing** saves the units, the weekly goal and the training days (keeping the reminder time) with `welcomed: true`, and starts
   the program at the level chosen, with or without the Pilates days (or, with the program under way, changes those two options and
   nothing else). The last step's summary has a Pilates row, "Included" or "Strength only: the Pilates days are skipped". **Skipping**, with Skip or Escape
@@ -899,7 +939,9 @@ The program's setup dialog is not saved as you go, so a tap beside it closes it 
 while nothing in it has been changed (`rememberForm` when it opens, `formEdited` at the tap, in `common.js`); the ×, Cancel
 and Escape are deliberate and close it as they always did.
 Closing it puts the keyboard focus back on the gear button, as the program setup does on
-the button that opened it. Settings include:
+the button that opened it. Back closes the sheet while it is open, rather than leaving the page: opening it adds a step to the
+history for that, which Back takes off (`closeSettings` and the `popstate` handler in `settings.js`). With the sheet shut, Back
+leaves the page as before. Settings include:
 
 - Appearance: a swatch for each colour theme, previewed in its own colours, in one row that scrolls sideways (the
   chosen one is in view). Match system (the default) is Light
@@ -942,7 +984,9 @@ the button that opened it. Settings include:
   it exactly as it was. Editing a saved workout while the other unit is shown keeps it in the unit it was logged in too
   (`backToUnit`): a weight you leave alone is saved as it was, not converted twice (135 lbs shown as 61.23 kg would come back
   as 134.99), and one you type is converted to the workout's unit. A copy of it ("Copy as new") is a new workout, in the unit
-  shown. The workout in progress and your program switch with you.
+  shown. The workout in progress and your program switch with you. A move not yet logged starts in the new unit, from its planned
+  weight converted. The sets already logged in the workout are converted with it (to two decimals), so they show the same weight in
+  the new unit.
 - Weekly goal: 1 to 7 workouts a week (3 by default), which the History page's calendar counts.
 - Training schedule: the days of the week you train, a chip for each (Monday first), and the time of day to be reminded.
   Both belong to the account and follow you between devices. Take a break, below them, lists the account's breaks and adds one from two
@@ -1065,6 +1109,8 @@ which has every account.
 ### Accounts and security
 
 - Any number of accounts, each with its own workouts, program, and settings.
+- A signed-in browser that opens the sign-in page is sent on, to the page it asked for or the Tracker (`checkServer` in `login.js`).
+  Signing in replaces the sign-in page in the history, so Back from the Tracker or the welcome does not return to the form.
 - Each account has an email as well as a username, and signs in with either. An email belongs to one
   account only, whatever its capitals.
 - A new account's details are checked as they are typed in, and again by the server:
@@ -2006,12 +2052,17 @@ workout of its own kind: `{"kind": "cardio", "name": "Run", "exercises": [], "du
 "distance": 3.1, "distanceUnit": "mi", "calories": 310, "heartRate": 152, "incline": 2}}`, its time in seconds and everything
 in `cardio` but the activity optional (`floors` for the stair climber, and the machine settings `incline`, `resistance`,
 `ramp`, `cadence`, `damper`, `strokeRate` and `level`, each checked against its range). A workout without `kind` is a strength workout, as every
-workout from before cardio is.
+workout from before cardio is. The workout in progress is one record per account, and it does not outlive its workout: when a
+workout is saved, created or read back and the server finds it already finished (saved, or deleted since), the copy of it in
+progress is removed, and a save of such a copy is answered `stored: false` rather than kept (`save_active_session`,
+`create_workout` and `get_active_session` in `api_data.py`).
 
 The browser keeps a working copy in `localStorage`, separately for each account that signs in on it:
 the in-progress workout, finished workouts still waiting to upload (and any the server refused), a copy of the saved
 workouts as last loaded (to list offline; dropped first when storage is full, and on signing out), last
-time's numbers for each exercise, settings, and the program and its walks. That copy is what lets you keep
+time's numbers for each exercise, settings, and the program and its walks, and what a workout in progress is kept with: the entry
+fields as typed but not yet logged (`workout-tracker-entry-<account id>`), a hold on the page (`workout-tracker-hold-<account id>`),
+and an Undo still on offer (`workout-tracker-undo`, which belongs to no account). That copy is what lets you keep
 training through a network drop; it uploads when the server is reachable again, and clearing the
 browser's site data only loses whatever had not uploaded yet.
 
