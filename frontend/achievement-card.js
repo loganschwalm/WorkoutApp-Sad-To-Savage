@@ -10,9 +10,9 @@
 const achievementCardGold = { face:'#d9a21b', rim:'#b07d10', light:'#f4cc63', stamp:'#4a3300' };
 const achievementCardSteel = { face:'#c9ced8', edge:'#9aa2b1' };
 const achievementCardFonts = {
-  title:size => `800 ${size}px "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif`,
-  mark:size => `700 ${size}px "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif`,
-  body:(size, weight = 500) => `${weight} ${size}px Figtree, system-ui, -apple-system, "Segoe UI", sans-serif`
+  title:size => `400 ${size}px "Instrument Serif", Georgia, "Times New Roman", serif`,
+  mark:size => `700 ${size}px "Roboto Condensed", "Arial Narrow", Arial, sans-serif`,
+  body:(size, weight = 500) => `${weight} ${size}px Inter, system-ui, -apple-system, "Segoe UI", sans-serif`
 };
 
 // The faces are loaded only once a page uses them at these weights, and a card drawn before then would be in Arial.
@@ -25,8 +25,8 @@ if (document.fonts && document.fonts.load) {
 function achievementCardColours() {
   const style = getComputedStyle(document.documentElement);
   const value = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
-  return { ground:value('--bg', '#e8ebf0'), card:value('--card', '#fff'), ink:value('--ink', '#0e131d'), muted:value('--muted', '#586174'),
-    accent:value('--accent', '#2a43dc'), line:value('--line', '#dbe0e8') };
+  return { ground:value('--bg', '#f4f1ea'), card:value('--card', '#fbf9f5'), ink:value('--ink', '#201c1d'), muted:value('--muted', '#6a615b'),
+    accent:value('--accent', '#7a5f4b'), line:value('--line', '#ddd6ca') };
 }
 
 // What the plate is stamped with: the number, and the word under the hub.

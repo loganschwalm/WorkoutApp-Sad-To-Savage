@@ -91,8 +91,8 @@ def run(t):
     print('S3  the app shell is cached')
     for path in ('/styles.css', '/script.js', '/rest-timer.js', '/records.js', '/sad-to-savage-data.js', '/training-tools.js',
                  '/program-definitions.js', '/program.js', '/settings-dialog.js', '/settings.js', '/offline.js', '/pwa.js', '/theme.js',
-                 '/login.html', '/manifest.webmanifest', '/icons/icon-192.png', '/fonts/schibsted-grotesk-latin.woff2',
-                 '/fonts/figtree-latin.woff2'):
+                 '/login.html', '/manifest.webmanifest', '/icons/icon-192.png', '/fonts/instrument-serif-latin.woff2',
+                 '/fonts/roboto-condensed-latin.woff2', '/fonts/inter-latin.woff2'):
         check(f'{path} is in the cache', cached(path) is True)
     check('the tracker page itself is cached', cached('/index.html') is True)
 
@@ -111,13 +111,13 @@ def run(t):
     cdp.wait("typeof getWorkoutSettings === 'function'")
     # Waited for rather than given a fixed moment: on a busy machine the colour can take longer than that to follow.
     theme_color = "document.querySelector('meta[name=theme-color]').content.toLowerCase()"
-    cdp.wait(f"{theme_color} === '#e8ebf0'")
+    cdp.wait(f"{theme_color} === '#f4f1ea'")
     light = cdp.ev(theme_color)
-    check('light theme sets a light theme-color', light == '#e8ebf0', str(light))
+    check('light theme sets a light theme-color', light == '#f4f1ea', str(light))
     cdp.ev("document.documentElement.dataset.theme = 'dark'")
-    cdp.wait(f"{theme_color} === '#0b0e13'")
+    cdp.wait(f"{theme_color} === '#171415'")
     dark = cdp.ev(theme_color)
-    check('switching to dark updates it', dark == '#0b0e13', str(dark))
+    check('switching to dark updates it', dark == '#171415', str(dark))
 
     # ------------------------------------------------------------------ S6 signing out still works
     print('S6  the worker does not break the sign-in redirect')

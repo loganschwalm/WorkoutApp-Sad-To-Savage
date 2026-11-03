@@ -94,6 +94,11 @@ own workouts, program, and settings.
   CSS mask so they take the text colour, and precached). Dialogs, Settings among them, rise from the bottom as sheets there. On a wider
   screen the pages are a segmented pill in the header, in the same place on every page (the header is a grid with a column for the
   date, so the pill does not move with the width of the page's name).
+- The design follows Shelby Sacco's own, her site and her workout PDFs: warm cream and taupe (charcoal in the dark theme), titles in a
+  light serif (Instrument Serif), labels and the weight and reps being logged in bold condensed capitals (Roboto Condensed), main
+  buttons as capitalised pills (secondary ones outlined), tags as small rounded plates, and the next workout as a black block. The
+  rules that do this are the last block of `styles.css`, which lays them over the rest; the faces and colours are variables at its top.
+  On a wide screen the pages' links are small spaced capitals with the current one underlined; the phone keeps its tab bar.
 - The look is flat: surfaces are told from the page by tone, a hairline and their corners (`--radius-control`, `--radius-panel`
   and `--radius-card` in `styles.css`), shadows are kept for what floats, and numbers are tabular. The page you are on in the
   navigation, the next workout of a program and the rest timer are drawn inverted (the theme's ink as the ground, its card
@@ -945,8 +950,8 @@ leaves the page as before. Settings include:
 
 - Appearance: a swatch for each colour theme, previewed in its own colours, in one row that scrolls sideways (the
   chosen one is in view). Match system (the default) is Light
-  or Dark as the device's own mode is, and follows it when it changes while the app is open. Besides Light and
-  Dark there are three more light themes, Sunrise (coral on cream), Meadow (green) and Blossom (rose), and five
+  (cream and taupe) or Dark (charcoal and taupe) as the device's own mode is, and follows it when it changes while the app is open.
+  Besides Light and Dark there are three more light themes, Sunrise (coral on cream), Meadow (green) and Blossom (rose), and five
   dark ones, Crimson (red on black), Emerald (green on black), Ocean (sky blue on navy), Gold (amber on black)
   and Violet (lilac on deep purple). Buttons, tints, focus rings, the browser's bar and the Progress chart's first
   line all take the theme's colours. Pages open in the right theme straight away, with no flash of another, and
@@ -2129,9 +2134,9 @@ copying the file while the server runs: a Proxmox install does this every day on
 - Vanilla JavaScript, with no build step
 - `localStorage` for the per-account offline copy
 - HTML Canvas for progress charts
-- The Schibsted Grotesk typeface for titles and the weight and reps being logged, and Figtree for everything else (the
-  clocks included, since Figtree's tabular figures keep a colon close), both served with the app (`frontend/fonts/`, SIL
-  Open Font License), so they look the same on every device
+- Instrument Serif for titles (regular weight, with its italic), Roboto Condensed in bold capitals for the weight and reps being
+  logged and for labels and the main buttons, and Inter for everything else (the clocks included, since Inter's tabular figures
+  keep a colon close), all served with the app (`frontend/fonts/`, SIL Open Font License), so they look the same on every device
 - Service worker and web app manifest
 - Python standard library HTTP server
 - SQLite

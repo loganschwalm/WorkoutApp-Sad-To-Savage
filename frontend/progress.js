@@ -279,7 +279,7 @@ function placeValueLabels(latest, others, width) {
 // point (its highest, or its lowest where less is better) is ringed. Returns the values to write: each line's latest, and its first
 // and best, which with the ring tell where it started, how far it got and where it is. The rest are one tap away.
 function drawSeries(context, { across, y, format, invert }) {
-  context.font = '11px Figtree, system-ui, sans-serif';
+  context.font = '11px Inter, system-ui, sans-serif';
   const latest = [], others = [];
   // With a few lines (up to four), each line's latest value says whose it is, so the lines are not told apart by colour alone.
   const named = chartData.types.length > 1 && chartData.types.length <= 4;
@@ -502,7 +502,7 @@ $('recordsList').onclick = event => {
   scrollToCard(document.querySelector('.progress-card'), 'start');
 };
 window.addEventListener('resize', drawChart);
-// A canvas only draws in Figtree once it has loaded, and the labels' spacing is measured in it.
+// A canvas only draws in Inter once it has loaded, and the labels' spacing is measured in it.
 document.fonts.ready.then(drawChart);
 // The note kept with an exercise may only arrive from the server once the page has drawn.
 // And another tab's goals or notes once it changes them (accountstatechange in offline.js), so a goal set here never goes up

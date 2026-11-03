@@ -152,24 +152,32 @@ def run(t):
     look = "(e => (s => ({ family: s.fontFamily, weight: s.fontWeight }))(getComputedStyle(e)))"
     fonts = cdp.ev(f"""({{ body: getComputedStyle(document.body).fontFamily,
                         button: {look}(document.querySelector('#programNext button')),
+                        plain: {look}(document.querySelector('button:not(.primary):not(.secondary)')),
                         link: {look}(document.querySelector('.site-nav a')) }})""")
-    check('buttons use the page font, in bold', fonts['button'] == {'family': fonts['body'], 'weight': '700'}, fonts)
-    check('and so do the links in the navigation', fonts['link']['family'] == fonts['body'], fonts)
-    # Both typefaces come with the app, so the page looks and measures the same on every device, whatever it has installed.
+    # The main buttons and the navigation are lettered in the condensed capitals of the labels; every other button takes the page's font.
+    label = lambda family: family.startswith('"Roboto Condensed"')
+    check('buttons are bold, in the page font or the condensed capitals of the labels',
+          fonts['button']['weight'] == '700' and (fonts['button']['family'] == fonts['body'] or label(fonts['button']['family'])), fonts)
+    check('a button of no particular kind uses the page font', fonts['plain']['family'] == fonts['body'], fonts)
+    check('and the links in the navigation are in the page font or the labels', fonts['link']['family'] == fonts['body'] or label(fonts['link']['family']), fonts)
+    # All three typefaces come with the app, so the page looks and measures the same on every device, whatever it has installed.
     loaded = cdp.ev("document.fonts.ready.then(() => [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family.replace(/\"/g, '')))")
-    check('the page draws in Schibsted Grotesk and Figtree, served with the app', {'Schibsted Grotesk', 'Figtree'} <= set(loaded or []), loaded)
-    served = cdp.ev("Promise.all(['/fonts/schibsted-grotesk-latin.woff2', '/fonts/figtree-latin.woff2']"
+    check('the page draws in Instrument Serif, Roboto Condensed and Inter, served with the app',
+          {'Instrument Serif', 'Roboto Condensed', 'Inter'} <= set(loaded or []), loaded)
+    served = cdp.ev("Promise.all(['/fonts/instrument-serif-latin.woff2', '/fonts/roboto-condensed-latin.woff2', '/fonts/inter-latin.woff2']"
                     ".map(path => fetch(path).then(r => [r.status, r.headers.get('content-type')])))")
-    check('and each font is served as one', served == [[200, 'font/woff2']] * 2, served)
-    # Titles and the weight and reps being logged are the grotesk. The clocks, as everything else, are the body face, whose tabular
-    # figures keep the colon close ("1:29"), which the grotesk's do not.
+    check('and each font is served as one', served == [[200, 'font/woff2']] * 3, served)
+    # Titles are the serif, and the weight and reps being logged the condensed face. The clocks, as everything else, are the body face,
+    # whose tabular figures keep the colon close ("1:29").
     kinds = cdp.ev("""(() => { const family = selector => getComputedStyle(document.querySelector(selector)).fontFamily;
         return { title: family('h1'), heading: family('h2'), weight: family('#activeWeight'), reps: family('#completedReps'),
                  clock: family('#timerDisplay'), text: family('.subtitle') }; })()""")
-    grotesk = [name for name in ('title', 'heading', 'weight', 'reps') if not kinds[name].startswith('"Schibsted Grotesk"')]
-    check('titles, and the weight and reps being logged, are in the grotesk', not grotesk, kinds)
+    serif = [name for name in ('title', 'heading') if not kinds[name].startswith('"Instrument Serif"')]
+    check('titles are in the serif', not serif, kinds)
+    condensed = [name for name in ('weight', 'reps') if not label(kinds[name])]
+    check('the weight and reps being logged are in the condensed face', not condensed, kinds)
     plain = [name for name in ('clock', 'text') if kinds[name] != fonts['body']]
-    check('the clocks and the rest of the text are in the body face', not plain and fonts['body'].startswith('Figtree'), kinds)
+    check('the clocks and the rest of the text are in the body face', not plain and fonts['body'].startswith('Inter'), kinds)
 
     # Every number field the Tracker can show: the page's own (the walk's among them), a saved workout's rows when it is edited, and a
     # logged set's. Each has to ask a phone for its number pad: decimal for weights (they take .5), numeric otherwise.
@@ -252,7 +260,7 @@ def run(t):
     cdp.wait("!!document.getElementById('authForm')")
     check('the sign-in page follows the device too', cdp.ev(theme) == 'dark' and cdp.ev('window.__themeAtBody') == 'dark',
           f"{cdp.ev('window.__themeAtBody')} {cdp.ev(theme)}")
-    check('with the browser chrome to match', cdp.ev("document.querySelector('meta[name=theme-color]').content").lower() == '#0b0e13')
+    check('with the browser chrome to match', cdp.ev("document.querySelector('meta[name=theme-color]').content").lower() == '#171415')
     t.set_cookie(t.token)
 
     print('P6b colour themes beyond light and dark')
@@ -278,9 +286,9 @@ def run(t):
     choose('emerald')
     check('a bright accent takes dark text on its buttons', cdp.ev("getComputedStyle(document.querySelector('.primary')).color") == 'rgb(5, 46, 31)',
           cdp.ev("getComputedStyle(document.querySelector('.primary')).color"))
-    check('secondary buttons take a tint of the accent, not the indigo one', var('--accent-soft') == '#12352a'
-          and cdp.ev("getComputedStyle(document.querySelector('.secondary')).backgroundColor") == 'rgb(18, 53, 42)',
-          cdp.ev("getComputedStyle(document.querySelector('.secondary')).backgroundColor"))
+    check('secondary buttons are outlined in a line of the accent, not the old one', var('--accent-line') == '#1f6b4f'
+          and cdp.ev("getComputedStyle(document.querySelector('.secondary')).borderTopColor") == 'rgb(31, 107, 79)',
+          cdp.ev("getComputedStyle(document.querySelector('.secondary')).borderTopColor"))
     check('the choice reaches the server', t.wait_for(lambda: t.api('GET', '/api/state', token=t.token)[0]['settings'].get('theme') == 'emerald'))
     t.open_tracker()
     check('and is in place before the next page is drawn', cdp.ev('window.__themeAtBody') == 'dark' and cdp.ev('document.documentElement.dataset.palette') == 'emerald',
