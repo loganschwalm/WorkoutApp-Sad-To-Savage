@@ -37,7 +37,7 @@ A job of its own runs `tests/docker.sh`, which needs Docker with the compose plu
 `docker compose up -d --build` as the README has it, and checks that the container reports healthy and its server is not
 root, that a saved workout is still there after a restart, that `scripts/docker-backup.sh` makes a backup that opens, holds the
 workout and is readable by its owner alone, and that one which fails part way leaves nothing in the backup directory or the volume.
-It makes and removes a volume and uses port 6769, so run it where that does no harm.
+It makes and removes a volume and uses port 7846, so run it where that does no harm.
 
 ```bash
 python -m pyflakes backend tests scripts docker-entrypoint.py   # slips in the Python (needs the requirements above)

@@ -144,7 +144,7 @@ PASSWORD_HASH_WAIT = float(os.environ.get('PASSWORD_HASH_WAIT', '5'))
 
 # Where the server listens. Every interface unless HOST says one: with a reverse proxy on this machine, HOST=127.0.0.1 leaves no
 # way around it.
-LISTEN_PORT = int(os.environ.get('PORT', '6769'))
+LISTEN_PORT = int(os.environ.get('PORT', '7846'))
 LISTEN_HOST = os.environ.get('HOST', '').strip() or '0.0.0.0'
 
 # Web push (webpush.py). Who the server says it is to the push services, which may refuse a message with no way to reach its

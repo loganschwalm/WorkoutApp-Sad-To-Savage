@@ -4,7 +4,7 @@
     python scripts/demo-server.py             this checkout, until Ctrl+C
     python scripts/demo-server.py --follow    whatever CI last passed, rebuilt each time it passes again
 
-Then open http://localhost:6769/ and sign in as savage-test / Sad-To-Savage-Demo. Every start is a fresh database,
+Then open http://localhost:7846/ and sign in as savage-test / Sad-To-Savage-Demo. Every start is a fresh database,
 so whatever is logged in it is gone at the next one; data/workouts.db is never touched.
 
 --follow keeps its own clone of the repository in data/preview and checks every minute whether `stable` has moved,
@@ -280,7 +280,7 @@ def main():
     parser.add_argument('--follow', action='store_true', help='serve what CI last passed, and rebuild when it passes again')
     parser.add_argument('--branch', default='stable', help='the branch --follow serves (default: stable)')
     parser.add_argument('--repo', help="the repository --follow clones (default: this checkout's origin)")
-    parser.add_argument('--port', type=int, default=6769, help='the port to serve on (default: 6769)')
+    parser.add_argument('--port', type=int, default=7846, help='the port to serve on (default: 7846)')
     parser.add_argument('--interval', type=int, default=60, help='seconds between checks with --follow (default: 60)')
     args = parser.parse_args()
     if args.follow:

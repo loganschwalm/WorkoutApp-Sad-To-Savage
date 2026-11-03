@@ -18,7 +18,7 @@ set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 [[ $EUID -eq 0 ]] || { echo "Run this as root, on a machine to throw away." >&2; exit 1; }
 
-port=6769
+port=7846
 base="http://127.0.0.1:$port"
 app=/opt/workout-tracker
 db=/var/lib/workout-tracker/workouts.db
@@ -107,7 +107,7 @@ case "$1" in
     case "$*" in
       test\ -f\ *) [[ " ${STUB_INSTALLED:-105} " == *" $id "* ]] ;;
       ip\ *) echo '2: eth0    inet 192.0.2.5/24 brd 192.0.2.255 scope global eth0' ;;
-      sh\ -c\ *) printf 6769 ;;
+      sh\ -c\ *) printf 7846 ;;
     esac ;;
 esac
 STUB

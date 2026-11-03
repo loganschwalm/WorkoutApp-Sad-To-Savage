@@ -4,11 +4,11 @@
 # what is saved lives in the volume and survives a restart; scripts/docker-backup.sh makes a snapshot that opens and holds the
 # workout, readable by its owner alone; and one that fails part way leaves nothing behind, in the backup directory or in the volume.
 #
-#   bash tests/docker.sh        (needs Docker with the compose plugin, and the ports 6769 free; it makes and removes a volume)
+#   bash tests/docker.sh        (needs Docker with the compose plugin, and the ports 7846 free; it makes and removes a volume)
 set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 
-base=http://127.0.0.1:6769
+base=http://127.0.0.1:7846
 work="$(mktemp -d)"
 cookies="$work/cookies"
 

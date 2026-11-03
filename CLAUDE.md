@@ -9,7 +9,7 @@ reference section for whatever you are about to change rather than guessing.
 ## Run it and check it
 
 ```bash
-python backend/server.py                 # http://localhost:6769/, database in data/ (gitignored)
+python backend/server.py                 # http://localhost:7846/, database in data/ (gitignored)
 python scripts/demo-server.py            # the same, on a fresh database with twelve days of the program done and walked
 
 python -m pyflakes backend tests scripts docker-entrypoint.py

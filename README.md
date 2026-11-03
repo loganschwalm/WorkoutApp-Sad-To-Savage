@@ -112,7 +112,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-
 ```
 
 Choose default or advanced settings. The script creates an unprivileged Debian container, installs the app
-as a service, waits until it answers, and prints its address, such as `http://192.168.1.50:6769`.
+as a service, waits until it answers, and prints its address, such as `http://192.168.1.50:7846`.
 
 1. Open that address and **create your accounts**.
 2. **Close registration** so nobody else on your network can make one:
@@ -158,7 +158,7 @@ docker compose pull          # the published image, for amd64 and arm64 (a Raspb
 docker compose up -d
 ```
 
-(`docker compose up -d --build` builds the image from the checkout instead.) Open `http://YOUR_SERVER_IP:6769`, create your accounts, then set `ALLOW_REGISTRATION: "0"` in
+(`docker compose up -d --build` builds the image from the checkout instead.) Open `http://YOUR_SERVER_IP:7846`, create your accounts, then set `ALLOW_REGISTRATION: "0"` in
 `docker-compose.yml` and run `docker compose up -d`. The container runs with a read-only filesystem and no capabilities. Back up with `scripts/docker-backup.sh`, before every
 update too. See the [full reference](readme-for-llm.md#docker-compose) for updating (and going back) and daily
 backups.
@@ -169,7 +169,7 @@ backups.
 **On your own computer**, from the project folder:
 
 ```bash
-python backend/server.py            # then open http://localhost:6769/
+python backend/server.py            # then open http://localhost:7846/
 python scripts/demo-server.py       # the same, on a fresh database with twelve days of the program done and walked
 ```
 
@@ -209,7 +209,7 @@ restart the app), or under `environment:` in `docker-compose.yml`.
 | `ALLOW_REGISTRATION` | `1` | `0` stops new accounts being created; existing ones still sign in |
 | `REGISTRATION_CODE` | *(none)* | A code (12+ characters) that making an account needs; the sign-in page asks for it. For a server that has to be reachable but not open |
 | `SECURE_COOKIES` | `0` | `1` if the app is **only** ever reached over HTTPS |
-| `HOST` | `0.0.0.0` | `127.0.0.1` if a reverse proxy on the same machine is the only way in (not under Docker: publish the port as `127.0.0.1:6769:6769`) |
+| `HOST` | `0.0.0.0` | `127.0.0.1` if a reverse proxy on the same machine is the only way in (not under Docker: publish the port as `127.0.0.1:7846:7846`) |
 | `MAX_WORKOUTS` | `50000` | The most workouts one account can keep |
 | `MAX_WORKOUTS_MB` | `100` | The most space one account's workouts can take, in MB (ten years of training is about 10) |
 | `REGISTRATIONS_PER_HOUR` | `10` | New accounts one address can make in an hour (`0`: no limit) |

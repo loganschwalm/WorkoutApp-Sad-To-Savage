@@ -1249,7 +1249,7 @@ pct exec <CTID> -- systemctl restart workout-tracker
 | Container | unprivileged Debian 12, next free CTID, hostname `workout-tracker` |
 | Resources | 1 core, 512 MB RAM, 512 MB swap, 4 GB disk |
 | Network | bridge `vmbr0`, DHCP, starts on boot |
-| App | `http://<container-ip>:6769` |
+| App | `http://<container-ip>:7846` |
 | Code | `/opt/workout-tracker` |
 | Database | `/var/lib/workout-tracker/workouts.db` |
 | Server settings | `/etc/workout-tracker/workout-tracker.env` |
@@ -1288,7 +1288,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-
 | `CORES` / `MEMORY` / `SWAP` / `DISK` | `1` / `512` / `512` / `4` | Cores, MB, MB, GB |
 | `UNPRIVILEGED` | `1` | `0` creates a privileged container |
 | `ONBOOT` | `1` | Start the container with the host |
-| `APP_PORT` | `6769` | Port the app listens on |
+| `APP_PORT` | `7846` | Port the app listens on |
 | `REPO_URL` / `BRANCH` | this repo / `stable` | Source to install from; `stable` only has commits whose tests passed |
 | `APP_DIR` / `DATA_DIR` | `/opt/workout-tracker` / `/var/lib/workout-tracker` | Code and database paths |
 | `HOST_BACKUP_DIR` | `/var/backups/workout-tracker` | Where on the Proxmox host to keep daily copies of the database, in a folder per container; `none` for none (see [Backups](#backups)) |
@@ -1341,7 +1341,7 @@ name a commit instead of `stable` to fix the script itself. That fixes only the 
 and `BRANCH`, below) that you move by hand.
 
 A
-container still on the old default port 8000 moves to 6769 on this update (see
+container still on the old default port 8000 moves to 7846 on this update (see
 [Upgrading](#upgrading-an-install-from-before-september-2026)). Your data is kept:
 if a release changes the database layout, the server upgrades it in place when it starts, and the
 journal shows `Database upgraded to schema version N`. An older release refuses to open a database a newer
@@ -1544,7 +1544,7 @@ What is already in place:
   a merge past a count does; and an import that would is refused whole.
 - **Who can reach the port.** The server listens on every interface (`0.0.0.0`) unless `HOST` names one. With a reverse
   proxy on the same machine, publish the app to the proxy alone, so nothing goes around it: `HOST=127.0.0.1` (a
-  Proxmox install, in `workout-tracker.env`), or under Docker the published port, `"127.0.0.1:6769:6769"` in
+  Proxmox install, in `workout-tracker.env`), or under Docker the published port, `"127.0.0.1:7846:7846"` in
   `docker-compose.yml` (inside a container the app must keep listening on every interface, or Docker cannot reach it,
   so `HOST` is not set there). A proxy on another machine needs the app reachable from it: then the firewall decides.
 - Sessions are stored as a SHA-256 hash of their token, so a copy of the database (a backup, say)
@@ -1596,7 +1596,7 @@ The server reads these environment variables:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PORT` | `6769` | Port to listen on |
+| `PORT` | `7846` | Port to listen on |
 | `APP_ROOT` | `frontend/` | Directory of static files to serve |
 | `WORKOUT_DB` | `data/workouts.db` | SQLite database path |
 | `ALLOW_REGISTRATION` | `1` | `0` refuses new accounts; existing accounts still sign in |
@@ -1702,7 +1702,7 @@ accounts can add one in Settings.
 reach the browser makers' push services. See [Training schedule and reminders](#training-schedule-and-reminders).)
 
 Browsers only run a service worker in a *secure context*: `localhost`, or HTTPS. A stock
-install serves plain HTTP on a LAN address such as `http://192.168.1.50:6769`, and there the
+install serves plain HTTP on a LAN address such as `http://192.168.1.50:7846`, and there the
 worker never registers. Nothing breaks — the app works exactly as it did before, and
 `pwa.js` gives up quietly — but reloading offline will not work until the app is reachable
 over HTTPS, and neither will installing on Android. Safari on an iPhone or iPad adds any site to
@@ -1714,7 +1714,7 @@ TLS. Caddy is the least work, because it obtains and renews the certificate itse
 
 ```caddy
 workouts.example.com {
-    reverse_proxy 192.168.1.50:6769
+    reverse_proxy 192.168.1.50:7846
 }
 ```
 
@@ -1756,14 +1756,14 @@ Then, in the container (`pct enter <CTID>`):
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 tailscale up                 # open the link it prints to add the container to your tailnet
-tailscale serve --bg 6769    # after turning on MagicDNS and HTTPS Certificates in the admin console's DNS page
+tailscale serve --bg 7846    # after turning on MagicDNS and HTTPS Certificates in the admin console's DNS page
 ```
 
 **Your own domain** behind a reverse proxy (Nginx Proxy Manager, Caddy, Traefik) gives every device on the
 network a trusted name such as `workouts.example.com`. A server only on the local network cannot answer
 Let's Encrypt's HTTP challenge, so get the certificate by DNS challenge (an API token from your DNS
 provider, such as Cloudflare; Caddy needs a build with that provider's DNS plugin). Proxy the name to
-`http://<container-ip>:6769`, and point the name at the proxy with a record on your router, Pi-hole or
+`http://<container-ip>:7846`, and point the name at the proxy with a record on your router, Pi-hole or
 AdGuard, or a public DNS-only record holding the proxy's private address.
 
 **Your own certificate authority** works without a domain or an app: Caddy's `tls internal` in front of
@@ -1798,7 +1798,7 @@ arm64 (so a Raspberry Pi pulls instead of building), by the last job of the *Tes
 keeps the result under the same name. If a pull is refused (a fork's package is private until its owner makes it public, under the
 package's settings on GitHub), build.
 
-Open `http://YOUR_SERVER_IP:6769` and register your accounts, then set `ALLOW_REGISTRATION: "0"` in
+Open `http://YOUR_SERVER_IP:7846` and register your accounts, then set `ALLOW_REGISTRATION: "0"` in
 `docker-compose.yml` and run `docker compose up -d` to close registration.
 
 The database lives in the `workout_data` volume and survives restarts and rebuilds. The server runs as
@@ -1883,7 +1883,7 @@ Wants=network-online.target
 User=workout
 Group=workout
 WorkingDirectory=/opt/workout-tracker
-Environment=PORT=6769
+Environment=PORT=7846
 Environment=APP_ROOT=/opt/workout-tracker/frontend
 Environment=WORKOUT_DB=/var/lib/workout-tracker/workouts.db
 ExecStart=/usr/bin/python3 /opt/workout-tracker/backend/server.py
@@ -1922,14 +1922,15 @@ done by hand except closing registration, but it is worth knowing what happens:
 - **Close registration.** It stays open by default, as before. Set `ALLOW_REGISTRATION=0` as
   described in [Server settings](#server-settings). On Proxmox, run the update first so the settings
   file exists.
-- **The default port is now 6769** instead of 8000, which other services often use. What that means
-  for an existing install:
-  - **Proxmox** containers still on the old default 8000 move to 6769 on their next update. The
-    update says so and prints the new URL. A port you chose yourself is kept. To stay on (or go
-    back to) 8000, set `APP_PORT='8000'` in `/etc/workout-tracker/install.conf` inside the container
-    after this update and run the update again. The move happens only once, so later updates keep it.
-  - **Docker** moves to 6769 when you pull, because the mapping lives in `docker-compose.yml`. To
-    keep the old address, change the mapping to `"8000:6769"`.
+- **The default port is now 7846**, replacing 8000 (which other services often use) and, briefly, 6769. What that
+  means for an existing install:
+  - **Proxmox** containers still on the old default 8000 move to 7846 on their next update. The
+    update says so and prints the new URL. A port you chose yourself is kept, and so is 6769 for a container
+    that already moved there. To stay on (or go back to) 8000 or 6769, set `APP_PORT='8000'` in
+    `/etc/workout-tracker/install.conf` inside the container after this update and run the update again. The
+    move happens only once, so later updates keep it.
+  - **Docker** moves to 7846 when you pull, because the mapping lives in `docker-compose.yml`. To
+    keep the old address, change the mapping to `"8000:7846"` (or `"6769:7846"`).
   - **Manual installs** keep whatever `Environment=PORT=` their systemd unit sets.
 
   Point any bookmark, installed phone app, or reverse-proxy target that moves at the new port.
@@ -1965,7 +1966,7 @@ cookie, and the service worker only runs on `localhost` or HTTPS. From the proje
 python backend/server.py
 ```
 
-Then open <http://localhost:6769/> and register an account. Visiting a page while signed out
+Then open <http://localhost:7846/> and register an account. Visiting a page while signed out
 redirects to the login form, so start at the root rather than at `index.html`. To reset a password,
 run `python backend/server.py reset-password <username>`; reset by email is off until `SMTP_HOST` is
 set (see [Password reset emails](#password-reset-emails)).

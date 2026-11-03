@@ -33,7 +33,7 @@ BRANCH="${BRANCH:-stable}"
 APP_DIR="${APP_DIR:-/opt/workout-tracker}"
 DATA_DIR="${DATA_DIR:-/var/lib/workout-tracker}"
 SERVICE_USER="${SERVICE_USER:-workout}"
-APP_PORT="${APP_PORT:-6769}"
+APP_PORT="${APP_PORT:-7846}"
 
 # What to do, without the menu (or a terminal to show it on): install, update or https. Left empty, the menu asks when there is a
 # terminal, and with none an install is made. CTID then names the container to act on: for an update or https it must be one that
@@ -115,14 +115,14 @@ step() { echo "    -> $*"; }
 
 # --- default port move (begin) ---
 # Installs from before September 2026 listened on 8000 by default, a port other services often want too.
-# An install still on that old default moves to 6769, once: PORT_DEFAULT_MOVED records that the question
+# An install still on that old default moves to the current default, 7846, once: PORT_DEFAULT_MOVED records that the question
 # has been settled, so a port chosen afterwards (8000 included) is kept by every later update. New installs,
 # and updates that name a port explicitly, are written with it already set.
 if [[ "${PORT_DEFAULT_MOVED:-}" != 1 ]]; then
   if [[ "$APP_PORT" == 8000 ]]; then
-    APP_PORT=6769
-    step "moving from the old default port 8000 to 6769"
-    echo "    !! The app's address changes to port 6769. Update bookmarks, phones with the app"
+    APP_PORT=7846
+    step "moving from the old default port 8000 to 7846"
+    echo "    !! The app's address changes to port 7846. Update bookmarks, phones with the app"
     echo "    !! installed, and any reverse proxy that points at port 8000."
   fi
   PORT_DEFAULT_MOVED=1
