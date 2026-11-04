@@ -92,7 +92,7 @@ def run(t):
     for path in ('/styles.css', '/script.js', '/rest-timer.js', '/records.js', '/sad-to-savage-data.js', '/training-tools.js',
                  '/program-definitions.js', '/program.js', '/settings-dialog.js', '/settings.js', '/offline.js', '/pwa.js', '/theme.js',
                  '/login.html', '/manifest.webmanifest', '/icons/icon-192.png', '/fonts/instrument-serif-latin.woff2',
-                 '/fonts/roboto-condensed-latin.woff2', '/fonts/inter-latin.woff2'):
+                 '/fonts/roboto-condensed-latin.woff2', '/fonts/inter-latin.woff2', '/images/sign-in.jpg'):
         check(f'{path} is in the cache', cached(path) is True)
     check('the tracker page itself is cached', cached('/index.html') is True)
 

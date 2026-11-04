@@ -1319,3 +1319,22 @@ button.secondary, .button-link.secondary { background:transparent; border:1px so
   .site-nav a { padding:8px 12px; border-radius:0; border-bottom:1px solid transparent; font-family:var(--font-label); font-size:.82rem; letter-spacing:.16em; text-transform:uppercase; }
   .site-nav a.active { color:var(--ink); background:none; border-bottom-color:var(--ink); }
 }
+/* The plates a day wears (program.js, dayChips), in the pastels of the program's PDF. They are the one place the app has colours of its
+   own that no theme changes, and each is a light tone with dark text whatever the page is, so each says both here (and is checked so). */
+.day-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.day-chip { padding:3px 9px; border-radius:6px; font-family:var(--font-label); font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.day-chip.tone-strength { color:#2b2523; background:#efe9de; }
+.day-chip.tone-pilates { color:#2b2523; background:#fbe0e6; }
+.day-chip.tone-upper { color:#2b2523; background:#e1e8f4; }
+.day-chip.tone-lower { color:#2b2523; background:#eadff0; }
+.day-chip.tone-focus { color:#2b2523; background:#e6ebe9; }
+.day-chip.tone-walk { color:#2b2523; background:#fbf1cd; }
+/* The sign-in page's photograph, from the program's own PDF: a band above the form on a phone, and beside it where there is room.
+   It is decoration, so the page says nothing of it, and a taupe wash keeps it in the palette of the pages after it. */
+.auth-photo { display:block; height:200px; margin-bottom:16px; background:linear-gradient(rgba(196,176,158,.2), rgba(196,176,158,.2)), url(images/sign-in.jpg) 50% 18% / cover no-repeat;
+  border-radius:var(--radius-card); }
+html[data-theme="dark"] .auth-photo { filter:brightness(.78); }
+@media (min-width:900px) {
+  .auth-shell { display:grid; grid-template-columns:minmax(0, 1fr) 440px; align-items:stretch; width:min(1000px, calc(100% - 32px)); }
+  .auth-photo { height:auto; min-height:560px; margin:0 16px 0 0; background-position:50% 22%; }
+}

@@ -16,6 +16,7 @@ const CACHE = `workout-tracker-${VERSION}`;
 const PRECACHE = [
   '/styles.css',
   '/onboarding.css',
+  '/images/sign-in.jpg',
   '/fonts/instrument-serif-latin.woff2',
   '/fonts/instrument-serif-latin-ext.woff2',
   '/fonts/instrument-serif-italic-latin.woff2',

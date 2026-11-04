@@ -283,12 +283,17 @@ function dayStatus(program, entry) {
   return `<span class="program-status">Done${escapeHTML(walked)}</span>`;
 }
 
+// Tags as the small coloured plates the lists show them in. The words are already in the day's name, so a screen reader skips them.
+function dayChips(tags) {
+  return tags.length ? `<div class="day-chips" aria-hidden="true">${tags.map(tag => `<small class="day-chip tone-${escapeHTML(tag.tone)}">${escapeHTML(tag.label)}</small>`).join('')}</div>` : '';
+}
+
 function programDayRow(program, week, day, next, withStart = true) {
   const entry = program.done[dayKey(week, day)];
   const isNext = Boolean(next) && next.week === week && next.day === day;
   const label = `${entry ? 'Redo' : 'Start'} ${dayLabel(program, week, day)}`;
   const button = withStart ? `<button class="${isNext ? 'primary' : 'secondary'}" type="button" data-program-action="start" data-week="${week}" data-day="${day}" aria-label="${escapeHTML(label)}">${entry ? 'Redo' : 'Start'}</button>` : '';
-  return `<li class="program-day${entry ? ' done' : ''}${isNext ? ' next' : ''}"><div><strong>${escapeHTML(capitalize(dayPlace(program, week, day)))} · ${escapeHTML(dayTitle(program, week, day))}</strong>`
+  return `<li class="program-day${entry ? ' done' : ''}${isNext ? ' next' : ''}"><div><strong>${escapeHTML(capitalize(dayPlace(program, week, day)))} · ${escapeHTML(dayTitle(program, week, day))}</strong>${dayChips(dayTags(program, week, day))}`
     + `<span>${escapeHTML(programDefinition(program).dayDescription(program, week, day))}</span></div><div class="program-day-actions">${entry ? dayStatus(program, entry) : ''}${button}</div></li>`;
 }
 
@@ -349,7 +354,7 @@ function renderProgram() {
   $('programSummary').textContent = `${finished} of ${plural(activeDayCount(program), dayNoun(program))} done${next ? ` · week ${next.week + 1} of ${weeks.length}: ${weeks[next.week].name}` : ''}`;
   if (next) {
     const plan = definition.planLines(program, next.week, next.day).map(planLineHTML).join('');
-    $('programNext').innerHTML = `<div><span class="program-kicker">Next up · week ${next.week + 1}, ${escapeHTML(dayPlace(program, next.week, next.day))}</span><strong>${escapeHTML(dayTitle(program, next.week, next.day))}</strong><ul>${plan}</ul></div>`
+    $('programNext').innerHTML = `<div><span class="program-kicker">Next up · week ${next.week + 1}, ${escapeHTML(dayPlace(program, next.week, next.day))}</span><strong>${escapeHTML(dayTitle(program, next.week, next.day))}</strong>${dayChips([...dayTags(program, next.week, next.day), { label:'Daily walk', tone:'walk' }])}<ul>${plan}</ul></div>`
       + `<div class="program-next-actions"><button class="primary" type="button" data-program-action="start" data-week="${next.week}" data-day="${next.day}">Start workout</button>`
       + `<button class="secondary" type="button" data-program-action="skip" data-week="${next.week}" data-day="${next.day}">Skip</button></div>`;
   } else {

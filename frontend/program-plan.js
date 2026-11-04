@@ -33,6 +33,12 @@ function dayTitle(program, week, day) {
   return definition.dayName ? definition.dayName(program, week, day) : programDays(program)[day].name;
 }
 
+// The plates a day wears in the lists (what kind of day it is, what it works), as { label, tone }; none for a program that names none.
+function dayTags(program, week, day) {
+  const definition = programDefinition(program);
+  return definition.dayTags ? definition.dayTags(program, week, day) : [];
+}
+
 // Where a day sits in its week, as the card says it: "day 3", or "workout 2 of 3" for a program whose definition counts it that way.
 // Lower case, so the card can capitalise it or put it mid-sentence.
 function dayPlace(program, week, day) {

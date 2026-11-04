@@ -99,6 +99,10 @@ own workouts, program, and settings.
   buttons as capitalised pills (secondary ones outlined), tags as small rounded plates, and the next workout as a black block. The
   rules that do this are the last block of `styles.css`, which lays them over the rest; the faces and colours are variables at its top.
   On a wide screen the pages' links are small spaced capitals with the current one underlined; the phone keeps its tab bar.
+  Each day of the program wears coloured plates, as in the PDF (`dayTags` in the program's definition, drawn by `dayChips` in
+  `program.js`): its kind (Strength, or Pilates in pink) and what it works (upper body in blue, lower body in lavender, the rest in
+  grey), with the daily walk in butter yellow under the next workout. They are the same pastels in every theme. The sign-in page has
+  a photograph from the PDF (`frontend/images/sign-in.jpg`): a band above the form on a phone, beside it on a wide screen.
 - The look is flat: surfaces are told from the page by tone, a hairline and their corners (`--radius-control`, `--radius-panel`
   and `--radius-card` in `styles.css`), shadows are kept for what floats, and numbers are tabular. The page you are on in the
   navigation, the next workout of a program and the rest timer are drawn inverted (the theme's ink as the ground, its card

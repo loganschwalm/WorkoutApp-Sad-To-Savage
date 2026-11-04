@@ -139,6 +139,13 @@ const sadToSavage = {
     const supersets = plan.blocks.filter(block => /^superset/i.test(block.name)).length;
     return `Strength \u00b7 ${supersets} supersets${supersets < plan.blocks.length ? ' and a core burnout' : ''}`;
   },
+  // The plates a day wears in the lists, as the program's PDF does: what kind of day it is and what it works. The tone says which
+  // pastel (styles.css, .day-chip): pink for Pilates, blue for the upper body, lavender for the lower body, grey for the rest.
+  dayTags(program, week, day) {
+    const plan = sadToSavageDay(week, day);
+    const tone = /^upper body/i.test(plan.focus) ? 'upper' : /^lower body/i.test(plan.focus) ? 'lower' : 'focus';
+    return [{ label:plan.kind === 'pilates' ? 'Pilates' : 'Strength', tone:plan.kind === 'pilates' ? 'pilates' : 'strength' }, { label:plan.focus, tone }];
+  },
   // The panel for the day: what it asks for, a line each, ending with what to have to hand.
   planLines(program, week, day) {
     const plan = sadToSavageDay(week, day);

@@ -98,6 +98,7 @@ class WebHandler(http.server.SimpleHTTPRequestHandler):
         '.json': 'application/json',
         '.webmanifest': 'application/manifest+json',
         '.png': 'image/png',
+        '.jpg': 'image/jpeg',
         '.svg': 'image/svg+xml',
         '.ico': 'image/x-icon',
         '.woff2': 'font/woff2',
