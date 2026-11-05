@@ -66,8 +66,8 @@ git -c safe.directory="$PWD" archive HEAD | tar -x -C "$repo"
 git -C "$repo" init --quiet --initial-branch=stable
 commit 'The version installed first'
 first="$(git -C "$repo" rev-parse HEAD)"
-mkdir -p /etc/workout-tracker
-cat >/etc/workout-tracker/install.conf <<EOF
+mkdir -p /etc/sad-to-savage
+cat >/etc/sad-to-savage/install.conf <<EOF
 REPO_URL='file://$repo'
 BRANCH='stable'
 APP_DIR='$app'
@@ -203,10 +203,10 @@ check 'and the backups taken before the updates are not touched by it' "$(pre_up
 find "$backups" -maxdepth 1 -name 'workouts-*.db' ! -path "$snap" -delete
 for day in 1 2 3 4; do cp "$snap" "$backups/workouts-2020010$day-000000.db"; done
 sleep 1
-cp /etc/workout-tracker/install.conf "$work/install.conf.kept"
-sed -i "s/^BACKUP_KEEP=.*/BACKUP_KEEP='3'/" /etc/workout-tracker/install.conf
+cp /etc/sad-to-savage/install.conf "$work/install.conf.kept"
+sed -i "s/^BACKUP_KEEP=.*/BACKUP_KEEP='3'/" /etc/sad-to-savage/install.conf
 snap_after="$(workout-tracker-backup)"
-cp "$work/install.conf.kept" /etc/workout-tracker/install.conf
+cp "$work/install.conf.kept" /etc/sad-to-savage/install.conf
 check 'with BACKUP_KEEP at 3, three daily backups are left' "$(daily) of them" same "$(daily)" 3
 check 'the newest ones' 'an old one stayed' newest_kept
 check 'and the ones from before updates are still there' "$(pre_update_backups) of them" same "$(pre_update_backups)" 2

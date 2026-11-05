@@ -120,7 +120,7 @@ as a service, waits until it answers, and prints its address, such as `http://19
 1. Open that address and **create your accounts**.
 2. **Close registration** so nobody else on your network can make one:
    ```bash
-   pct exec <CTID> -- sed -i 's/^#ALLOW_REGISTRATION=0/ALLOW_REGISTRATION=0/' /etc/workout-tracker/workout-tracker.env
+   pct exec <CTID> -- sed -i 's/^#ALLOW_REGISTRATION=0/ALLOW_REGISTRATION=0/' /etc/sad-to-savage/sad-to-savage.env
    pct exec <CTID> -- systemctl restart workout-tracker
    ```
 
@@ -141,8 +141,11 @@ pct exec <CTID> -- workout-tracker-backup            # back up the database now
 The container's **Console** in the Proxmox web UI signs you in as root by itself, unless you set a root
 password when installing.
 
+This can share a Proxmox host with the base Workout Tracker's helper script: the two use different names (`sad-to-savage`
+for the hostname, host backups and settings folder), so neither lists or updates the other's containers.
+
 **Backups:** the database is backed up every day inside the container, and a copy goes to the Proxmox
-host as well, in `/var/backups/workout-tracker/<CTID>`, so losing the container doesn't lose them. The
+host as well, in `/var/backups/sad-to-savage/<CTID>`, so losing the container doesn't lose them. The
 newest 14 of each are kept. Advanced settings can put the host copies on a NAS storage instead. An install
 from before this asks whether you want them the next time you update it.
 
@@ -204,7 +207,7 @@ Sign in again at the new address, and add it to your home screen again. The step
 
 ## Settings for the server
 
-Most people only need these. They go in `/etc/workout-tracker/workout-tracker.env` on Proxmox (then
+Most people only need these. They go in `/etc/sad-to-savage/sad-to-savage.env` on Proxmox (then
 restart the app), or under `environment:` in `docker-compose.yml`.
 
 | Setting | Default | What it does |

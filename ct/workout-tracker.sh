@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Workout Tracker — Proxmox VE helper script
+# Sad to Savage Tracker — Proxmox VE helper script
 #
-# Creates an unprivileged Debian LXC, installs the Workout Tracker as a systemd
+# Creates an unprivileged Debian LXC, installs the Sad to Savage Tracker as a systemd
 # service, and prints the URL. Re-run it later to update.
+#
+# Everything it puts in a container's /etc, and on the Proxmox host (the backup script, its timers, the hostname and tag),
+# is named sad-to-savage, so it can sit beside the base Workout Tracker's helper script without either one finding,
+# updating or overwriting the other's containers.
 #
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-Sad-To-Savage/stable/ct/workout-tracker.sh)"
 #
@@ -13,9 +17,9 @@
 
 set -Eeuo pipefail
 
-APP="Workout Tracker"
+APP="Sad to Savage Tracker"
 SERVICE="workout-tracker"
-CONF_DIR="/etc/workout-tracker"
+CONF_DIR="/etc/sad-to-savage"
 CONF_FILE="$CONF_DIR/install.conf"
 
 # Remember which app settings came from the environment, so an update inside a
@@ -40,7 +44,7 @@ APP_PORT="${APP_PORT:-7846}"
 # is running with the app installed, and for an install it is the ID the new one is given.
 ACTION="${ACTION:-}"
 CTID="${CTID:-}"
-CT_HOSTNAME="${CT_HOSTNAME:-workout-tracker}"
+CT_HOSTNAME="${CT_HOSTNAME:-sad-to-savage}"
 CT_PASSWORD="${CT_PASSWORD:-}"
 DEBIAN_VERSION="${DEBIAN_VERSION:-12}"
 STORAGE="${STORAGE:-}"
@@ -59,7 +63,7 @@ ONBOOT="${ONBOOT:-1}"
 # Daily copies of the database kept on the Proxmox host, in a directory per container under this one ('none' for
 # none); see "Backups on the Proxmox host". Remembered whether it came from the environment, which an update obeys.
 _ENV_HOST_BACKUP_DIR="${HOST_BACKUP_DIR-}"
-HOST_BACKUP_DIR="${HOST_BACKUP_DIR:-/var/backups/workout-tracker}"
+HOST_BACKUP_DIR="${HOST_BACKUP_DIR:-/var/backups/sad-to-savage}"
 HOST_BACKUP_KEEP="${HOST_BACKUP_KEEP:-14}"
 # HTTPS through Tailscale (see "HTTPS with Tailscale"): 1 sets it up on an install or update. TS_AUTHKEY, an auth key
 # from the Tailscale admin console, signs the container in without anyone opening a link.
@@ -84,11 +88,8 @@ trap 'die "failed at line $LINENO: ${BASH_COMMAND}"' ERR
 header() {
   echo -e "${BL}"
   cat <<'EOF'
- __        __         _               _     _____              _
- \ \      / /__  _ __| | _____  _   _| |_  |_   _| __ __ _  ___| | _____ _ __
-  \ \ /\ / / _ \| '__| |/ / _ \| | | | __|   | || '__/ _` |/ __| |/ / _ \ '__|
-   \ V  V / (_) | |  |   < (_) | |_| | |_    | || | | (_| | (__|   <  __/ |
-    \_/\_/ \___/|_|  |_|\_\___/ \__,_|\__|   |_||_|  \__,_|\___|_|\_\___|_|
+  Sad to Savage Tracker
+  ---------------------
 EOF
   echo -e "${CL}"
 }
@@ -103,7 +104,7 @@ container_payload() {
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-CONF_FILE=/etc/workout-tracker/install.conf
+CONF_FILE=/etc/sad-to-savage/install.conf
 [[ -f "$CONF_FILE" ]] || { echo "missing $CONF_FILE" >&2; exit 1; }
 # shellcheck source=/dev/null
 . "$CONF_FILE"
@@ -160,7 +161,7 @@ case "$(getent shadow root | cut -d: -f2)" in
       step "signing the Proxmox console in as root, which has no password"
       mkdir -p "$(dirname "$autologin")"
       cat >"$autologin" <<'GETTY'
-# Written by the Workout Tracker installer while root had no password, which left the console with a login nothing
+# Written by the Sad to Savage Tracker installer while root had no password, which left the console with a login nothing
 # could pass. Once root has a password (passwd), delete this file and run systemctl daemon-reload to be asked for it.
 [Service]
 ExecStart=
@@ -261,10 +262,10 @@ chmod 750 "$DATA_DIR"
 find "$DATA_DIR" -maxdepth 1 -name 'workouts.db*' -exec chmod 0600 {} +
 
 # Settings for the server itself. Created once and never overwritten, so an update keeps what you set here.
-if [[ ! -f /etc/workout-tracker/workout-tracker.env ]]; then
-  step "writing /etc/workout-tracker/workout-tracker.env"
-  cat >/etc/workout-tracker/workout-tracker.env <<'ENVFILE'
-# Workout Tracker server settings. Updates never overwrite this file.
+if [[ ! -f /etc/sad-to-savage/sad-to-savage.env ]]; then
+  step "writing /etc/sad-to-savage/sad-to-savage.env"
+  cat >/etc/sad-to-savage/sad-to-savage.env <<'ENVFILE'
+# Sad to Savage Tracker server settings. Updates never overwrite this file.
 # Apply a change with: systemctl restart workout-tracker
 #
 # Stop anyone else creating an account once yours exist (existing accounts still sign in):
@@ -311,12 +312,12 @@ if [[ ! -f /etc/workout-tracker/workout-tracker.env ]]; then
 #SMTP_SECURITY=starttls
 #SMTP_USERNAME=you@gmail.com
 #SMTP_PASSWORD=your-app-password
-#SMTP_FROM=Workout Tracker <you@gmail.com>
+#SMTP_FROM=Sad to Savage Tracker <you@gmail.com>
 ENVFILE
 fi
 # It can hold the mail server's password, so only root reads it; systemd does so before starting the service as
 # $SERVICE_USER. Applied on every run, so installs from before it could hold a password are tightened too.
-chmod 0600 /etc/workout-tracker/workout-tracker.env
+chmod 0600 /etc/sad-to-savage/sad-to-savage.env
 
 step "writing systemd unit"
 # The unit as it was, so going back from a failed update (below) can put it back too: an update that adds to the unit and
@@ -326,7 +327,7 @@ unit_before=""
 [[ ! -f "$unit_file" ]] || unit_before="$(cat "$unit_file")"
 cat >"$unit_file" <<UNIT
 [Unit]
-Description=Workout Tracker
+Description=Sad to Savage Tracker
 Documentation=https://github.com/loganschwalm/WorkoutApp-Sad-To-Savage
 After=network-online.target
 Wants=network-online.target
@@ -340,7 +341,7 @@ Environment=PORT=$APP_PORT
 Environment=APP_ROOT=$APP_DIR/frontend
 Environment=WORKOUT_DB=$DATA_DIR/workouts.db
 Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=-/etc/workout-tracker/workout-tracker.env
+EnvironmentFile=-/etc/sad-to-savage/sad-to-savage.env
 ExecStart=/usr/bin/python3 $APP_DIR/backend/server.py
 Restart=always
 RestartSec=3
@@ -366,12 +367,12 @@ UNIT
 
 cat >/usr/local/bin/workout-tracker-backup <<'BACKUP'
 #!/usr/bin/env bash
-# Consistent snapshot of the Workout Tracker database, safe while it is running:
+# Consistent snapshot of the Sad to Savage Tracker database, safe while it is running:
 #   workout-tracker-backup [directory]      (default /var/backups/workout-tracker)
 # The newest BACKUP_KEEP snapshots in the directory are kept (14 unless install.conf says otherwise) and older ones
 # removed. workout-tracker-backup.timer runs it every day; running it by hand is fine too.
 set -Eeuo pipefail
-. /etc/workout-tracker/install.conf
+. /etc/sad-to-savage/install.conf
 dest="${1:-/var/backups/workout-tracker}"
 keep="${BACKUP_KEEP:-14}"
 [[ "$keep" =~ ^[1-9][0-9]*$ ]] || keep=14
@@ -392,7 +393,7 @@ chmod 0755 /usr/local/bin/workout-tracker-backup
 # Every day at about half past three, or at the next start if the container was off then (Persistent).
 cat >/etc/systemd/system/workout-tracker-backup.service <<'UNIT'
 [Unit]
-Description=Workout Tracker database backup
+Description=Sad to Savage Tracker database backup
 After=workout-tracker.service
 
 [Service]
@@ -402,7 +403,7 @@ Nice=10
 UNIT
 cat >/etc/systemd/system/workout-tracker-backup.timer <<'UNIT'
 [Unit]
-Description=Back up the Workout Tracker database every day
+Description=Back up the Sad to Savage Tracker database every day
 
 [Timer]
 OnCalendar=*-*-* 03:30:00
@@ -422,7 +423,7 @@ cat >/usr/local/bin/workout-tracker-admin <<'ADMIN'
 #   workout-tracker-admin delete-user <account>          delete an account and its workouts (asks first)
 # Run as root; the server switches to the service's user before it touches the database.
 set -Eeuo pipefail
-. /etc/workout-tracker/install.conf
+. /etc/sad-to-savage/install.conf
 export WORKOUT_DB="$DATA_DIR/workouts.db"
 exec python3 "$APP_DIR/backend/server.py" "$@"
 ADMIN
@@ -436,7 +437,7 @@ systemctl restart workout-tracker
 
 # Where the server answers: the address HOST names in its settings, unless that is every address. Asked for /api/auth/me,
 # which only a server that has opened (and migrated) the database answers, not a page any static file server could send.
-probe_host="$(sed -n 's/^[[:space:]]*HOST=//p' /etc/workout-tracker/workout-tracker.env 2>/dev/null | tail -n 1 | tr -d "\"' \t\r" || true)"
+probe_host="$(sed -n 's/^[[:space:]]*HOST=//p' /etc/sad-to-savage/sad-to-savage.env 2>/dev/null | tail -n 1 | tr -d "\"' \t\r" || true)"
 case "$probe_host" in
   '' | 0.0.0.0 | '::') probe_host=127.0.0.1 ;;
   *:*) probe_host="[$probe_host]" ;;
@@ -505,7 +506,7 @@ PAYLOAD
 
 render_conf() {
   cat <<EOF
-# Written by the Workout Tracker Proxmox helper script.
+# Written by the Sad to Savage Tracker Proxmox helper script.
 REPO_URL='$REPO_URL'
 BRANCH='$BRANCH'
 APP_DIR='$APP_DIR'
@@ -522,24 +523,24 @@ EOF
 # Backups on the Proxmox host
 # ---------------------------------------------------------------------------
 # The container backs its database up every day, but those copies go with it if the container is ever lost. So the
-# host keeps its own: a timer per container (workout-tracker-host-backup@<CTID>.timer) takes a fresh snapshot inside the
+# host keeps its own: a timer per container (sad-to-savage-host-backup@<CTID>.timer) takes a fresh snapshot inside the
 # container each day, copies it out with pct pull, and keeps the newest few. The container itself is left as it is: a
 # bind mount would need its user IDs mapped, and gets in the way of snapshots. Each container's directory and count
-# are in /etc/workout-tracker-host-backup/<CTID>.conf, written once and kept by later updates; an empty directory
+# are in /etc/sad-to-savage-host-backup/<CTID>.conf, written once and kept by later updates; an empty directory
 # there means host backups were turned down, so an update does not ask again.
-HOST_BACKUP_CONF_DIR=/etc/workout-tracker-host-backup
-HOST_BACKUP_BIN=/usr/local/sbin/workout-tracker-host-backup
+HOST_BACKUP_CONF_DIR=/etc/sad-to-savage-host-backup
+HOST_BACKUP_BIN=/usr/local/sbin/sad-to-savage-host-backup
 
 host_backup_script() {
   cat <<'HOSTBACKUP'
 #!/usr/bin/env bash
-# Copies a consistent snapshot of a Workout Tracker container's database to this Proxmox host:
-#   workout-tracker-host-backup <CTID>
-# The directory and how many to keep are in /etc/workout-tracker-host-backup/<CTID>.conf. The timer
-# workout-tracker-host-backup@<CTID>.timer runs it every day; running it by hand is fine too.
+# Copies a consistent snapshot of a Sad to Savage Tracker container's database to this Proxmox host:
+#   sad-to-savage-host-backup <CTID>
+# The directory and how many to keep are in /etc/sad-to-savage-host-backup/<CTID>.conf. The timer
+# sad-to-savage-host-backup@<CTID>.timer runs it every day; running it by hand is fine too.
 set -Eeuo pipefail
-ctid="${1:?usage: workout-tracker-host-backup <CTID>}"
-conf="/etc/workout-tracker-host-backup/$ctid.conf"
+ctid="${1:?usage: sad-to-savage-host-backup <CTID>}"
+conf="/etc/sad-to-savage-host-backup/$ctid.conf"
 [[ -f "$conf" ]] || { echo "LXC $ctid has no host backups set up ($conf is missing)" >&2; exit 1; }
 # shellcheck source=/dev/null
 . "$conf"
@@ -547,7 +548,7 @@ conf="/etc/workout-tracker-host-backup/$ctid.conf"
 keep="${HOST_BACKUP_KEEP:-14}"
 [[ "$keep" =~ ^[1-9][0-9]*$ ]] || keep=14
 if ! pct status "$ctid" >/dev/null 2>&1; then
-  echo "LXC $ctid no longer exists. Stop its backups with: systemctl disable --now workout-tracker-host-backup@$ctid.timer" >&2
+  echo "LXC $ctid no longer exists. Stop its backups with: systemctl disable --now sad-to-savage-host-backup@$ctid.timer" >&2
   exit 1
 fi
 [[ "$(pct status "$ctid")" == "status: running" ]] || { echo "LXC $ctid is not running, so it was not backed up" >&2; exit 1; }
@@ -556,12 +557,12 @@ umask 077
 mkdir -p "$HOST_BACKUP_DIR"
 chmod 0700 "$HOST_BACKUP_DIR"
 stamp="$(date +%Y%m%d-%H%M%S)"
-inside="/root/workout-tracker-host-backup-$stamp.db"
+inside="/root/sad-to-savage-host-backup-$stamp.db"
 out="$HOST_BACKUP_DIR/workouts-$stamp.db"
 trap 'pct exec "$ctid" -- rm -f "$inside" >/dev/null 2>&1 || true; rm -f "$out.partial"' EXIT
 # The same snapshot workout-tracker-backup takes, safe while the app runs, made here so the container's own set is
 # left alone.
-pct exec "$ctid" -- sh -c ". /etc/workout-tracker/install.conf && umask 077 && sqlite3 \"\$DATA_DIR/workouts.db\" \".backup '$inside'\""
+pct exec "$ctid" -- sh -c ". /etc/sad-to-savage/install.conf && umask 077 && sqlite3 \"\$DATA_DIR/workouts.db\" \".backup '$inside'\""
 # Copied under another name first, so a copy cut short is never mistaken for a backup.
 pct pull "$ctid" "$inside" "$out.partial"
 mv "$out.partial" "$out"
@@ -578,9 +579,9 @@ HOSTBACKUP
 write_host_backup_files() {
   host_backup_script >"$HOST_BACKUP_BIN"
   chmod 0755 "$HOST_BACKUP_BIN"
-  cat >/etc/systemd/system/workout-tracker-host-backup@.service <<UNIT
+  cat >/etc/systemd/system/sad-to-savage-host-backup@.service <<UNIT
 [Unit]
-Description=Copy the Workout Tracker database out of LXC %i to this host
+Description=Copy the Sad to Savage Tracker database out of LXC %i to this host
 After=pve-guests.service
 
 [Service]
@@ -589,9 +590,9 @@ ExecStart=$HOST_BACKUP_BIN %i
 Nice=10
 UNIT
   # Every day at about a quarter past four, after the container's own backup, or at the next start if the host was off.
-  cat >/etc/systemd/system/workout-tracker-host-backup@.timer <<'UNIT'
+  cat >/etc/systemd/system/sad-to-savage-host-backup@.timer <<'UNIT'
 [Unit]
-Description=Copy the Workout Tracker database out of LXC %i every day
+Description=Copy the Sad to Savage Tracker database out of LXC %i every day
 
 [Timer]
 OnCalendar=*-*-* 04:15:00
@@ -614,7 +615,7 @@ record_host_backups() {
   local ctid="$1" dir="$2"
   mkdir -p "$HOST_BACKUP_CONF_DIR"
   {
-    echo "# Daily copies of LXC $ctid's Workout Tracker database on this host (workout-tracker-host-backup@$ctid.timer)."
+    echo "# Daily copies of LXC $ctid's Sad to Savage Tracker database on this host (sad-to-savage-host-backup@$ctid.timer)."
     echo "# Empty, they are turned off: set a directory and run the helper script's update to start them."
     printf "HOST_BACKUP_DIR='%s'\nHOST_BACKUP_KEEP='%s'\n" "$dir" "$HOST_BACKUP_KEEP"
   } >"$HOST_BACKUP_CONF_DIR/$ctid.conf"
@@ -626,16 +627,16 @@ apply_host_backups() {
   write_host_backup_files
   dir="$(host_backup_dir_of "$ctid")"
   if [[ -z "$dir" ]]; then
-    systemctl disable --quiet --now "workout-tracker-host-backup@$ctid.timer" >/dev/null 2>&1 || true
+    systemctl disable --quiet --now "sad-to-savage-host-backup@$ctid.timer" >/dev/null 2>&1 || true
     return 0
   fi
-  systemctl enable --quiet --now "workout-tracker-host-backup@$ctid.timer"
+  systemctl enable --quiet --now "sad-to-savage-host-backup@$ctid.timer"
   msg_info "Copying a first backup of LXC $ctid to the host"
   if out="$("$HOST_BACKUP_BIN" "$ctid" 2>&1)"; then
     msg_ok "Daily backups on the host, in $dir (first: $(basename "$out"))"
   else
     msg_warn "The first backup on the host failed: ${out##*$'\n'}"
-    msg_warn "The timer stays on; see: journalctl -u workout-tracker-host-backup@$ctid"
+    msg_warn "The timer stays on; see: journalctl -u sad-to-savage-host-backup@$ctid"
   fi
 }
 
@@ -688,10 +689,10 @@ setup_https() {
   if [[ "$(ts_status "$ctid" 's.get("BackendState", "")')" != Running ]]; then
     if [[ -n "$TS_AUTHKEY" ]]; then
       msg_info "Signing LXC $ctid in to Tailscale with TS_AUTHKEY"
-      pct exec "$ctid" -- tailscale up --auth-key="$TS_AUTHKEY" --hostname="${name:-workout-tracker}"
+      pct exec "$ctid" -- tailscale up --auth-key="$TS_AUTHKEY" --hostname="${name:-sad-to-savage}"
     elif interactive; then
       msg_info "Open the link Tailscale prints below and sign in, to add LXC $ctid to your tailnet"
-      pct exec "$ctid" -- tailscale up --hostname="${name:-workout-tracker}"
+      pct exec "$ctid" -- tailscale up --hostname="${name:-sad-to-savage}"
     else
       die "LXC $ctid is not signed in to Tailscale. Set TS_AUTHKEY to an auth key from the Tailscale admin console, or run this from a terminal."
     fi
@@ -1028,7 +1029,7 @@ do_install() {
 
   msg_info "Creating LXC $CTID"
   pct create "${create[@]}" >/dev/null
-  pct set "$CTID" --tags "workout-tracker" >/dev/null 2>&1 || true
+  pct set "$CTID" --tags "sad-to-savage" >/dev/null 2>&1 || true
   msg_ok "LXC $CTID created"
 
   msg_info "Starting LXC $CTID"

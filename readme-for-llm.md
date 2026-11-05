@@ -1245,7 +1245,7 @@ script then:
    reads (`UMask=0077`; an update also closes a database an older install left readable), opens only network and local
    sockets, and gets no new privileges, namespaces, real-time scheduling or foreign system-call architectures. An update
    that fails to start puts the unit back as it was, with the code and the database.
-6. Creates `/etc/workout-tracker/workout-tracker.env` for [server settings](#server-settings), with
+6. Creates `/etc/sad-to-savage/sad-to-savage.env` for [server settings](#server-settings), with
    every option commented out. Updates never overwrite it.
 7. Waits until the app actually answers on its port, then prints the URL.
 
@@ -1259,7 +1259,7 @@ When it finishes, open the printed URL and **register your accounts**. Then clos
 nobody else on the network can create one:
 
 ```bash
-pct exec <CTID> -- sed -i 's/^#ALLOW_REGISTRATION=0/ALLOW_REGISTRATION=0/' /etc/workout-tracker/workout-tracker.env
+pct exec <CTID> -- sed -i 's/^#ALLOW_REGISTRATION=0/ALLOW_REGISTRATION=0/' /etc/sad-to-savage/sad-to-savage.env
 pct exec <CTID> -- systemctl restart workout-tracker
 ```
 
@@ -1267,16 +1267,25 @@ pct exec <CTID> -- systemctl restart workout-tracker
 
 | | |
 |---|---|
-| Container | unprivileged Debian 12, next free CTID, hostname `workout-tracker` |
+| Container | unprivileged Debian 12, next free CTID, hostname `sad-to-savage` |
 | Resources | 1 core, 512 MB RAM, 512 MB swap, 4 GB disk |
 | Network | bridge `vmbr0`, DHCP, starts on boot |
 | App | `http://<container-ip>:7846` |
 | Code | `/opt/workout-tracker` |
 | Database | `/var/lib/workout-tracker/workouts.db` |
-| Server settings | `/etc/workout-tracker/workout-tracker.env` |
+| Server settings | `/etc/sad-to-savage/sad-to-savage.env` |
 
 The database lives outside the code directory on purpose, so replacing the code on an update never
 replaces your data.
+
+The base Workout Tracker's helper script can be used on the same Proxmox host: everything this one puts in a
+container's `/etc` (`/etc/sad-to-savage`, which is also how the update and HTTPS menus recognise its containers), and
+on the host (`sad-to-savage-host-backup`, its systemd units and `/etc/sad-to-savage-host-backup`, the default
+hostname and the container tag) is named `sad-to-savage`, so neither script lists, updates or overwrites the other's
+containers. Each container has its own address, so both can keep port 7846. A container installed by an earlier
+version of this script keeps `/etc/workout-tracker`, which this version no longer looks for: move it by hand
+(`mv /etc/workout-tracker /etc/sad-to-savage` and rename `workout-tracker.env` in it to `sad-to-savage.env`, in the container)
+before running the update.
 
 #### Choosing settings without the menu
 
@@ -1296,7 +1305,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-
 |---|---|---|
 | `ACTION` | *(the menu, or install with no terminal)* | `install`, `update` or `https`: what to do with no menu, so a script or a scheduled job can update. `advanced` asks questions, so it needs a terminal. Anything else is refused before anything is done |
 | `CTID` | next free ID | LXC container ID: for an install the ID the new one is given; for `ACTION=update` or `https` the container to act on, which must be running with the app installed (another is never taken in its place) |
-| `CT_HOSTNAME` | `workout-tracker` | Container hostname |
+| `CT_HOSTNAME` | `sad-to-savage` | Container hostname |
 | `CT_PASSWORD` | *(none)* | Root password, which the container's console then asks for; blank means the console signs in as root by itself |
 | `DEBIAN_VERSION` | `12` | Debian template major version, `12` or `13` |
 | `STORAGE` | auto | Storage for the root disk, e.g. `local-lvm` |
@@ -1312,7 +1321,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/loganschwalm/WorkoutApp-
 | `APP_PORT` | `7846` | Port the app listens on |
 | `REPO_URL` / `BRANCH` | this repo / `stable` | Source to install from; `stable` only has commits whose tests passed |
 | `APP_DIR` / `DATA_DIR` | `/opt/workout-tracker` / `/var/lib/workout-tracker` | Code and database paths |
-| `HOST_BACKUP_DIR` | `/var/backups/workout-tracker` | Where on the Proxmox host to keep daily copies of the database, in a folder per container; `none` for none (see [Backups](#backups)) |
+| `HOST_BACKUP_DIR` | `/var/backups/sad-to-savage` | Where on the Proxmox host to keep daily copies of the database, in a folder per container; `none` for none (see [Backups](#backups)) |
 | `HOST_BACKUP_KEEP` | `14` | How many of those copies to keep |
 | `TAILSCALE` | `0` | `1` also serves the app over HTTPS through Tailscale, on an install or an update |
 | `TS_AUTHKEY` | *(none)* | A Tailscale auth key, which signs the container in to your tailnet with no link to open; needed with `TAILSCALE=1` when nobody is at a terminal |
@@ -1340,7 +1349,7 @@ An update can be undone, and undoes itself if the new version does not start:
   as it was.
 - The new version has 30 seconds to answer `/api/auth/me`, which only a server that has opened (and
   upgraded) the database answers. It is asked on the address `HOST` names in
-  `/etc/workout-tracker/workout-tracker.env`, or `127.0.0.1` without one.
+  `/etc/sad-to-savage/sad-to-savage.env`, or `127.0.0.1` without one.
 - If it does not answer, the update puts things back: the app is stopped, the database the failed version
   left (with its `-wal` and `-shm` files) is moved to `/var/backups/workout-tracker/failed-update-<date>-<time>-<commit>/`,
   the backup from before the update is put back, and the previous commit starts again. The update then
@@ -1350,7 +1359,7 @@ An update can be undone, and undoes itself if the new version does not start:
 Installs follow `stable` rather than `main`: every push lands on `main` at once, but `stable` only moves to
 a commit after every test has passed on it (see [Tests](#tests)), so a half-finished change never reaches
 your server. An install from before October 2026 that followed `main` moves to `stable` on its next
-update, once. To follow `main` anyway, set `BRANCH='main'` in `/etc/workout-tracker/install.conf` inside
+update, once. To follow `main` anyway, set `BRANCH='main'` in `/etc/sad-to-savage/install.conf` inside
 the container after that update; later updates keep it. While a repository has no `stable` branch (a fork,
 say), installs and updates use `main`.
 
@@ -1416,7 +1425,7 @@ pct exec <CTID> -- ls -l /var/backups/workout-tracker                     # what
 pct exec <CTID> -- systemctl list-timers workout-tracker-backup.timer     # when the next one runs
 ```
 
-To keep a different number, set `BACKUP_KEEP='30'` (say) in `/etc/workout-tracker/install.conf`
+To keep a different number, set `BACKUP_KEEP='30'` (say) in `/etc/sad-to-savage/install.conf`
 inside the container. Updates keep it. To keep backups off the container too, copy that directory
 somewhere else now and then, or use a Proxmox `vzdump` job as below.
 
@@ -1439,26 +1448,26 @@ For the whole container, use a normal Proxmox `vzdump` backup job. Because the d
 
 Backups inside the container go with it if the container is ever lost, so the host keeps copies of its
 own. A new install sets this up by default: every day at about a quarter past four (or at the next start,
-if the host was off then), `workout-tracker-host-backup@<CTID>.timer` on the host takes a fresh snapshot
+if the host was off then), `sad-to-savage-host-backup@<CTID>.timer` on the host takes a fresh snapshot
 inside the container, copies it out with `pct pull`, and keeps the newest 14 in
-`/var/backups/workout-tracker/<CTID>` on the host, readable by root only. The container itself is not
+`/var/backups/sad-to-savage/<CTID>` on the host, readable by root only. The container itself is not
 changed (no bind mount). Advanced settings ask for the directory: a storage mounted from a NAS, such as
-`/mnt/pve/nas/workout-tracker`, keeps the copies off the host's own disk too. `HOST_BACKUP_DIR=none`
+`/mnt/pve/nas/sad-to-savage`, keeps the copies off the host's own disk too. `HOST_BACKUP_DIR=none`
 leaves them out.
 
 An install from before this gets them when you next run the update from the host: from a terminal it asks
 (a no is remembered, so it does not ask again), and `HOST_BACKUP_DIR=/some/dir` or `HOST_BACKUP_DIR=none`
 on the update answers for it. The update takes a first copy straight away, so a problem shows at once.
-Each container's directory and count are in `/etc/workout-tracker-host-backup/<CTID>.conf` on the host,
+Each container's directory and count are in `/etc/sad-to-savage-host-backup/<CTID>.conf` on the host,
 which updates leave as they are; set `HOST_BACKUP_DIR=''` there to turn them off, or a directory to turn
 them on, and run the update.
 
 ```bash
-workout-tracker-host-backup <CTID>                              # one now, on the host
-ls -l /var/backups/workout-tracker/<CTID>                       # what is there
-systemctl list-timers 'workout-tracker-host-backup@*'           # when the next ones run
-journalctl -u workout-tracker-host-backup@<CTID>                # how the last ones went
-systemctl disable --now workout-tracker-host-backup@<CTID>.timer   # stop them (a container you deleted, say)
+sad-to-savage-host-backup <CTID>                              # one now, on the host
+ls -l /var/backups/sad-to-savage/<CTID>                       # what is there
+systemctl list-timers 'sad-to-savage-host-backup@*'           # when the next ones run
+journalctl -u sad-to-savage-host-backup@<CTID>                # how the last ones went
+systemctl disable --now sad-to-savage-host-backup@<CTID>.timer   # stop them (a container you deleted, say)
 ```
 
 A stopped container is not backed up (the timer's run fails and says so, and catches up at the next
@@ -1466,7 +1475,7 @@ one), and neither is one that no longer exists; that failure says how to stop th
 from the host, push it into the container and restore it as above:
 
 ```bash
-pct push <CTID> /var/backups/workout-tracker/<CTID>/workouts-20260926-041512.db /root/restore.db
+pct push <CTID> /var/backups/sad-to-savage/<CTID>/workouts-20260926-041512.db /root/restore.db
 pct enter <CTID>
 systemctl stop workout-tracker
 cp /root/restore.db /var/lib/workout-tracker/workouts.db
@@ -1565,7 +1574,7 @@ What is already in place:
   a merge past a count does; and an import that would is refused whole.
 - **Who can reach the port.** The server listens on every interface (`0.0.0.0`) unless `HOST` names one. With a reverse
   proxy on the same machine, publish the app to the proxy alone, so nothing goes around it: `HOST=127.0.0.1` (a
-  Proxmox install, in `workout-tracker.env`), or under Docker the published port, `"127.0.0.1:7846:7846"` in
+  Proxmox install, in `sad-to-savage.env`), or under Docker the published port, `"127.0.0.1:7846:7846"` in
   `docker-compose.yml` (inside a container the app must keep listening on every interface, or Docker cannot reach it,
   so `HOST` is not set there). A proxy on another machine needs the app reachable from it: then the firewall decides.
 - Sessions are stored as a SHA-256 hash of their token, so a copy of the database (a backup, say)
@@ -1650,10 +1659,10 @@ The server reads these environment variables:
 
 Where to set them:
 
-- **Proxmox install:** in `/etc/workout-tracker/workout-tracker.env` inside the container. The installer
+- **Proxmox install:** in `/etc/sad-to-savage/sad-to-savage.env` inside the container. The installer
   creates it with every option commented out, and updates never overwrite it. Apply a change with
   `pct exec <CTID> -- systemctl restart workout-tracker`. The port is the exception: the installer
-  manages it, so change `APP_PORT` in `/etc/workout-tracker/install.conf` and run the update instead of
+  manages it, so change `APP_PORT` in `/etc/sad-to-savage/install.conf` and run the update instead of
   setting `PORT` here.
 - **Docker Compose:** under `environment:` in `docker-compose.yml`, then `docker compose up -d`.
 - **Manual install:** `Environment=` lines in the systemd unit, then `systemctl daemon-reload` and a restart.
@@ -1709,7 +1718,7 @@ SMTP_FROM=Workout Tracker <you@gmail.com>
 and the sign-in page offers "Forgot password?". The server's log says which mail server it will use
 when it starts, and records each code it emails, or why sending failed.
 
-- **Proxmox:** put these in `/etc/workout-tracker/workout-tracker.env`. The installer makes that file
+- **Proxmox:** put these in `/etc/sad-to-savage/sad-to-savage.env`. The installer makes that file
   readable by root only, since it can now hold a password; systemd reads it before the service
   starts as the `workout` user.
 - **Docker Compose:** under `environment:` in `docker-compose.yml`, or in an `.env` file beside it.
@@ -1948,7 +1957,7 @@ done by hand except closing registration, but it is worth knowing what happens:
   - **Proxmox** containers still on the old default 8000 move to 7846 on their next update. The
     update says so and prints the new URL. A port you chose yourself is kept, and so is 6769 for a container
     that already moved there. To stay on (or go back to) 8000 or 6769, set `APP_PORT='8000'` in
-    `/etc/workout-tracker/install.conf` inside the container after this update and run the update again. The
+    `/etc/sad-to-savage/install.conf` inside the container after this update and run the update again. The
     move happens only once, so later updates keep it.
   - **Docker** moves to 7846 when you pull, because the mapping lives in `docker-compose.yml`. To
     keep the old address, change the mapping to `"8000:7846"` (or `"6769:7846"`).
