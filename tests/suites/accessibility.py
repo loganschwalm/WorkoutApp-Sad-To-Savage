@@ -341,3 +341,36 @@ def run(t):
     cdp.pause(0.6)
     path = cdp.ev("location.pathname")
     check('the next Back, with Settings shut, goes to the page before', path == '/history.html', path)
+
+    # ------------------------------------------------------------------ F11 the rest panel's buttons
+    print('F11 the rest panel is a dark block, and its buttons are readable on it in every colour theme')
+    # lint.py reads the colours each rule says it has; it cannot see one rule's background being cleared by another's, which is how
+    # End rest once came to be ink on ink. So this asks the browser what each button really is drawn in, against what is really behind.
+    open_tracker()
+    start(0)
+    cdp.pause(0.4)
+    cdp.ev("document.getElementById('restPanel').hidden = false")
+    unreadable = cdp.ev("""(() => {
+      const numbers = text => (text.match(/[\\d.]+/g) || []).slice(0, 4).map(Number);
+      const luminance = ([r, g, b]) => { const f = v => (v /= 255) <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
+      const ratio = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+      const groundOf = element => {
+        for (let node = element; node; node = node.parentElement) {
+          const colour = numbers(getComputedStyle(node).backgroundColor);
+          if (colour.length === 3 || (colour.length === 4 && colour[3] > .9)) return colour;
+        }
+        return numbers(getComputedStyle(document.body).backgroundColor);
+      };
+      const bad = [], before = document.documentElement.dataset.palette;
+      for (const palette of Object.keys(window.colorThemes)) {
+        window.setColorTheme(palette);
+        document.querySelectorAll('#restPanel button').forEach(button => {
+          const found = ratio(numbers(getComputedStyle(button).color), groundOf(button));
+          if (found < 4.5) bad.push(`${palette}: ${button.textContent.trim()} ${found.toFixed(2)}`);
+        });
+      }
+      window.setColorTheme(before);
+      return bad;
+    })()""")
+    check('End rest, the time adjusters, Start rest and the menu are all 4.5 to 1 or better, in all ten themes', unreadable == [], unreadable)
+    end_workout()

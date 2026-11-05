@@ -1309,6 +1309,10 @@ header { padding-bottom:18px; border-bottom:1px solid var(--rule); }
 button.primary, button.secondary, .button-link { border-radius:999px; font-size:.82rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
 button.secondary, .button-link.secondary { background:transparent; border:1px solid var(--accent-line); }
 .program-next .secondary { border:0; }
+/* The rest panel is ink, and its buttons say their own ground (see the rules for it above): the clear background and the ring of every
+   .secondary would leave End rest and -30s/+30s in ink on ink. The outlined ones (Start rest, ···) keep their ink background by id. */
+.rest-panel .rest-adjust button, .rest-panel #restEndBtn { background:var(--card); }
+.rest-panel button.secondary { border:0; }
 .badge, .due-tag { border-radius:6px; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
 .program-kicker { font-size:.78rem; letter-spacing:.14em; text-transform:uppercase; }
 .program-next { border-radius:6px; padding:26px 28px; }
