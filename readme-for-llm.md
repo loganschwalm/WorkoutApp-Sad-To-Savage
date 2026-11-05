@@ -227,8 +227,10 @@ own workouts, program, and settings.
   never stops your music; it carries a sound track and is sent back to its start before it ends rather than
   looping, since Safari lets the screen sleep under a video with no sound or one that loops. It stops whenever the
   page is hidden or the workout ends, and a refused start (Low Power Mode, say) is tried again with each set.
-  Settings can turn it off. The workout says what is being done, and if the phone locks anyway: set Auto-Lock to
-  Never while you train, or put the app behind HTTPS (see [Offline support needs HTTPS](#offline-support-needs-https)).
+  Settings can turn it off. Over `http://` the workout says what is being done, and if the phone locks anyway: set
+  Auto-Lock to Never while you train, or put the app behind HTTPS (see [Offline support needs HTTPS](#offline-support-needs-https)).
+  Over HTTPS, where the video is only a fallback, it says nothing (the note took a good deal of room); with the video
+  turned off in Settings it says that a locked phone cannot sound the rest alert.
   The server answers byte-range requests for the video (206), which Safari needs before it plays one.
 - **Big view**, a button in the workout's heading (`big-view.js`), draws the set to do and the rest clock in very large type,
   white on black whatever the theme, for reading from a few feet away with the phone propped on a bench. It is only a view

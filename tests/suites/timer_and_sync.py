@@ -153,7 +153,13 @@ def run(t):
     cdp.ev("Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request: async () => { throw new DOMException('no', 'NotAllowedError'); } } })")
     start(0)
     cdp.pause(0.4)
-    check('a browser that refuses the lock over HTTPS gets the note too, without the http:// advice', cdp.ev(f'!{NOTICE}.hidden') is True
+    check('a browser that refuses the lock over HTTPS says nothing while the video is keeping the screen on', cdp.ev(f'{NOTICE}.hidden') is True,
+          cdp.ev(f'{NOTICE}.textContent'))
+    end_workout()
+    cdp.ev("saveLocalState('settings', { ...getWorkoutSettings(), keepAwakeVideo: false })")
+    start(0)
+    cdp.pause(0.4)
+    check('with the video turned off it gets the note, without the http:// advice', cdp.ev(f'!{NOTICE}.hidden') is True
           and 'http://' not in cdp.ev(f'{NOTICE}.textContent') and 'locked phone' in cdp.ev(f'{NOTICE}.textContent'), cdp.ev(f'{NOTICE}.textContent'))
     end_workout()
     check('which goes with the workout as well', cdp.ev(f'{NOTICE}.hidden') is True)

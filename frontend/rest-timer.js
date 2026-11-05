@@ -231,10 +231,14 @@ function showScreenAwakeNotice(show, video = false) {
   if (show) {
     const advice = 'Keep the screen awake while you rest (on an iPhone, set Auto-Lock to Never while you train)';
     if (video) {
-      notice.textContent = window.isSecureContext
-        ? `This browser will not keep the screen on, so the app plays a silent video to do it. If your phone still locks during a rest, a locked phone cannot sound the rest alert: ${advice.charAt(0).toLowerCase()}${advice.slice(1)}.`
-        : 'Over a plain http:// address the browser will not keep the screen on, so the app plays a silent video to do it. '
-          + `If your phone still locks during a rest, a locked phone cannot sound the rest alert: ${advice.charAt(0).toLowerCase()}${advice.slice(1)}, or reach the app over HTTPS.`;
+      // Over HTTPS the video is only a fallback for a browser that gave no lock, and the note took a good deal of room in the
+      // workout for something that is usually working, so it is left out there. Over http:// it stays: the way out is HTTPS.
+      if (window.isSecureContext) {
+        notice.hidden = true;
+        return;
+      }
+      notice.textContent = 'Over a plain http:// address the browser will not keep the screen on, so the app plays a silent video to do it. '
+        + `If your phone still locks during a rest, a locked phone cannot sound the rest alert: ${advice.charAt(0).toLowerCase()}${advice.slice(1)}, or reach the app over HTTPS.`;
     } else {
       notice.textContent = window.isSecureContext
         ? `This browser will not keep the screen on, and a locked phone cannot sound the rest alert. ${advice}.`
