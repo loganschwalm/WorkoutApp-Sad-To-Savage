@@ -814,7 +814,11 @@ def run(t):
     weigh(186.6)
     check('weighing in again the same day replaces it', field('bodyweightFeedback') == 'Updated 186.6 lbs for today.'
           and cdp.ev(rows) == ['186.6 lbs', '185 lbs'] and field('bodyweightSummary').endswith('Up 1.6 lbs in 31 days'), field('bodyweightSummary'))
-    kept = t.wait_for(lambda: len(t.api('GET', '/api/state', token=lifter)[0].get('bodyweight', {})) == 2) and t.api('GET', '/api/state', token=lifter)[0]['bodyweight']
+    # Wait for the last change (today's replaced weight), not just for two days to exist: the first weigh-in of today and the earlier
+    # day arrive before the replacement does, and reading then finds today still at 182.4.
+    def kept_weights():
+        return t.api('GET', '/api/state', token=lifter)[0].get('bodyweight', {})
+    kept = t.wait_for(lambda: len(kept_weights()) == 2 and kept_weights().get(today_key, {}).get('weight') == 186.6) and kept_weights()
     check('the weights are kept with the account, by day, in the unit logged', kept and kept.get(today_key) == {'weight': 186.6, 'unit': 'lbs'}
           and all(entry['unit'] == 'lbs' for entry in kept.values()), kept)
     cdp.ev("saveLocalState('settings', { ...getWorkoutSettings(), unit: 'kg' }); window.dispatchEvent(new Event('settingschange'))")
