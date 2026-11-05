@@ -180,10 +180,16 @@ function renderActiveWorkout() {
   $('completeSetBtn').classList.toggle('secondary', timed);
   $('holdTimer').hidden = !timed;
   // A planned hold or session (a plank, the cool-down, a Pilates workout) has no weight to enter.
-  $('activeWeight').closest('.weight-entry').hidden = timed && Boolean(plan);
+  const plannedHold = timed && Boolean(plan);
   $('activeNotes').value = activeSession.notes || '';
   const defaults = nextSetDefaults(exercise, previous, timed);
-  $('activeWeight').value = defaults.weight;
+  // A bodyweight exercise (by its equipment in the library, guessed or chosen) that nothing gives a weight to, not the program's plan
+  // and not a set logged before, says so instead of asking for one. An exercise that is done with a weight on some days keeps its
+  // field, since that weight is what the defaults above are made of; the library's equipment is the way to take the field away.
+  const bodyweight = !plannedHold && exerciseDetails(exercise.name).equipment === 'bodyweight' && isBodyweight(defaults.weight);
+  $('activeWeight').closest('.weight-entry').hidden = plannedHold || bodyweight;
+  $('bodyweightLabel').hidden = !bodyweight;
+  $('activeWeight').value = bodyweight ? '' : defaults.weight;
   $('completedReps').value = defaults.reps;
   // After the field has its value: the label says the length the field holds.
   showSecondsLabel();

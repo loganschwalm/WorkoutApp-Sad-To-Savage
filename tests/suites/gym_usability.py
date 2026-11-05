@@ -697,6 +697,16 @@ def run(t):
     log('', 10)
     check('nor asked of a bodyweight exercise', text('activeExerciseName') == 'Dips' and not cdp.dialogs and sets_of(1) == [[0, 10]], f"{text('activeExerciseName')} {cdp.dialogs} {sets_of(1)}")
 
+    shown = "[!document.getElementById('activeWeight').closest('.weight-entry').hidden, !document.getElementById('bodyweightLabel').hidden]"
+    check('a bodyweight exercise with no weight says so instead of asking for one', cdp.ev(shown) == [False, True], cdp.ev(shown))
+    cdp.ev('goToExercise(0)')
+    cdp.pause(0.3)
+    check('and a lifted one still asks', cdp.ev(shown) == [True, False], cdp.ev(shown))
+    cdp.ev("setExerciseDetails('Dips', { equipment: 'other' }); goToExercise(1)")
+    cdp.pause(0.3)
+    check('unless the library says it is done with something else', cdp.ev(shown) == [True, False], cdp.ev(shown))
+    cdp.ev("setExerciseDetails('Dips', { equipment: '' })")
+
     cdp.ev('goToExercise(activeSession.exercises.length - 1)')
     cdp.pause(0.3)
     log(50, 10)

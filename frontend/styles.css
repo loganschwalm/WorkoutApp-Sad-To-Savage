@@ -217,6 +217,8 @@ html[data-theme="dark"] .danger, html[data-theme="dark"] .remove { color:#ff9eaa
 .active-exercise h3 { margin:0 0 6px; font-size:2.1rem; font-weight:400; letter-spacing:-.01em; line-height:1.05; }
 .notes-field { margin:16px 0; }
 .set-entry { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto; gap:12px; align-items:end; margin-top:8px; }
+.bodyweight-label { margin:0; padding-bottom:12px; color:var(--muted, inherit); font-size:.9rem; }
+.bodyweight-label strong { display:block; color:inherit; font-size:1rem; }
 .weight-stepper { display:flex; gap:6px; }
 .weight-stepper { gap:8px; }
 /* The weight is the number being worked on, so it is the biggest thing on the page, between steppers made for a thumb. */
@@ -552,7 +554,7 @@ input[type="range"] { padding:0; border:0; background:transparent; accent-color:
   header{align-items:flex-start; flex-wrap:wrap}
   .template-grid{grid-template-columns:1fr}
   .set-entry{grid-template-columns:1fr 1fr}
-  .set-entry .weight-entry{grid-column:1/-1}
+  .set-entry .weight-entry,.set-entry .bodyweight-label{grid-column:1/-1}
   .set-entry > button{width:100%}
   .section-heading-actions{align-items:flex-end; flex-direction:column; gap:8px}
   /* Metric and Exercise each have a line, since "All exercises" and the names under it do not fit half a phone. Under More filters

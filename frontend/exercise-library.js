@@ -70,7 +70,8 @@ function guessEquipment(name) {
   const kind = equipmentWords.find(([, words]) => words.test(name));
   if (kind) return kind[0];
   if (barbellWords.test(name) && !notBarbellWords.test(name)) return 'barbell';
-  return bodyweightWords.test(name) ? 'bodyweight' : '';
+  // A weighted one (Weighted Pull-Up) is not, since the Tracker takes the weight away from a bodyweight exercise.
+  return bodyweightWords.test(name) && !/\bweighted\b/i.test(name) ? 'bodyweight' : '';
 }
 
 let exerciseLibrary = loadExerciseLibrary();

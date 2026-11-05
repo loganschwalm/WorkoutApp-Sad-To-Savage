@@ -813,7 +813,10 @@ the app. Neither is the server's doing.
   Incline Dumbbell Curl is biceps. Every exercise in the program has a guess; a name that gives nothing
   away (Thruster) has none until you choose. Choosing applies to that exercise in every workout, past and to come, and
   the equipment decides the plates and warm-ups during a workout: a Bench Press marked Machine gets neither, and a
-  Landmine Press marked Barbell gets both. The list folds away under how many exercises there are and how many have no
+  Landmine Press marked Barbell gets both. An exercise marked Bodyweight (or guessed to be, unless its name says Weighted)
+  has no Weight field in the workout, only "Bodyweight" in its place, as long as nothing gives it a weight: the program's
+  plan, or a set logged before (`renderActiveWorkout` in `active-workout.js`). Marking it as another kind of equipment
+  brings the field back. The list folds away under how many exercises there are and how many have no
   muscle, and can be searched. A choice can be taken back: the first option of a chosen exercise says what the guess is
   (Guess: Chest), or Not set when the name gives none. Add exercise adds one of your own, with a muscle and equipment or left to the guess
   (shown as you type the name); it is then suggested wherever an exercise is typed, and can be removed until it is
