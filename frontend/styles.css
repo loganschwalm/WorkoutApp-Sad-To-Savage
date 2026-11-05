@@ -224,7 +224,7 @@ html[data-theme="dark"] .danger, html[data-theme="dark"] .remove { color:#ff9eaa
 .notes-field { margin:16px 0; }
 .set-entry { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto; gap:12px; align-items:end; margin-top:8px; }
 .bodyweight-label { margin:0; padding-bottom:12px; color:var(--muted, inherit); font-size:.9rem; }
-.bodyweight-label strong { display:block; color:inherit; font-size:1rem; }
+.bodyweight-label strong { margin-right:.5em; color:inherit; font-size:1rem; }
 .weight-stepper { display:flex; gap:6px; }
 .weight-stepper { gap:8px; }
 /* The weight is the number being worked on, so it is the biggest thing on the page, between steppers made for a thumb. */
@@ -987,6 +987,8 @@ h2 { margin-bottom:14px; }
   .settings-modal { width:100%; max-height:92%; padding:20px 18px calc(20px + env(safe-area-inset-bottom)); border-bottom:0; border-radius:24px 24px 0 0; }
   h2 { font-size:1.45rem; }
   .active-workout .section-heading { align-items:center; }
+  /* The workout's name is a line to read, not a page heading: smaller, so "W1D1 Upper Body Focus" stays on one line beside Big view. */
+  .active-workout .section-heading h2 { font-size:1.15rem; }
   /* The rest timer in two rows: the time with −30s and +30s, then End rest, Pause rest and ···, which opens Fix last set and
      Restart rest in a row under them (showRestMore, rest-timer.js). */
   .rest-panel { flex-wrap:wrap; gap:8px; }

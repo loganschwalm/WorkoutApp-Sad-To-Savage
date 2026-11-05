@@ -504,6 +504,7 @@ $('effortChoices').onclick = e => {
   effortChoice = effortChoice === Number(button.dataset.effort) ? null : Number(button.dataset.effort);
   renderEffort(activeSession.exercises[activeSession.currentIndex]);
   renderSetTags(activeSession.exercises[activeSession.currentIndex]);
+  renderLastSetLabels();
 };
 try { $('setTags').open = localStorage.getItem(setTagsOpenKey) === 'true'; } catch (error) { /* closed, then */ }
 $('setTags').addEventListener('toggle', () => {

@@ -295,7 +295,7 @@ function repeatLastSet() {
   logSet({ weightValue:String(last.weight || 0), reps:Number(last.reps), type:setTypeOf(last) });
 }
 $('repeatSetBtn').onclick = event => { if (!bouncedTap(event)) repeatLastSet(); };
-$('completedReps').oninput = () => { markInvalid($('completedReps'), false); syncHoldDisplay(); showSecondsLabel(); saveTypedEntry(); };
+$('completedReps').oninput = () => { markInvalid($('completedReps'), false); syncHoldDisplay(); showSecondsLabel(); saveTypedEntry(); renderLastSetLabels(); };
 // Logged sets can be corrected in place; a value that is not valid snaps back to what was logged.
 $('completedSets').onchange = e => {
   const index = Number(e.target.dataset.set);

@@ -36,7 +36,9 @@ def run(t):
     text, field, visible, click = t.text, t.field, t.visible, t.click
 
     def fill(weight, reps):
-        cdp.ev(f"document.getElementById('activeWeight').value = '{weight}'; document.getElementById('completedReps').value = '{reps}';")
+        # Typed, as far as the page can tell: the button shows or goes by what the fields hold.
+        cdp.ev(f"document.getElementById('activeWeight').value = '{weight}'; document.getElementById('completedReps').value = '{reps}';"
+               "['activeWeight', 'completedReps'].forEach(id => document.getElementById(id).dispatchEvent(new Event('input', { bubbles: true })))")
 
     def sets():
         return cdp.ev("activeSession.exercises[activeSession.currentIndex].sets.map(s => [s.weight, s.reps, s.rir ?? null])")
@@ -67,10 +69,11 @@ def run(t):
     check('the first exercise is Bench Press', text('activeExerciseName') == 'Bench Press', text('activeExerciseName'))
     check('with no set logged there is nothing to repeat, so no button', not visible('repeatSetBtn'))
     log(135, 5)
-    check('after a set, the button says what it would log', visible('repeatSetBtn') and text('repeatSetBtn') == 'Same as last set: 135 lbs × 5', text('repeatSetBtn'))
     check('the fields already hold that set, as before', (field('activeWeight'), field('completedReps')) == ('135', '5'))
+    check('so there is no button for it, Complete set doing the same', not visible('repeatSetBtn'))
     # What was typed for the next set is not what the button logs.
     fill(200, 3)
+    check('typing something else brings it back, saying what it would log', visible('repeatSetBtn') and text('repeatSetBtn') == 'Same as last set: 135 lbs × 5', text('repeatSetBtn'))
     click('repeatSetBtn')
     cdp.pause(0.3)
     check('one tap logs the last set again, not what the fields were changed to', sets() == [[135, 5, None], [135, 5, None]], sets())
@@ -105,6 +108,7 @@ def run(t):
     check('the next exercise, with none logged, has none to repeat', text('activeExerciseName') == 'Overhead Press' and not visible('repeatSetBtn'))
     click('prevExerciseBtn')
     cdp.pause(0.3)
+    fill(100, 1)
     check('and coming back, the last of Bench Press’s sets', visible('repeatSetBtn') and text('repeatSetBtn') == 'Same as last set: 145 lbs × 3', text('repeatSetBtn'))
 
     # The sets survive a reload, with the button.
@@ -112,6 +116,7 @@ def run(t):
     cdp.goto('/index.html')
     cdp.wait(ACTIVE)
     cdp.pause(0.6)
+    fill(100, 1)
     check('a reload keeps the repeated sets and the button', len(sets()) == 9 and visible('repeatSetBtn'), sets())
 
     # A timed exercise repeats its seconds, even with its hold running.
@@ -228,6 +233,7 @@ def run(t):
     cdp.wait(ACTIVE)
     cdp.pause(0.4)
     log(135, 5)
+    fill(100, 1)
     click('guideToggle')
     cdp.pause(0.3)
     box = cdp.ev("""(() => { const r = id => document.getElementById(id).getBoundingClientRect(); const b = r('repeatSetBtn'), v = r('guideVideo'), c = r('guideClose');

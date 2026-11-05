@@ -133,8 +133,9 @@ def run(t):
           cdp.ev("nextSetDefaults({ sets: [], note: 'New to strength: 7.5-10lb DBs', plan: [{ weight: '', reps: 12 }] }, null, false).weight") == 7.5)
     check('last time’s weight is used instead once there is one',
           cdp.ev("nextSetDefaults({ sets: [], plan: [{ weight: '', reps: 12, start: 7.5 }] }, { sets: [{ weight: 10, reps: 12 }], converted: false }, false).weight") == 10)
-    # The card of the circuit's moves says the reps and the set, so the line under it says only what the card does not: a warm-up.
-    check('the first set is a warm-up, which the line says and the card does not', target() == 'Warm-up set.', target())
+    # The card of the circuit's moves says the reps and the set, and Tag this set says it is a warm-up, so the circuit's moves have no line.
+    check('the first set is a warm-up, which Tag this set says, so there is no line under the card',
+          cdp.ev("document.getElementById('activeExerciseTarget').hidden") is True and cdp.ev("document.getElementById('setTagsSummary').textContent") == 'Tag this set · Warm-up', target())
     check('and the chips of its sets, which the card says as well, are not shown', cdp.ev("document.getElementById('activePlan').hidden") is True)
     check('the circuit is done as rounds: a set of each, then the next', 'Superset with Single DB Curl + Press and Band Pull Apart' in cdp.ev("document.getElementById('supersetLine').textContent"))
     moves = cdp.ev("[...document.querySelectorAll('#supersetMoves li')].map(li => [li.textContent, li.classList.contains('current')])")

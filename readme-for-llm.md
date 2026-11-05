@@ -322,7 +322,8 @@ own workouts, program, and settings.
   rest timer, records and checks of Complete set. A reps-left rating is the new set's own: none is copied from the set
   before, and one tapped first is used. A hold being timed is stopped, and the seconds of the last set logged, not those
   held so far. Bodyweight sets repeat as reps. The button repeats the last set of the exercise on screen, and is hidden
-  until that exercise has one.
+  until that exercise has one, and while the fields hold that very set (its weight, its reps, its kind, no reps left chosen), when
+  Complete set would do the same (`renderLastSetLabels` in `active-workout.js`, drawn again as the fields change). A hold's is always there.
 - How to do it, in the exercise's ⋯ menu, opens a few written cues for the exercise (setup, the movement, and the usual
   mistake) in a panel under its name, and a link to a video search for it (YouTube, in a new tab with
   `rel="noopener noreferrer"`): the link is the only thing that leaves the app, and only when tapped. The cues

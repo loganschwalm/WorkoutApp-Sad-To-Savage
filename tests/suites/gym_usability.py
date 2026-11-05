@@ -832,7 +832,9 @@ def run(t):
             cdp.send('Input.dispatchMouseEvent', type=kind, x=x, y=y, button='left', clickCount=1)
 
     def entry(weight, reps):
-        cdp.ev(f"document.getElementById('activeWeight').value = '{weight}'; document.getElementById('completedReps').value = '{reps}'")
+        # Typed, as far as the page can tell: Same as last set shows or goes by what the fields hold.
+        cdp.ev(f"document.getElementById('activeWeight').value = '{weight}'; document.getElementById('completedReps').value = '{reps}';"
+               "['activeWeight', 'completedReps'].forEach(id => document.getElementById(id).dispatchEvent(new Event('input', { bubbles: true })))")
 
     open_tracker()
     start(0)
@@ -849,6 +851,7 @@ def run(t):
     cdp.pause(0.3)
     check('a tap once the moment has passed logs the next set', sets_of(0) == [[135, 5], [145, 5]], sets_of(0))
     cdp.pause(0.7)
+    entry(100, 1)
     tap('repeatSetBtn')
     tap('repeatSetBtn')
     cdp.pause(0.3)

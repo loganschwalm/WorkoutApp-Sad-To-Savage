@@ -243,8 +243,12 @@ function renderLastSetLabels() {
   const timed = isTimed(exercise);
   const sets = exercise.sets || [];
   const lastSet = sets[sets.length - 1];
-  // Once a set is logged, one tap logs it again, whatever the fields were changed to since.
-  $('repeatSetBtn').hidden = !lastSet;
+  // Once a set is logged, one tap logs it again, whatever the fields were changed to since. While the fields still hold that very set (the
+  // weight, the reps, its kind and no reps left chosen), Complete set does the same, and the button is not shown: it is a row of the
+  // phone's screen for saying what the fields already say. A hold's seconds are not compared: a hold has its own buttons.
+  const same = lastSet && !timed && (Number(lastSet.weight) || 0) === (Number($('activeWeight').value) || 0)
+    && Number(lastSet.reps) === Number($('completedReps').value) && setTypeOf(lastSet) === currentSetType(exercise) && effortChoice === null;
+  $('repeatSetBtn').hidden = !lastSet || same;
   if (lastSet) textWithKinds($('repeatSetBtn'), `Same as last set: ${describeLoggedSets([lastSet], timed)}`);
   $('completedSetsToggle').hidden = !sets.length;
   // The list is folded away, so its label says what was just logged: "Completed sets (3) · last 145 lbs × 6".
