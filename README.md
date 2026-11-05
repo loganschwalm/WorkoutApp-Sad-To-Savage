@@ -60,7 +60,9 @@ library, with SQLite for storage, so there is no build step, no package manager 
 - A rest timer starts after each round, with a sound and vibration when it's over (−30s/+30s, End rest, pause), and is still
   there if the phone closes the app mid-rest. A timed set is a hold: Start timer counts it down, with Pause and Stop, and it is kept the same way.
 - Big view, a button in the workout, shows the set to do and the rest clock in very large type, to read from a few feet away.
-- A bodyweight exercise (Push-Up, Plank, Dips) says "Bodyweight" where the weight would go, instead of asking for one.
+- A bodyweight or band exercise (Push-Up, Plank, Band Pull Apart) says so where the weight would go, instead of asking for one.
+- On a phone, a workout has the screen to itself: the tab bar and header go while it is on, and the ⋯ menu has Progress, History,
+  Settings, Add an exercise, Workout notes and Finish early.
 - Swap an exercise when the equipment is taken, add one mid-workout, or put the exercises in another order.
 - Tag a set as a warm-up, a drop set, to failure or AMRAP (or change it later, even in a saved workout). Warm-ups and drop sets
   stay out of your records and estimated one-rep maxes; the program's warm-up sets are tagged for you.

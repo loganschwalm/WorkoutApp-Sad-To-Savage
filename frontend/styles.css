@@ -200,6 +200,12 @@ button:hover { transform:none; } button:active { transform:scale(.97); } .primar
 }
 .row-menu-items button { padding:10px 12px; color:var(--ink); background:none; font-size:.9rem; text-align:left; }
 .row-menu-items button:hover { background:var(--bg); transform:none; }
+.row-menu-items a { display:block; padding:10px 12px; color:var(--ink); border-radius:var(--radius-control); font-size:.9rem; font-weight:700; text-decoration:none; }
+.row-menu-items a:hover { background:var(--bg); }
+#workoutMenu .row-menu-items :is(a, button) { display:flex; align-items:center; min-height:44px; }
+/* The other pages and Settings are in the workout's menu for a phone only, where its header and tab bar are away while a workout is on
+   (below); a wide screen keeps both, so they are not repeated. */
+.row-menu-items .menu-link { display:none !important; }
 .row-menu-items .danger, html[data-theme="dark"] .row-menu-items .danger { color:#ab3a49; background:none; }
 html[data-theme="dark"] .row-menu-items .danger { color:#ff9eaa; }
 /* The workout that is due leads Recent workouts: marked, with its Start solid, the one thing this list suggests doing. */
@@ -214,7 +220,7 @@ html[data-theme="dark"] .row-menu-items .danger { color:#ff9eaa; }
 html[data-theme="dark"] .danger, html[data-theme="dark"] .remove { color:#ff9eaa; background:#482934; }
 .footer-actions { display:flex; justify-content:space-between; gap:12px; margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
 .active-exercise { padding:18px 0 8px; border-top:1px solid var(--line); }
-.active-exercise h3 { margin:0 0 6px; font-size:2.1rem; font-weight:400; letter-spacing:-.01em; line-height:1.05; }
+.active-exercise h3 { margin:0 0 6px; font-size:1.65rem; font-weight:400; letter-spacing:-.01em; line-height:1.05; }
 .notes-field { margin:16px 0; }
 .set-entry { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto; gap:12px; align-items:end; margin-top:8px; }
 .bodyweight-label { margin:0; padding-bottom:12px; color:var(--muted, inherit); font-size:.9rem; }
@@ -846,6 +852,13 @@ body.training .splash { display:none; }
      that the page brings up is not left under it. */
   html { scroll-padding-bottom:calc(var(--tab-bar) + 24px); }
 }
+/* While a workout is on, a phone's tab bar and header are away: they took about a sixth of the screen from the set, and the tab bar floated
+   right under Complete set. The other pages and Settings are in the workout's menu (.menu-link). */
+@media (max-width:620px) {
+  :root:has(#activeWorkout:not([hidden])) { --tab-bar:0px; }
+  body:has(#activeWorkout:not([hidden])) .site-nav, body:has(#activeWorkout:not([hidden])) .shell > header { display:none; }
+  body:has(#activeWorkout:not([hidden])) .row-menu-items .menu-link { display:flex !important; }
+}
 /* On a short screen the tab bar goes while a number is typed (body.typing, active-workout.js), since the keyboard takes most of the screen
    and the bar would sit over the field and Complete set. */
 @media (max-width:620px) and (max-height:700px) {
@@ -959,6 +972,8 @@ h2 { margin-bottom:14px; }
 .workout-extras { display:flex; flex-wrap:wrap; gap:10px 22px; margin-top:14px; }
 .workout-extras .add-exercise { margin-top:0; }
 .workout-extras .add-exercise[open] { flex-basis:100%; }
+/* Add an exercise and Workout notes are opened from the workout's menu (active-workout.js), so there is no row for them while they are shut. */
+#addActiveExercise:not([open]), #activeNotesToggle:not([open]) { display:none; }
 .footer-actions { margin-top:16px; padding-top:14px; justify-content:flex-end; }
 @media (max-width:620px) {
   .card { padding:16px; border-radius:var(--radius-panel); }
@@ -988,11 +1003,9 @@ h2 { margin-bottom:14px; }
   .set-field { gap:3px; font-size:.75rem; }
   .set-edit { padding:8px 7px; }
   .set-list .remove { width:28px; height:28px; font-size:1.05rem; }
-  /* On a phone the buttons take a row of their own, at the right, and Finish early (beside them on a wide screen) is a link under them, so
-     it is not squeezed out of the card by the two buttons' widths. */
+  /* On a phone the buttons take a row of their own, at the right. */
   .footer-actions { flex-direction:column; align-items:stretch; }
   .footer-buttons { align-self:flex-end; }
-  #finishEarlyBtn { align-self:flex-start; order:1; }
 }
 /* Headings never leave one word alone on their last line ("Apartment Gym / Upper A", not "Apartment Gym Upper / A"). */
 h1, h2, h3 { text-wrap:pretty; }

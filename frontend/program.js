@@ -174,6 +174,17 @@ function plannedTarget(exercise) {
   return plan.length === 1 ? 'The planned set is done.' : `All ${plan.length} planned sets done.`;
 }
 
+// The same line for a move in a superset, whose card above it already says the reps, the weight and which set it is on: what the card
+// does not say is whether the set is a warm-up and the note (the level's weight range), unless the card has the note's own words ("light
+// band"). '' when there is neither, and then the line is not shown. Once the move's planned sets are done it is plannedTarget's, which says so.
+function plannedTargetInSuperset(exercise) {
+  const next = exercise.plan[plannedDone(exercise)];
+  if (!next) return plannedTarget(exercise);
+  const onCard = exercise.note && supersetMoveUsing(exercise) === exercise.note.replace(/^[^:]*:\s*/, '');
+  const note = exercise.note && !onCard ? `${exercise.note}${/[.!?]$/.test(exercise.note) ? '' : '.'}` : '';
+  return [next.warmup ? 'Warm-up set.' : '', note].filter(Boolean).join(' ');
+}
+
 // Sets written the way a plan writes them: "3 × 12 reps each side".
 function describeSets(sets) {
   const runs = [];

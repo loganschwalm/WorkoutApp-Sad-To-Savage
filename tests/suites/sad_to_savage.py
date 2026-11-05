@@ -133,7 +133,9 @@ def run(t):
           cdp.ev("nextSetDefaults({ sets: [], note: 'New to strength: 7.5-10lb DBs', plan: [{ weight: '', reps: 12 }] }, null, false).weight") == 7.5)
     check('last time’s weight is used instead once there is one',
           cdp.ev("nextSetDefaults({ sets: [], plan: [{ weight: '', reps: 12, start: 7.5 }] }, { sets: [{ weight: 10, reps: 12 }], converted: false }, false).weight") == 10)
-    check('the first set is a warm-up, 15 reps each side', target() == 'Set 1 of 3, warm-up: 15 reps each side.', target())
+    # The card of the circuit's moves says the reps and the set, so the line under it says only what the card does not: a warm-up.
+    check('the first set is a warm-up, which the line says and the card does not', target() == 'Warm-up set.', target())
+    check('and the chips of its sets, which the card says as well, are not shown', cdp.ev("document.getElementById('activePlan').hidden") is True)
     check('the circuit is done as rounds: a set of each, then the next', 'Superset with Single DB Curl + Press and Band Pull Apart' in cdp.ev("document.getElementById('supersetLine').textContent"))
     moves = cdp.ev("[...document.querySelectorAll('#supersetMoves li')].map(li => [li.textContent, li.classList.contains('current')])")
     check('every move of the circuit is listed at once, with its target and how far along it is, the one on show marked',
@@ -144,9 +146,18 @@ def run(t):
     for _ in range(3):
         cdp.ev("document.getElementById('completedReps').value = '15'; document.getElementById('completeSetBtn').click();")
         cdp.pause(0.5)
-    check('after one of each the circuit starts again from its first move', cdp.ev("activeSession.exercises[activeSession.currentIndex].name") == 'Elevated Shoulder Taps'
-          and target().startswith('Set 2 of 3'), target())
+    check('after one of each the circuit starts again from its first move, the card on its second set', cdp.ev("activeSession.exercises[activeSession.currentIndex].name") == 'Elevated Shoulder Taps'
+          and cdp.ev("document.querySelector('#supersetMoves li.current').textContent") == 'Elevated Shoulder Taps15 reps each sideSet 2 of 3', cdp.ev("document.querySelector('#supersetMoves li.current').textContent"))
+    check('and the line saying it is a superset, said until a set is logged, is gone', cdp.ev("document.getElementById('supersetLine').hidden") is True)
     cdp.ev('goToExercise(3)')
+    check('a block of work says its level’s range in the line under the card, and nothing of the set', target() == 'New to strength: 7.5-10lb DBs.', target())
+    cdp.ev('goToExercise(4)')
+    check('a band move’s note, which the card already says as “light band”, is not said again', cdp.ev("document.getElementById('activeExerciseTarget').hidden") is True, target())
+    check('a band move shows Band where the weight would be, with no field for one',
+          cdp.ev("document.getElementById('activeWeight').closest('.weight-entry').hidden") is True and cdp.ev("document.getElementById('bodyweightLabel').hidden") is False
+          and cdp.ev("document.getElementById('bodyweightKind').textContent") == 'Band', cdp.ev("document.getElementById('bodyweightKind').textContent"))
+    cdp.ev('goToExercise(3)')
+    check('a dumbbell move still has its weight', cdp.ev("document.getElementById('activeWeight').closest('.weight-entry').hidden") is False and cdp.ev("document.getElementById('bodyweightLabel').hidden") is True)
     rows = cdp.ev("[...document.querySelectorAll('#supersetMoves li')].map(li => li.textContent)")
     check('a block of work lists its moves with the weight each starts at: 7.5 lbs for the press, its band for the fly', rows == ['DB Bench Chest Press12 reps · 7.5 lbsSet 1 of 3', 'Banded Single Arm Reverse Fly12 reps each side · light bandSet 1 of 3'], rows)
     cdp.ev('goToExercise(0)')

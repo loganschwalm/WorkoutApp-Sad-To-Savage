@@ -808,7 +808,8 @@ def run(t):
           and field('bodyweightSummary').endswith('Log it again to see how it moves'), field('bodyweightSummary'))
     check('and the chart is drawn', cdp.ev("document.getElementById('bodyweightChart').hidden") is False
           and 'Bodyweight: 1 weigh-in' in cdp.ev("document.getElementById('bodyweightChart').getAttribute('aria-label')"))
-    weigh(185, "calendarDayKey(new Date(Date.now() - 31 * 86400000))")
+    # 31 days back by the calendar, not by 31 × 24 hours: across a clock change that is a day off for the last hour of the evening.
+    weigh(185, "(d => { d.setDate(d.getDate() - 31); return calendarDayKey(d); })(new Date())")
     check('an earlier day goes in its place, newest first', cdp.ev(rows) == ['182.4 lbs', '185 lbs'], cdp.ev(rows))
     check('and the summary says how it has moved over the last month', field('bodyweightSummary').endswith('Down 2.6 lbs in 31 days'), field('bodyweightSummary'))
     weigh(186.6)

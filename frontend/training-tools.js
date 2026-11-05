@@ -281,16 +281,21 @@ function tidySupersets(session) {
 
 // What one move of a superset asks, for the list of them: its target ("12 reps each side", "30 seconds"), the weight it will start at
 // (from last time, or the plan's start; for a band or a bench, the plan's words for it) and how far through its sets it is.
+// What a move of a superset is done with, as its card says it: the weight it will start at, else the plan's words for it ("light band",
+// "on bench"), which are the note's, after the level's name; '' when there is neither.
+function supersetMoveUsing(exercise) {
+  const weight = Number(nextSetDefaults(exercise, lastTime(exercise.name), isTimed(exercise)).weight) || 0;
+  const words = exercise.note ? exercise.note.replace(/^[^:]*:\s*/, '') : '';
+  return weight > 0 ? `${formatWeight(weight)} ${weightUnit()}` : /^(\d|body|light|medium|heavy|on |from |supported|unsupported)/i.test(words) ? words : '';
+}
+
 function supersetMoveHtml(index, current) {
   const exercise = activeSession.exercises[index], timed = isTimed(exercise);
   const plan = Array.isArray(exercise.plan) && exercise.plan.length ? exercise.plan : null;
   const done = plan ? plannedDone(exercise) : exercise.sets.length;
   const next = plan ? plan[Math.min(done, plan.length - 1)] : null;
   const target = next ? formatPlannedSet(next) : `${exercise.reps} ${timed ? 'seconds' : 'reps'}`;
-  const weight = Number(nextSetDefaults(exercise, lastTime(exercise.name), timed).weight) || 0;
-  // The plan's words for what to use ("light band", "on bench") are the note's, after the level's name.
-  const words = exercise.note ? exercise.note.replace(/^[^:]*:\s*/, '') : '';
-  const using = weight > 0 ? `${formatWeight(weight)} ${weightUnit()}` : /^(\d|body|light|medium|heavy|on |from |supported|unsupported)/i.test(words) ? words : '';
+  const using = supersetMoveUsing(exercise);
   const progress = plan ? (done >= plan.length ? 'Done' : `Set ${done + 1} of ${plan.length}`) : plural(done, 'set');
   return `<li class="superset-move${current ? ' current' : ''}"><button type="button" data-superset-move="${index}"${current ? ' aria-current="true"' : ''}>`
     + `<span class="superset-move-name">${escapeHTML(exercise.name)}</span>`
@@ -302,7 +307,8 @@ function renderSuperset() {
   const session = activeSession, index = session.currentIndex;
   const members = supersetMembers(session, index);
   const inOne = members.length > 1;
-  $('supersetLine').hidden = !inOne;
+  // Said until a set of it is logged: after that the card of its moves is plain about it, and the line is room for the set entry.
+  $('supersetLine').hidden = !inOne || members.some(member => (session.exercises[member].sets || []).length > 0);
   if (inOne) {
     const others = members.filter(member => member !== index).map(member => session.exercises[member].name);
     $('supersetLine').textContent = `Superset with ${others.join(' and ')}: a set of each in turn, then rest.`;

@@ -163,12 +163,16 @@ function renderActiveWorkout() {
   $('activeExerciseName').textContent = exercise.name;
   // A target that changes (the next set of a plan, or another exercise) is folded again; one that does not stays read in full.
   const target = $('activeExerciseTarget');
-  const text = plan ? plannedTarget(exercise, previous)
+  // A planned move in a superset is on the card of its moves (renderSuperset), with its reps, weight and set; the line under it and the
+  // chips of its sets would say all of that again, so the line keeps only what the card leaves out, and the chips are not shown.
+  const inSuperset = Boolean(plan) && supersetMembers(activeSession, activeSession.currentIndex).length > 1;
+  const text = plan ? (inSuperset ? plannedTargetInSuperset(exercise) : plannedTarget(exercise, previous))
     : `Target: ${exercise.reps} ${timed ? 'seconds' : 'reps'}${exercise.weight ? ` at ${formatWeight(exercise.weight)} ${weightUnit()}` : ''}`;
   if (target.textContent !== text || target.dataset.exercise !== exercise.name) showTargetWhole(false);
   target.textContent = text;
+  target.hidden = !text;
   target.dataset.exercise = exercise.name;
-  $('activePlan').hidden = !plan;
+  $('activePlan').hidden = !plan || inSuperset;
   $('activePlan').innerHTML = plan ? planChipsHtml(exercise, plan) : '';
   $('activeExerciseLast').hidden = !previous;
   if (previous) {
@@ -186,10 +190,13 @@ function renderActiveWorkout() {
   // A bodyweight exercise (by its equipment in the library, guessed or chosen) that nothing gives a weight to, not the program's plan
   // and not a set logged before, says so instead of asking for one. An exercise that is done with a weight on some days keeps its
   // field, since that weight is what the defaults above are made of; the library's equipment is the way to take the field away.
-  const bodyweight = !plannedHold && exerciseDetails(exercise.name).equipment === 'bodyweight' && isBodyweight(defaults.weight);
-  $('activeWeight').closest('.weight-entry').hidden = plannedHold || bodyweight;
-  $('bodyweightLabel').hidden = !bodyweight;
-  $('activeWeight').value = bodyweight ? '' : defaults.weight;
+  // A band is the same: the plan's words for it ("light band") are on the card and in the note, and a weight to enter is not what it is.
+  const equipment = exerciseDetails(exercise.name).equipment;
+  const weightless = !plannedHold && (equipment === 'bodyweight' || equipment === 'band') && isBodyweight(defaults.weight);
+  $('activeWeight').closest('.weight-entry').hidden = plannedHold || weightless;
+  $('bodyweightLabel').hidden = !weightless;
+  $('bodyweightKind').textContent = equipment === 'band' ? 'Band' : 'Bodyweight';
+  $('activeWeight').value = weightless ? '' : defaults.weight;
   $('completedReps').value = defaults.reps;
   // After the field has its value: the label says the length the field holds.
   showSecondsLabel();
@@ -521,8 +528,18 @@ function goOnFromExercise() {
 $('nextExerciseBtn').onclick = goOnFromExercise;
 // The same, beside the set entry, once the planned sets are done (renderActiveProgress).
 $('doneNextBtn').onclick = goOnFromExercise;
-// Finish early ends the workout from any exercise, as Finish does on the last.
+// Finish early ends the workout from any exercise, as Finish does on the last. It is in the workout's menu, with what is seldom wanted
+// during a set: Add an exercise and Workout notes, whose folded rows used to take room under the set entry, and, on a phone, where the
+// page's tab bar and header have gone (styles.css), the other pages and Settings.
 $('finishEarlyBtn').onclick = () => { if (activeSession) finishWorkoutAsking(); };
+function openWorkoutPanel(panelId, fieldId) {
+  $(panelId).open = true;
+  scrollToCard($(panelId), 'nearest');
+  $(fieldId).focus();
+}
+$('addExerciseToggle').onclick = () => openWorkoutPanel('addActiveExercise', 'activeAddName');
+$('notesToggle').onclick = () => openWorkoutPanel('activeNotesToggle', 'activeNotes');
+$('settingsMenuBtn').onclick = () => $('settingsButton').click();
 $('prevExerciseBtn').onclick = () => { if (activeSession && activeSession.currentIndex > 0) goToExercise(activeSession.currentIndex - 1); };
 // Cancel takes the workout away without saving it, as if it had never been started: nothing joins History, last time's
 // numbers, the records or Progress, a program's day stays to do, and the server is told it ended. One started by mistake,

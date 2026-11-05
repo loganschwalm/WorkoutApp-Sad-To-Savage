@@ -449,19 +449,35 @@ def run(t):
         return cdp.ev(f"document.getElementById('{idn}').getBoundingClientRect().top")
 
     check('weight, reps and Complete set come straight after the exercise',
-          top('completeSetBtn') < top('activeNotesToggle'), f"set {top('completeSetBtn')} notes {top('activeNotesToggle')}")
+          top('completeSetBtn') < top('nextExerciseBtn'), f"set {top('completeSetBtn')} next {top('nextExerciseBtn')}")
     check('with no Completed sets until a set is logged', not visible('completedSetsToggle'))
-    check('Complete set is on the first screen of a phone, above the tab bar',
-          cdp.ev("document.getElementById('completeSetBtn').getBoundingClientRect().bottom <= document.querySelector('.site-nav').getBoundingClientRect().top") is True,
-          cdp.ev("document.getElementById('completeSetBtn').getBoundingClientRect().bottom"))
-    check('with the notes folded away', cdp.ev("document.getElementById('activeNotesToggle').open") is False)
-
-    # A phone's header is the title and Settings; the pages are a tab bar along the bottom of the screen.
-    bar = cdp.ev("(r => ({ top: r.top, bottom: r.bottom, vh: innerHeight, position: getComputedStyle(document.querySelector('.site-nav')).position }))"
-                 "(document.querySelector('.site-nav').getBoundingClientRect())")
-    # A pill floating a little above the edge (12px, and clear of the home indicator) is still along the bottom.
-    check('on a phone the pages are a tab bar along the bottom', bar['position'] == 'fixed' and 0 <= bar['vh'] - bar['bottom'] <= 24, bar)
-    check("and the header leaves out the page's tagline", cdp.ev("getComputedStyle(document.querySelector('header .subtitle')).display") == 'none')
+    check('Complete set is on the first screen of a phone, with room below it',
+          cdp.ev("document.getElementById('completeSetBtn').getBoundingClientRect().bottom <= innerHeight - 24") is True,
+          cdp.ev("[document.getElementById('completeSetBtn').getBoundingClientRect().bottom, innerHeight]"))
+    gone = "['.site-nav', '.shell > header', '#addActiveExercise', '#activeNotesToggle'].map(selector => getComputedStyle(document.querySelector(selector)).display)"
+    check('the notes and Add an exercise have no row until the menu opens them, and a phone’s tab bar and header are away during a workout',
+          cdp.ev(gone) == ['none'] * 4, cdp.ev(gone))
+    cdp.ev("document.getElementById('workoutMenu').open = true")
+    cdp.ev("document.getElementById('addExerciseToggle').click()")
+    cdp.pause(0.3)
+    check('Add an exercise, in the workout’s menu, opens its fields and puts the cursor in the name',
+          cdp.ev("document.getElementById('addActiveExercise').open") is True and cdp.ev("document.activeElement.id") == 'activeAddName'
+          and cdp.ev("document.getElementById('workoutMenu').open") is False, cdp.ev("document.activeElement.id"))
+    cdp.ev("document.getElementById('addActiveExercise').open = false; document.getElementById('workoutMenu').open = true")
+    cdp.ev("document.getElementById('notesToggle').click()")
+    cdp.pause(0.3)
+    check('and Workout notes the notes', cdp.ev("document.getElementById('activeNotesToggle').open") is True and cdp.ev("document.activeElement.id") == 'activeNotes')
+    cdp.ev("document.getElementById('activeNotesToggle').open = false")
+    items = cdp.ev("[...document.querySelectorAll('#workoutMenu .row-menu-items > :is(a, button)')].filter(e => getComputedStyle(e).display !== 'none').map(e => e.textContent)")
+    check('the menu also has the other pages and Settings, in place of the tab bar and header, and Finish early before the last exercise',
+          items == ['Add an exercise', 'Workout notes', 'Finish early', 'Progress', 'History', 'Settings', 'Cancel workout'], items)
+    cdp.ev("document.getElementById('workoutMenu').open = false")
+    # Settings is reached from the menu, the header's button being away.
+    cdp.ev("document.getElementById('settingsMenuBtn').click()")
+    cdp.pause(0.3)
+    check('Settings from the menu opens Settings', cdp.ev("document.getElementById('settingsModal').hidden") is False)
+    cdp.ev("document.getElementById('closeSettings').click()")
+    cdp.pause(0.2)
 
     def shown(selector):
         return cdp.ev(f"[...document.querySelectorAll('{selector}')].map(e => getComputedStyle(e).display !== 'none')")
@@ -593,11 +609,18 @@ def run(t):
     cdp.send('Emulation.setDeviceMetricsOverride', width=375, height=600, deviceScaleFactor=1, mobile=True)
     cdp.ev("document.getElementById('activeWorkoutProgress').click(); document.getElementById('addActiveExercise').open = true; scrollTo(0, 0)")
     cdp.pause(0.3)
-    pinned = cdp.ev("(r => ({ top: r.top, bottom: r.bottom, bar: document.querySelector('.site-nav').getBoundingClientRect().top,"
+    pinned = cdp.ev("(r => ({ top: r.top, bottom: r.bottom, bar: innerHeight - 12,"
                     " below: document.getElementById('completedSetsToggle').getBoundingClientRect().top }))(document.getElementById('restPanel').getBoundingClientRect())")
-    check('or scrolled above it, at the bottom of the screen over the tab bar', pinned['below'] > pinned['bar'] and 0 <= pinned['top'] and pinned['bottom'] <= pinned['bar'], pinned)
+    check('or scrolled above it, at the bottom of the screen', pinned['below'] > pinned['bar'] and 0 <= pinned['top'] and pinned['bottom'] <= pinned['bar'], pinned)
     cdp.send('Emulation.setDeviceMetricsOverride', width=375, height=740, deviceScaleFactor=1, mobile=True)
     end_workout()
+    # A phone's header is the title and Settings; the pages are a tab bar along the bottom of the screen, away only while a workout is on.
+    bar = cdp.ev("(r => ({ top: r.top, bottom: r.bottom, vh: innerHeight, position: getComputedStyle(document.querySelector('.site-nav')).position }))"
+                 "(document.querySelector('.site-nav').getBoundingClientRect())")
+    # A pill floating a little above the edge (12px, and clear of the home indicator) is still along the bottom.
+    check('once the workout ends the pages are a tab bar along the bottom again', bar['position'] == 'fixed' and 0 <= bar['vh'] - bar['bottom'] <= 24, bar)
+    check("and the header is back, without the page's tagline", cdp.ev("getComputedStyle(document.querySelector('.shell > header')).display") != 'none'
+          and cdp.ev("getComputedStyle(document.querySelector('header .subtitle')).display") == 'none')
     check('once the workout ends the rest of the Tracker is back', shown('.between-workouts')[1:] == [True] and not cdp.ev("getComputedStyle(document.getElementById('otherCardsToggle')).display !== 'none'"),
           shown('.between-workouts'))
 

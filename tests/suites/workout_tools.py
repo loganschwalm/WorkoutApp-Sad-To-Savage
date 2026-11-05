@@ -282,8 +282,10 @@ def run(t):
           text('swapHelp') == 'The new exercise keeps the 3 planned sets and their reps, with weights of your own.', text('swapHelp'))
     swap('Dumbbell Bench Press')
     plan = cdp.ev("[...document.querySelectorAll('#activePlan li')].map(li => li.textContent)")
-    check('the swap keeps the planned sets, not the plan’s weight range', plan == ['12 reps'] * 3 and text('activeExerciseTarget').startswith('Set 1 of 3: 12 reps.'),
-          f"{plan} {text('activeExerciseTarget')}")
+    # It is in a superset, whose card says the set and its reps, so there is no line under it (it had only the old exercise's range to say).
+    card = cdp.ev("document.querySelector('#supersetMoves li.current').textContent")
+    check('the swap keeps the planned sets, not the plan’s weight range', plan == ['12 reps'] * 3 and card.startswith('Dumbbell Bench Press12 reps') and card.endswith('Set 1 of 3')
+          and cdp.ev("document.getElementById('activeExerciseTarget').hidden") is True, f"{plan} {card} {text('activeExerciseTarget')}")
     check('and the rest', cdp.ev('restDuration()') == 90)
     for _ in range(3):
         log(50, 12)

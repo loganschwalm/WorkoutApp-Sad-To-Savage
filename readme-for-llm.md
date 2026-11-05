@@ -88,7 +88,11 @@ own workouts, program, and settings.
   days). History's says how many sessions there are and since when ("25 sessions since Sep 16, the latest on Oct 10"); this week is
   the calendar's own line. Neither shows on a phone, where the header is only the page's name.
 - During a workout the Tracker is only the workout: the program's card waits behind "Show the rest of the Tracker" under it, and comes
-  back when the workout ends.
+  back when the workout ends. On a phone the header and the tab bar are away as well (`:has(#activeWorkout:not([hidden]))` in
+  `styles.css`): they took about a sixth of the screen, and the tab bar floated right under Complete set. The workout's ⋯ menu has the
+  other pages (Progress, History) and Settings in their place, and Add an exercise, Workout notes and Finish early, whose rows used to
+  sit under the set entry (`openWorkoutPanel` in `active-workout.js`); the notes and the add-an-exercise fields have no row at all
+  until the menu opens them (or the workout has notes, which opens them as it always did).
 - On a phone the header is just the page's name and Settings, and Today, Progress and History are a tab bar along the bottom of the
   screen, in reach of a thumb: a pill floating just above the edge, an icon over each name (the SVGs in `frontend/icons/`, drawn with a
   CSS mask so they take the text colour, and precached). Dialogs, Settings among them, rise from the bottom as sheets there. On a wider
@@ -123,10 +127,9 @@ own workouts, program, and settings.
   Settings). Whether it is open is kept on this device (`workout-tracker-set-tags-open`), so someone who tags every set opens it once.
 - Complete set is answered with the one motion in the app: the next planned set pops in and the rest time settles. It is off for
   anyone who has asked for less motion, and moves no box, so a measure taken as it appears is unaffected.
-- Finish early, beside Next exercise until the last, ends the workout there: the exercises with sets are saved and the
-  rest left out, after asking first. Finish workout, which Next exercise becomes in the same place on the last exercise, asks
-  the same while any exercise has no sets, so a double tap on Next before the last cannot finish without it. On a phone Finish early
-  sits under the buttons, not beside them.
+- Finish early, in the workout's ⋯ menu until the last exercise, ends the workout there: the exercises with sets are saved and the
+  rest left out, after asking first. Finish workout, which Next exercise becomes beside Previous on the last exercise, asks
+  the same while any exercise has no sets, so a double tap on Next before the last cannot finish without it.
 - Once a move's planned sets are all logged, a solid Next exercise button (Finish workout on the last exercise) shows above the set
   entry, where the thumb is, since the footer's is below the fold on a phone. Complete set stays for an extra set. The footer's
   Previous and Next have widths of their own, so Next does not move from one exercise to the next.
@@ -180,7 +183,7 @@ own workouts, program, and settings.
   What to do this set and last time's sets are in the ink at body size, each run of sets kept whole when the line wraps. On a
   phone the target is three lines at most, with Read more for the rest, as last time's line is.
 - View completed sets during the workout, correct a set's weight or reps in place, or remove a set that was logged by mistake.
-  They fold away under Completed sets, beside Workout notes and Add an exercise, with a count of how many are done
+  They fold away under Completed sets, with a count of how many are done
   and the last one logged ("Completed sets (3) · last 145 lbs × 6").
 - On a phone, everything tapped during a workout is at least 44px, a tap on a weight or reps selects it so typing
   replaces it, and correcting a logged set does not zoom the page in on an iPhone.
@@ -353,7 +356,10 @@ own workouts, program, and settings.
   (`supersetMoveHtml` in `training-tools.js`): each a row with its target ("12 reps each side", "30 seconds"), the weight it will start
   at (last time's, or the plan's start; for a band or a bench, the plan's words for it) and how far along it is ("Set 2 of 3", "Done"),
   the one on show ringed, and a tap on a row goes to that move. Next exercise moves on past the whole superset, and an exercise added
-  mid-superset goes after it. Moving to another move of the superset folds the completed sets, as a change of exercise does.
+  mid-superset goes after it. Moving to another move of the superset folds the completed sets, as a change of exercise does. What the
+  card says is not said again below it: a planned move in a superset has no chips of its sets, the "Superset with ..." line is said only
+  until a set of it is logged, and the line under the card keeps only what the card leaves out (a warm-up set, and the level's note
+  unless the card has its words, as "light band"; `plannedTargetInSuperset` in `program.js`), and is not there when there is none.
 - Restore an active workout after refreshing the page.
 - Finish a workout by moving past its last exercise, or cancel it with Cancel workout, in the ⋯ menu in the workout's header: for a workout
   started by mistake, or one you do not want kept. A cancelled workout is not saved anywhere, as if it had never been
@@ -816,7 +822,7 @@ the app. Neither is the server's doing.
   Landmine Press marked Barbell gets both. An exercise marked Bodyweight (or guessed to be, unless its name says Weighted)
   has no Weight field in the workout, only "Bodyweight" in its place, as long as nothing gives it a weight: the program's
   plan, or a set logged before (`renderActiveWorkout` in `active-workout.js`). Marking it as another kind of equipment
-  brings the field back. The list folds away under how many exercises there are and how many have no
+  brings the field back. A band (a Band Pull Apart, a Banded Fly) is the same, and says "Band". The list folds away under how many exercises there are and how many have no
   muscle, and can be searched. A choice can be taken back: the first option of a chosen exercise says what the guess is
   (Guess: Chest), or Not set when the name gives none. Add exercise adds one of your own, with a muscle and equipment or left to the guess
   (shown as you type the name); it is then suggested wherever an exercise is typed, and can be removed until it is
